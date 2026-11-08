@@ -1335,7 +1335,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     } else if (view.dragging) {
       var dx = e.clientX - view.lastX;
       var dy = e.clientY - view.lastY;
-      view.tTheta -= dx * 0.0055;
+      view.tTheta += dx * 0.0055;
       view.tPhi = clamp(view.tPhi - dy * 0.0045, 0.42, 1.5);
       view.lastX = e.clientX;
       view.lastY = e.clientY;
