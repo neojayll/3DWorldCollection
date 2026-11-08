@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a1027">
+<meta name="description" content="三维世界收藏：收藏黄昏、星光与小小的岛。纯静态、离线可运行的 3D 世界入口。">
+<title>三维世界收藏 · 3D World Collection</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='38%25' r='62%25'%3E%3Cstop offset='0' stop-color='%23ffe2b8'/%3E%3Cstop offset='1' stop-color='%23ff8f63'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='%23241731'/%3E%3Ccircle cx='16' cy='15' r='9' fill='url(%23g)'/%3E%3Cpath d='M7 19h18c0 5.6-4 9-9 9s-9-3.4-9-9z' fill='%23522f45'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --ink: #ffe9d5;
+    --ink-soft: #e7cab6;
+    --ink-dim: rgba(255, 233, 213, 0.56);
+    --warm: #ffb37a;
+    --warm-deep: #ff8f63;
+    --line: rgba(255, 190, 150, 0.16);
+    --line-strong: rgba(255, 190, 150, 0.32);
+    --serif: Georgia, "Songti SC", "STSong", "SimSun", serif;
+    --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --ease: cubic-bezier(.22, .61, .36, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    min-height: 100vh;
+    font-family: var(--sans);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background: #100a18;
+    overflow-x: hidden;
+  }
+
+  /* ---------- 天幕 ---------- */
+  .sky {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(88% 62% at 50% -12%, rgba(255, 158, 106, 0.30), rgba(255, 158, 106, 0) 62%),
+      radial-gradient(62% 48% at 84% 4%, rgba(214, 106, 126, 0.26), rgba(214, 106, 126, 0) 64%),
+      radial-gradient(58% 48% at 12% 8%, rgba(128, 88, 156, 0.28), rgba(128, 88, 156, 0) 66%),
+      linear-gradient(180deg, #2b172f 0%, #241430 26%, #1a1027 56%, #120b1c 78%, #0d0815 100%);
+  }
+  .sky::after {
+    content: "";
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    top: 26vh;
+    height: 55vh;
+    background: linear-gradient(180deg,
+      rgba(255, 148, 96, 0) 0%,
+      rgba(255, 148, 96, 0.14) 38%,
+      rgba(232, 118, 108, 0.16) 56%,
+      rgba(255, 148, 96, 0) 100%);
+    filter: blur(26px);
+    opacity: 0.85;
+  }
+  .sun {
+    position: fixed;
+    z-index: 0;
+    top: -8vmin;
+    right: 6vw;
+    width: min(54vmin, 620px);
+    height: min(54vmin, 620px);
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 50%,
+      rgba(255, 226, 184, 0.26) 0%,
+      rgba(255, 166, 108, 0.22) 34%,
+      rgba(255, 138, 96, 0.10) 55%,
+      rgba(255, 138, 96, 0) 72%);
+    filter: blur(6px);
+    transform: translate3d(var(--px, 0), var(--py, 0), 0);
+    transition: transform 1.6s var(--ease);
+  }
+  .stars { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .stars span {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 226, 200, 0.9);
+    box-shadow: 0 0 6px rgba(255, 200, 160, 0.55);
+    animation: twinkle var(--dur, 6s) ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.14; transform: scale(0.7); }
+    50% { opacity: 0.72; transform: scale(1); }
+  }
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.045;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  }
+  .vignette {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(130% 100% at 50% 40%, rgba(0, 0, 0, 0) 46%, rgba(20, 8, 20, 0.34) 80%, rgba(12, 4, 14, 0.62) 100%),
+      linear-gradient(180deg, rgba(14, 8, 22, 0.26), rgba(14, 8, 22, 0) 22%, rgba(14, 8, 22, 0) 74%, rgba(12, 4, 14, 0.42));
+  }
+
+  /* ---------- 布局 ---------- */
+  .wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 clamp(20px, 4.5vw, 56px);
+  }
+  .masthead {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+    padding-top: clamp(58px, 9vh, 112px);
+  }
+  .masthead > .brand-panel {
+    animation: rise 1.2s var(--ease) both;
+  }
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    letter-spacing: 0.34em;
+    color: rgba(255, 206, 172, 0.7);
+    text-transform: uppercase;
+  }
+  .kicker::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--warm);
+    box-shadow: 0 0 10px rgba(255, 160, 100, 0.9);
+  }
+  h1 {
+    margin-top: clamp(18px, 2.6vw, 30px);
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(38px, 6.2vw, 76px);
+    line-height: 1.08;
+    letter-spacing: clamp(0.08em, 1vw, 0.16em);
+    text-shadow: 0 4px 42px rgba(52, 16, 26, 0.55);
+  }
+  h1 em {
+    font-style: normal;
+    color: var(--warm);
+    position: relative;
+  }
+  h1 em::after {
+    content: "";
+    position: absolute;
+    left: 0.06em;
+    right: 0.1em;
+    bottom: -0.12em;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255, 179, 122, 0.85), rgba(255, 179, 122, 0));
+  }
+  .tagline {
+    margin-top: clamp(18px, 2vw, 26px);
+    max-width: 30em;
+    font-size: clamp(12px, 1.1vw, 14px);
+    line-height: 2;
+    letter-spacing: 0.12em;
+    color: var(--ink-dim);
+  }
+  .meta {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    padding-bottom: 6px;
+    animation: rise 1.2s 0.18s var(--ease) both;
+    white-space: nowrap;
+  }
+  .meta .num {
+    font-family: var(--serif);
+    font-size: clamp(34px, 4vw, 52px);
+    line-height: 1;
+    color: var(--ink);
+    letter-spacing: 0.04em;
+  }
+  .meta .label {
+    font-size: 9px;
+    line-height: 1.8;
+    letter-spacing: 0.26em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    padding-bottom: 3px;
+  }
+  .meta .label b { display: block; font-weight: 400; color: rgba(255, 206, 172, 0.78); }
+
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: clamp(46px, 7vh, 80px);
+    animation: rise 1.2s 0.28s var(--ease) both;
+  }
+  .section-head h2 {
+    font-family: var(--serif);
+    font-size: clamp(13px, 1.3vw, 15px);
+    font-weight: 400;
+    letter-spacing: 0.3em;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .section-head .hair {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--line-strong), rgba(255, 190, 150, 0.02));
+  }
+  .section-head .en {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: rgba(255, 233, 213, 0.34);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .world-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 380px));
+    justify-content: center;
+    gap: clamp(22px, 3vw, 32px);
+    padding: clamp(28px, 4vh, 44px) 0 clamp(40px, 6vh, 64px);
+  }
+
+  /* ---------- 卡片 ---------- */
+  .card {
+    display: block;
+    position: relative;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 18px;
+    overflow: hidden;
+    background: rgba(32, 19, 35, 0.58);
+    border: 1px solid var(--line);
+    box-shadow: 0 18px 44px -22px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 226, 200, 0.04);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    opacity: 0;
+    transform: translateY(20px);
+    animation: cardIn 1.1s var(--ease) both;
+    animation-delay: calc(0.32s + var(--i, 0) * 0.09s);
+    transition: transform .42s var(--ease), border-color .42s ease, box-shadow .42s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .card:focus-visible {
+    outline: 2px solid rgba(255, 186, 132, 0.75);
+    outline-offset: 4px;
+  }
+  .card-media {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: linear-gradient(160deg, #3a2340, #1a1027);
+  }
+  .card-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scale(1.01);
+    transition: transform 1.1s var(--ease), filter .5s ease;
+    filter: saturate(0.98) brightness(0.96);
+  }
+  .card-media::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(to top, rgba(18, 9, 20, 0.72) 0%, rgba(18, 9, 20, 0.24) 30%, rgba(18, 9, 20, 0) 62%),
+      radial-gradient(120% 90% at 50% 0%, rgba(255, 150, 110, 0.14), rgba(255, 150, 110, 0) 55%);
+  }
+  .card-num {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    z-index: 1;
+    font-family: var(--serif);
+    font-size: 11px;
+    letter-spacing: 0.24em;
+    color: rgba(255, 233, 213, 0.62);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  }
+  .card-enter {
+    position: absolute;
+    right: 14px;
+    bottom: 13px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px 7px 15px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: rgba(255, 239, 222, 0.92);
+    border-radius: 999px;
+    border: 1px solid rgba(255, 196, 150, 0.26);
+    background: rgba(46, 24, 38, 0.34);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    transform: translateY(4px);
+    opacity: 0.55;
+    transition: opacity .4s ease, transform .4s var(--ease), background .4s ease;
+  }
+  .card-enter svg {
+    width: 13px;
+    height: 13px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.4;
+    transition: transform .4s var(--ease);
+  }
+
+  .card-body {
+    padding: 20px clamp(18px, 2.2vw, 24px) clamp(22px, 2.6vw, 26px);
+  }
+  .card-titles {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .card-titles h3 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(20px, 2vw, 24px);
+    letter-spacing: 0.12em;
+    color: var(--ink);
+  }
+  .card-titles .en {
+    font-size: 9px;
+    letter-spacing: 0.24em;
+    color: rgba(255, 206, 172, 0.5);
+    text-transform: uppercase;
+    white-space: nowrap;
+    transform: translateY(-1px);
+  }
+  .card-desc {
+    margin-top: 11px;
+    font-size: 12px;
+    line-height: 1.95;
+    letter-spacing: 0.045em;
+    color: var(--ink-dim);
+  }
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 190, 150, 0.1);
+  }
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    list-style: none;
+  }
+  .card-tags li {
+    padding: 4px 9px;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: rgba(255, 214, 186, 0.68);
+    border: 1px solid rgba(255, 190, 150, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 170, 130, 0.045);
+  }
+  .card-arrow {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 190, 150, 0.2);
+    color: rgba(255, 214, 182, 0.7);
+    transition: color .35s ease, border-color .35s ease, background .35s ease, transform .35s var(--ease);
+  }
+  .card-arrow svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.4;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .card:hover {
+      transform: translateY(-7px);
+      border-color: rgba(255, 186, 132, 0.38);
+      box-shadow: 0 30px 60px -26px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 180, 128, 0.08), 0 12px 44px -18px rgba(255, 140, 90, 0.32);
+    }
+    .card:hover .card-media img { transform: scale(1.055); filter: saturate(1.04) brightness(1.02); }
+    .card:hover .card-enter { opacity: 1; transform: translateY(0); background: rgba(78, 40, 50, 0.5); }
+    .card:hover .card-enter svg { transform: translateX(3px); }
+    .card:hover .card-arrow {
+      color: var(--ink);
+      border-color: rgba(255, 196, 150, 0.45);
+      background: rgba(255, 170, 130, 0.1);
+      transform: rotate(-45deg);
+    }
+  }
+
+  .ghost {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    min-height: 340px;
+    padding: 34px 26px;
+    border: 1px dashed rgba(255, 190, 150, 0.15);
+    border-radius: 18px;
+    text-align: center;
+    opacity: 0;
+    animation: cardIn 1.1s var(--ease) both;
+    animation-delay: calc(0.32s + var(--i, 1) * 0.09s);
+  }
+  .ghost-orbit {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 190, 150, 0.22);
+  }
+  .ghost-orbit::after {
+    content: "";
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 34% 28%, #ffe4bd, #ff9a62);
+    box-shadow: 0 0 20px rgba(255, 150, 100, 0.45);
+    animation: breathe 3.6s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 0.5; transform: scale(0.92); }
+    50% { opacity: 1; transform: scale(1.05); }
+  }
+  .ghost-title {
+    font-family: var(--serif);
+    font-size: 15px;
+    letter-spacing: 0.22em;
+    color: rgba(255, 233, 213, 0.5);
+  }
+  .ghost-title em {
+    display: block;
+    margin-top: 9px;
+    font-style: normal;
+    font-size: 9px;
+    letter-spacing: 0.32em;
+    color: rgba(255, 206, 172, 0.3);
+    text-transform: uppercase;
+  }
+  .ghost-note {
+    font-size: 10px;
+    line-height: 2.1;
+    letter-spacing: 0.1em;
+    color: rgba(255, 233, 213, 0.32);
+  }
+
+  .empty {
+    margin: 8px 0 56px;
+    padding: 34px 26px;
+    text-align: center;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    color: var(--ink-dim);
+    border: 1px dashed rgba(255, 190, 150, 0.18);
+    border-radius: 16px;
+  }
+  .empty[hidden] { display: none; }
+
+  .foot {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    padding: 26px 0 clamp(30px, 5vh, 48px);
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 190, 150, 0.1);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: rgba(255, 233, 213, 0.38);
+  }
+  .foot .sep { width: 3px; height: 3px; border-radius: 50%; background: rgba(255, 190, 150, 0.3); }
+
+  noscript .fallback {
+    margin: 24px 0 40px;
+    padding: 22px 24px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    font-size: 12px;
+    line-height: 2;
+    letter-spacing: 0.08em;
+    background: rgba(32, 19, 35, 0.5);
+  }
+  noscript .fallback a { color: var(--warm); margin-left: 10px; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 760px) {
+    .masthead {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 26px;
+      padding-top: 52px;
+    }
+    .meta { padding-bottom: 0; gap: 10px; }
+    .meta .num { font-size: 30px; }
+    .meta .label { font-size: 8px; letter-spacing: 0.2em; }
+    .tagline { max-width: none; font-size: 12px; }
+    .section-head { gap: 12px; }
+    .section-head .en { display: none; }
+    .world-list {
+      grid-template-columns: 1fr;
+      gap: 22px;
+      padding-top: 26px;
+    }
+    .card-media { aspect-ratio: 16 / 9.6; }
+    .card-body { padding: 18px 18px 20px; }
+    .card-enter { opacity: 0.9; transform: none; }
+    .card-titles h3 { font-size: 21px; }
+    .ghost { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+    .card { opacity: 1; transform: none; }
+    .ghost { opacity: 1; }
+    .ghost-orbit::after { animation: none; opacity: 1; }
+    .stars span { animation: none; opacity: 0.4; }
+  }
+</style>
+</head>
+<body>
+  <div class="sky" aria-hidden="true"></div>
+  <div class="sun" aria-hidden="true"></div>
+  <div class="stars" id="stars" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <header class="masthead">
+      <div class="brand-panel">
+        <p class="kicker">World Lobby · 世界入口</p>
+        <h1>三维世界<em>收藏</em></h1>
+        <p class="tagline">黄昏、星光与小小的岛，都收在一扇可以推开的门后。选一个世界，走进去。</p>
+      </div>
+      <aside class="meta" aria-label="世界数量">
+        <span class="num" id="world-count">01</span>
+        <span class="label"><b>个世界</b>Worlds</span>
+      </aside>
+    </header>
+
+    <main>
+      <div class="section-head">
+        <h2>常驻世界</h2>
+        <span class="hair"></span>
+        <span class="en">Collected Worlds</span>
+      </div>
+
+      <div class="world-list" id="world-list" aria-live="polite"></div>
+      <p class="empty" id="world-empty" hidden>清单里还没有世界。先编辑 <code>worlds/manifest.json</code> 吧。</p>
+
+      <noscript>
+        <div class="fallback">
+          当前浏览器未启用 JavaScript，卡片无法渲染。默认世界仍可直接打开：<a href="worlds/dusk-isle/index.html">暮色浮岛 · Dusk Isle →</a>
+        </div>
+      </noscript>
+    </main>
+
+    <footer class="foot">
+      <span>三维世界收藏 · 3D World Collection</span>
+      <span class="sep"></span>
+      <span>纯静态 · 离线可开</span>
+      <span class="sep"></span>
+      <span>新增世界只需登记 worlds/manifest.json</span>
+    </footer>
+  </div>
+
+  <!-- 内联清单：file:// 下浏览器会拦截对本地 JSON 的 fetch，这里保留一份由 tools/sync-manifest.mjs 自动同步的副本 -->
+  <!-- MANIFEST:BEGIN -->
+  <script type="application/json" id="manifest-inline">
+  {
+    "version": 1,
+    "worlds": [
+      {
+        "id": "dusk-isle",
+        "name": "暮色浮岛",
+        "nameEn": "Dusk Isle",
+        "description": "黄昏之下，一座低多边形小岛缓缓浮游，木屋刚亮起灯。",
+        "entry": "worlds/dusk-isle/index.html",
+        "cover": "worlds/dusk-isle/preview.jpg",
+        "tags": [
+          "黄昏",
+          "低多边形",
+          "可交互"
+        ],
+        "added": "2026-11"
+      }
+    ]
+  }
+  </script>
+  <!-- MANIFEST:END -->
+
+<script>
+(function () {
+  'use strict';
+
+  var list = document.getElementById('world-list');
+  var empty = document.getElementById('world-empty');
+  var countEl = document.getElementById('world-count');
+  var stars = document.getElementById('stars');
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>';
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function readInlineManifest() {
+    var node = document.getElementById('manifest-inline');
+    if (!node) return null;
+    try { return JSON.parse(node.textContent); } catch (err) { return null; }
+  }
+
+  function usableWorlds(data) {
+    if (!data || !Array.isArray(data.worlds)) return [];
+    return data.worlds.filter(function (w) {
+      return w && typeof w.id === 'string' && typeof w.name === 'string' &&
+        typeof w.entry === 'string' && w.entry.length > 0;
+    });
+  }
+
+  function pad(n) { return n < 10 ? '0' + n : String(n); }
+
+  function card(world, index) {
+    var cover = typeof world.cover === 'string' ? world.cover : '';
+    var tags = Array.isArray(world.tags) ? world.tags.slice(0, 4) : [];
+    var tagsHtml = tags.length
+      ? '<ul class="card-tags">' + tags.map(function (t) {
+          return '<li>' + escapeHtml(t) + '</li>';
+        }).join('') + '</ul>'
+      : '<span></span>';
+
+    return '' +
+      '<a class="card" href="' + escapeHtml(world.entry) + '" style="--i:' + index + '" aria-label="进入 ' + escapeHtml(world.name) + '">' +
+        '<div class="card-media">' +
+          (cover ? '<img src="' + escapeHtml(cover) + '" alt="' + escapeHtml(world.name) + ' 预览图" loading="lazy" decoding="async">' : '') +
+          '<span class="card-num">' + pad(index + 1) + '</span>' +
+          '<span class="card-enter">进入' + ARROW + '</span>' +
+        '</div>' +
+        '<div class="card-body">' +
+          '<div class="card-titles">' +
+            '<h3>' + escapeHtml(world.name) + '</h3>' +
+            (world.nameEn ? '<span class="en">' + escapeHtml(world.nameEn) + '</span>' : '') +
+          '</div>' +
+          (world.description ? '<p class="card-desc">' + escapeHtml(world.description) + '</p>' : '') +
+          '<div class="card-foot">' + tagsHtml +
+            '<span class="card-arrow">' + ARROW + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</a>';
+  }
+
+  function ghostTile(index) {
+    return '' +
+      '<div class="ghost" style="--i:' + index + '" aria-hidden="true">' +
+        '<span class="ghost-orbit"></span>' +
+        '<p class="ghost-title">下一个世界<em>Next World</em></p>' +
+        '<p class="ghost-note">在 worlds/manifest.json 登记后<br>它就会出现在这里</p>' +
+      '</div>';
+  }
+
+  function render(worlds) {
+    var html = worlds.map(card).join('');
+    // 世界较少时补一个虚位，让画廊不至于空荡；窄屏下隐藏
+    if (worlds.length > 0 && worlds.length < 3) html += ghostTile(worlds.length);
+    list.innerHTML = html;
+    countEl.textContent = pad(worlds.length);
+    empty.hidden = worlds.length > 0;
+  }
+
+  function makeStars() {
+    if (!stars || reduceMotion) return;
+    var count = window.innerWidth < 760 ? 16 : 28;
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      var size = Math.random() < 0.2 ? 2.4 : 1.4;
+      html += '<span style="left:' + (Math.random() * 100).toFixed(2) + '%;' +
+        'top:' + (Math.random() * 62).toFixed(2) + '%;' +
+        'width:' + size + 'px;height:' + size + 'px;' +
+        '--dur:' + (4 + Math.random() * 7).toFixed(1) + 's;' +
+        '--delay:' + (Math.random() * 6).toFixed(1) + 's;"></span>';
+    }
+    stars.innerHTML = html;
+  }
+
+  function parallax() {
+    if (reduceMotion || !window.matchMedia || !window.matchMedia('(hover: hover)').matches) return;
+    var frame = 0;
+    window.addEventListener('pointermove', function (e) {
+      if (frame) return;
+      frame = requestAnimationFrame(function () {
+        var x = (e.clientX / window.innerWidth - 0.5) * 2;
+        var y = (e.clientY / window.innerHeight - 0.5) * 2;
+        document.documentElement.style.setProperty('--px', (x * 14).toFixed(1) + 'px');
+        document.documentElement.style.setProperty('--py', (y * 10).toFixed(1) + 'px');
+        frame = 0;
+      });
+    });
+  }
+
+  function loadManifest() {
+    var inline = readInlineManifest();
+    var inlineWorlds = usableWorlds(inline);
+
+    // file:// 下浏览器会拦截本地 JSON 的 fetch（CORS），直接用内联副本，避免控制台报错
+    if (location.protocol === 'file:') {
+      render(inlineWorlds);
+      return;
+    }
+
+    fetch('worlds/manifest.json', { cache: 'no-store' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('manifest ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        var worlds = usableWorlds(data);
+        render(worlds.length ? worlds : inlineWorlds);
+      })
+      .catch(function () {
+        // 网络或路径异常时回退到内联副本，页面依旧可用
+        render(inlineWorlds);
+      });
+  }
+
+  makeStars();
+  loadManifest();
+  parallax();
+})();
+</script>
+</body>
+</html>

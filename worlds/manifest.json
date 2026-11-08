@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "worlds": [
+    {
+      "id": "dusk-isle",
+      "name": "暮色浮岛",
+      "nameEn": "Dusk Isle",
+      "description": "黄昏之下，一座低多边形小岛缓缓浮游，木屋刚亮起灯。",
+      "entry": "worlds/dusk-isle/index.html",
+      "cover": "worlds/dusk-isle/preview.jpg",
+      "tags": ["黄昏", "低多边形", "可交互"],
+      "added": "2026-11"
+    }
+  ]
+}

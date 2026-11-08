@@ -1,0 +1,17 @@
+# 文本文件统一 LF，避免在不同系统上产生无意义的换行差异
+* text=auto eol=lf
+
+*.html text
+*.css text
+*.js text
+*.mjs text
+*.json text
+*.md text
+
+# 二进制资源不要当文本处理（也不会做 diff/merge）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
