@@ -20,6 +20,16 @@
       "cover": "worlds/lantern-ferry/preview.jpg",
       "tags": ["黄昏", "河灯", "可交互"],
       "added": "2026-11"
+    },
+    {
+      "id": "frost-sanctum",
+      "name": "霜月圣殿",
+      "nameEn": "Frost Moon Sanctum",
+      "description": "极夜冰湖之上，月光把霜与极光凝成一座会呼吸的水晶圣殿。",
+      "entry": "worlds/frost-sanctum/index.html",
+      "cover": "worlds/frost-sanctum/preview.jpg",
+      "tags": ["极夜", "冰湖", "极光"],
+      "added": "2026-11"
     }
   ]
 }
