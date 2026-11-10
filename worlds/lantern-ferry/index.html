@@ -1061,7 +1061,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       lastX = e.clientX;
       lastY = e.clientY;
       moved += Math.abs(dx) + Math.abs(dy);
-      view.tTheta -= dx * 0.0038;
+      view.tTheta += dx * 0.0038;
       view.tPhi -= dy * 0.0028;
       view.tTheta = clamp(view.tTheta, THETA_MIN, THETA_MAX);
       view.tPhi = clamp(view.tPhi, PHI_MIN, PHI_MAX);
