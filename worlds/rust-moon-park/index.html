@@ -2188,8 +2188,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var bloomGroup = new THREE.Group();
   bloomGroup.visible = false;
   scene.add(bloomGroup);
-  var bloomStemMat = new THREE.MeshStandardMaterial({ color: '#5f8a49', roughness: 0.95, transparent: true, opacity: 0, flatShading: true });
-  var bloomHeadMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, transparent: true, opacity: 0, flatShading: true });
+  var bloomStemMat = new THREE.MeshStandardMaterial({ color: '#5f8a49', roughness: 0.95, transparent: true, opacity: 1, flatShading: true });
+  var bloomHeadMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, transparent: true, opacity: 1, flatShading: true });
+  var bloomStems = null;
+  var bloomHeads = null;
+  var bloomItems = [];
+  var bloomDummy = new THREE.Object3D();
+  var lastBloomW = -1;
   (function () {
     var count = 230;
     var stemGeo = new THREE.CylinderGeometry(0.035, 0.045, 0.62, 4);
@@ -2198,38 +2203,55 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       { g: new THREE.IcosahedronGeometry(0.14, 0), m: new THREE.Matrix4().makeTranslation(0.2, 0.1, 0.08) },
       { g: new THREE.IcosahedronGeometry(0.13, 0), m: new THREE.Matrix4().makeTranslation(-0.16, 0.04, -0.13) }
     ]);
-    var stems = new THREE.InstancedMesh(stemGeo, bloomStemMat, count);
-    var heads = new THREE.InstancedMesh(headGeo, bloomHeadMat, count);
-    var dummy = new THREE.Object3D();
+    bloomStems = new THREE.InstancedMesh(stemGeo, bloomStemMat, count);
+    bloomHeads = new THREE.InstancedMesh(headGeo, bloomHeadMat, count);
+    bloomStems.frustumCulled = false;
+    bloomHeads.frustumCulled = false;
     var cols = ['#f3a6bf', '#f8c9d8', '#fbe6b4', '#ffffff', '#e98bb2', '#f7d7e2'];
     for (var i = 0; i < count; i++) {
       var a = rand(0, Math.PI * 2);
       var r = 15.5 + Math.pow(rand(0, 1), 1.55) * 37.5;
-      var x = Math.cos(a) * r, z = Math.sin(a) * r;
       var s = rand(0.75, 1.45);
-      dummy.position.set(x, 0.31 * s, z);
-      dummy.scale.set(s, s, s);
-      dummy.rotation.y = rand(0, Math.PI);
-      dummy.updateMatrix();
-      stems.setMatrixAt(i, dummy.matrix);
-      dummy.position.y = 0.65 * s;
-      var hs = s * rand(1.15, 1.95);
-      dummy.scale.set(hs, hs * 0.85, hs);
-      dummy.updateMatrix();
-      heads.setMatrixAt(i, dummy.matrix);
-      heads.setColorAt(i, new THREE.Color(cols[i % cols.length]));
+      bloomItems.push({
+        x: Math.cos(a) * r, z: Math.sin(a) * r, s: s, ry: rand(0, Math.PI),
+        hs: s * rand(1.15, 1.95),
+        delay: (r - 15.5) / 37.5 * 0.42 + rand(0, 0.06)
+      });
+      bloomHeads.setColorAt(i, new THREE.Color(cols[i % cols.length]));
     }
-    stems.instanceMatrix.needsUpdate = true;
-    heads.instanceMatrix.needsUpdate = true;
-    if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
-    bloomGroup.add(stems);
-    bloomGroup.add(heads);
+    if (bloomHeads.instanceColor) bloomHeads.instanceColor.needsUpdate = true;
+    bloomGroup.add(bloomStems);
+    bloomGroup.add(bloomHeads);
   })();
+
+  function updateBloom(wB) {
+    if (!bloomStems || Math.abs(wB - lastBloomW) < 0.002) return;
+    lastBloomW = wB;
+    for (var i = 0; i < bloomItems.length; i++) {
+      var it = bloomItems[i];
+      var k = clamp((wB - it.delay) / 0.42, 0, 1);
+      k = k * k * (3 - 2 * k);
+      var st = it.s * k;
+      bloomDummy.rotation.set(0, it.ry, 0);
+      bloomDummy.position.set(it.x, 0.31 * st, it.z);
+      bloomDummy.scale.set(st, st, st);
+      bloomDummy.updateMatrix();
+      bloomStems.setMatrixAt(i, bloomDummy.matrix);
+      var hs = it.hs * k;
+      bloomDummy.position.y = 0.65 * st;
+      bloomDummy.scale.set(hs, hs * 0.85, hs);
+      bloomDummy.updateMatrix();
+      bloomHeads.setMatrixAt(i, bloomDummy.matrix);
+    }
+    bloomStems.instanceMatrix.needsUpdate = true;
+    bloomHeads.instanceMatrix.needsUpdate = true;
+  }
 
   // blossom trees
   var bloomTreeMats = [];
   (function () {
-    var trunkMat = new THREE.MeshStandardMaterial({ color: '#6f4a3a', roughness: 0.95, flatShading: true });
+    var trunkMat = new THREE.MeshStandardMaterial({ color: '#6f4a3a', roughness: 0.95, flatShading: true, transparent: true, opacity: 0 });
+    bloomTreeMats.push(trunkMat);
     [[-46, -8], [-45, 13], [15, -39], [46, -37], [-9, 43], [31, 38], [-37, 39], [-18, 34], [35, 31]].forEach(function (p, i) {
       var g = new THREE.Group();
       g.position.set(p[0], 0, p[1]);
@@ -2624,52 +2646,120 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ruin overgrowth: climbing vines, hanging tendrils, ground runners   */
   /* ------------------------------------------------------------------ */
 
-  var vineMats = [];
   var vineMeshes = [];
+  var vineGrowU = { value: 0 };
 
-  function vineMaterial(hex, emissive) {
+  function vineMaterial(hex, emissive, isLeaf) {
     var m = new THREE.MeshStandardMaterial({
       color: hex,
       roughness: 0.95,
       metalness: 0,
       flatShading: true,
       transparent: true,
-      opacity: 0,
+      opacity: 1,
       depthWrite: false,
       emissive: emissive || '#16260f',
       emissiveIntensity: 0.16
     });
-    vineMats.push(m);
+    m.onBeforeCompile = function (shader) {
+      shader.uniforms.uGrow = vineGrowU;
+      shader.vertexShader = 'uniform float uGrow;\nattribute vec2 aGrow;\nattribute vec3 aCenter;\n' + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        isLeaf
+          ? 'float vg = smoothstep(0.0, 1.0, clamp((uGrow - aGrow.y) / 0.52, 0.0, 1.0));\n' +
+            'float vk = smoothstep(0.0, 0.035, vg - aGrow.x);\n' +
+            'vec3 transformed = aCenter + (position - aCenter) * vk;'
+          : 'float vg = smoothstep(0.0, 1.0, clamp((uGrow - aGrow.y) / 0.52, 0.0, 1.0));\n' +
+            'float vr = clamp((vg - aGrow.x) / 0.035, 0.0, 1.0);\n' +
+            'vec3 transformed = aCenter + (position - aCenter) * vr;'
+      );
+    };
+    m.customProgramCacheKey = function () { return isLeaf ? 'vine-leaf' : 'vine-stem'; };
     return m;
   }
 
-  var vineStemMat = vineMaterial('#4d6739', '#111d0b');
-  var vineLeafMatA = vineMaterial('#648546', '#14220d');
-  var vineLeafMatB = vineMaterial('#82a25a', '#18280f');
+  var vineStemMat = vineMaterial('#4d6739', '#111d0b', false);
+  var vineLeafMatA = vineMaterial('#648546', '#14220d', true);
+  var vineLeafMatB = vineMaterial('#82a25a', '#18280f', true);
 
-  function mergeVineLeaves(baseGeo, transforms) {
+  function vineStemGeo(curve, seg, radius, delay) {
+    var g = new THREE.TubeGeometry(curve, seg, radius, 5, false);
+    var rings = seg + 1;
+    var cen = new Float32Array(rings * 6 * 3);
+    var grow = new Float32Array(rings * 6 * 2);
+    var c = new THREE.Vector3();
+    for (var i = 0; i < rings; i++) {
+      curve.getPointAt(i / seg, c);
+      for (var j = 0; j < 6; j++) {
+        var k = i * 6 + j;
+        cen[k * 3] = c.x; cen[k * 3 + 1] = c.y; cen[k * 3 + 2] = c.z;
+        grow[k * 2] = i / seg; grow[k * 2 + 1] = delay;
+      }
+    }
+    g.setAttribute('aCenter', new THREE.BufferAttribute(cen, 3));
+    g.setAttribute('aGrow', new THREE.BufferAttribute(grow, 2));
+    return g;
+  }
+
+  function mergeVineStems(geos) {
+    var pos = [], nor = [], cen = [], grow = [];
+    geos.forEach(function (g) {
+      var ng = g.index ? g.toNonIndexed() : g;
+      var p = ng.attributes.position.array;
+      var n = ng.attributes.normal.array;
+      var c = ng.attributes.aCenter.array;
+      var gr = ng.attributes.aGrow.array;
+      var i;
+      for (i = 0; i < p.length; i++) pos.push(p[i]);
+      for (i = 0; i < n.length; i++) nor.push(n[i]);
+      for (i = 0; i < c.length; i++) cen.push(c[i]);
+      for (i = 0; i < gr.length; i++) grow.push(gr[i]);
+      g.dispose();
+      if (ng !== g) ng.dispose();
+    });
+    var out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    out.setAttribute('aCenter', new THREE.Float32BufferAttribute(cen, 3));
+    out.setAttribute('aGrow', new THREE.Float32BufferAttribute(grow, 2));
+    out.computeBoundingSphere();
+    return out;
+  }
+
+  function mergeVineLeaves(baseGeo, leaves) {
     var src = baseGeo.index ? baseGeo.toNonIndexed() : baseGeo;
     var p0 = src.attributes.position.array;
     var n0 = src.attributes.normal.array;
     var pos = [];
     var nor = [];
+    var cen = [];
+    var grow = [];
     var v = new THREE.Vector3();
     var nv = new THREE.Vector3();
     var nm = new THREE.Matrix3();
-    for (var t = 0; t < transforms.length; t++) {
-      var m = transforms[t];
+    var c = new THREE.Vector3();
+    for (var t = 0; t < leaves.length; t++) {
+      var leaf = leaves[t];
+      var m = leaf.m;
+      c.setFromMatrixPosition(m);
       nm.getNormalMatrix(m);
       for (var i = 0; i < p0.length; i += 3) {
         v.set(p0[i], p0[i + 1], p0[i + 2]).applyMatrix4(m);
         pos.push(v.x, v.y, v.z);
         nv.set(n0[i], n0[i + 1], n0[i + 2]).applyMatrix3(nm).normalize();
         nor.push(nv.x, nv.y, nv.z);
+        cen.push(c.x, c.y, c.z);
+        grow.push(leaf.t, leaf.delay);
       }
     }
     var out = new THREE.BufferGeometry();
     out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    out.setAttribute('aCenter', new THREE.Float32BufferAttribute(cen, 3));
+    out.setAttribute('aGrow', new THREE.Float32BufferAttribute(grow, 2));
     out.computeBoundingSphere();
+    if (src !== baseGeo) src.dispose();
     return out;
   }
 
@@ -2677,12 +2767,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var stems = [];
     var leavesA = [];
     var leavesB = [];
+    var vDelay = rand(0, 0.42);
     specs.forEach(function (spec) {
       if (!spec || !spec.pts || spec.pts.length < 2) return;
       var curve = new THREE.CatmullRomCurve3(spec.pts);
       var len = curve.getLength();
       var seg = spec.seg || Math.round(clamp(len * 2.4, 14, 64));
-      stems.push(new THREE.TubeGeometry(curve, seg, spec.r || 0.16, 5, false));
+      stems.push(vineStemGeo(curve, seg, spec.r || 0.16, vDelay));
       var count = spec.leaves !== undefined ? spec.leaves : Math.round(clamp(len * 2.2, 4, 40));
       for (var i = 1; i <= count; i++) {
         var t = i / (count + 1);
@@ -2692,12 +2783,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         var q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rand(0, 6.28), rand(0, 6.28), rand(0, 6.28)));
         var mm = new THREE.Matrix4();
         mm.compose(p, q, new THREE.Vector3(sc * rand(1.0, 1.6), sc * rand(0.4, 0.65), sc * rand(0.8, 1.3)));
-        (i % 2 ? leavesA : leavesB).push(mm);
+        (i % 2 ? leavesA : leavesB).push({ m: mm, t: t, delay: vDelay });
       }
     });
-    var vDelay = rand(0, 0.42);
     if (stems.length) {
-      var sm = new THREE.Mesh(mergeGeometries(stems.map(function (g) { return { g: g }; })), vineStemMat);
+      var sm = new THREE.Mesh(mergeVineStems(stems), vineStemMat);
       sm.userData.delay = vDelay;
       parent.add(sm);
       vineMeshes.push(sm);
@@ -4209,15 +4299,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     weedMesh.instanceMatrix.needsUpdate = true;
 
-    for (var v = 0; v < vineMats.length; v++) {
-      vineMats[v].opacity = ruinMix > 0.004 ? 1 : 0;
-    }
+    vineGrowU.value = ruinMix;
     for (var vv2 = 0; vv2 < vineMeshes.length; vv2++) {
       var vm = vineMeshes[vv2];
-      var gv = clamp((ruinMix - (vm.userData.delay || 0)) / 0.55, 0, 1);
-      gv = gv * gv * (3 - 2 * gv);
-      vm.scale.y = 0.02 + gv * 0.98;
-      vm.visible = gv > 0.002;
+      vm.visible = ruinMix > (vm.userData.delay || 0) - 0.02;
     }
   }
 
@@ -4356,9 +4441,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     snowU.uTime.value = amb;
     snowU.uOpacity.value = wS;
 
+    updateBloom(wB);
     bloomGroup.visible = wB > 0.012;
-    bloomStemMat.opacity = wB;
-    bloomHeadMat.opacity = wB;
     for (var btm = 0; btm < bloomTreeMats.length; btm++) bloomTreeMats[btm].opacity = wB;
     flutterU.uTime.value = amb;
     flutterU.uOpacity.value = wB;
