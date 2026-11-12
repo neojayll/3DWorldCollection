@@ -40,6 +40,16 @@
       "cover": "worlds/rust-moon-park/preview.jpg",
       "tags": ["游乐园", "黄昏", "可切换"],
       "added": "2026-11"
+    },
+    {
+      "id": "cliff-lantern",
+      "name": "崖灯守屋",
+      "nameEn": "Cliff Lantern",
+      "description": "黄昏海崖上，守塔人的小屋亮着灯，可推门入内逐间探访，再登上灯室。",
+      "entry": "worlds/cliff-lantern/index.html",
+      "cover": "worlds/cliff-lantern/preview.jpg",
+      "tags": ["灯塔", "可进入", "黄昏"],
+      "added": "2026-11"
     }
   ]
 }
