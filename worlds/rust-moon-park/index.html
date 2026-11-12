@@ -216,6 +216,44 @@
   .back:hover { color: #fff8ec; border-color: rgba(242, 181, 68, 0.55); background: rgba(52, 38, 34, 0.68); }
   .back:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
+  .sound {
+    position: fixed;
+    top: calc(clamp(18px, 3.6vw, 40px) + env(safe-area-inset-top, 0px) + 46px);
+    right: calc(clamp(16px, 3.6vw, 44px) + env(safe-area-inset-right, 0px));
+    z-index: 5;
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 7px 14px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: rgba(246, 234, 214, 0.62);
+    border: 1px solid rgba(246, 234, 214, 0.18);
+    border-radius: 999px;
+    background: rgba(30, 22, 23, 0.52);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: color .25s ease, border-color .25s ease, background .25s ease;
+  }
+  .sound svg { width: 15px; height: 15px; flex: none; }
+  .sound .waves { opacity: 0; transition: opacity .25s ease; }
+  .sound[aria-pressed="true"] .waves { opacity: 1; }
+  .sound .slash { opacity: 1; transition: opacity .25s ease; }
+  .sound[aria-pressed="true"] .slash { opacity: 0; }
+  .sound:hover { color: #fff8ec; border-color: rgba(242, 181, 68, 0.5); }
+  .sound[aria-pressed="true"] {
+    color: #2c201b;
+    background: var(--accent);
+    border-color: rgba(242, 181, 68, 0.8);
+  }
+  .sound:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
   .vignette {
     position: fixed;
     inset: 0;
@@ -307,7 +345,7 @@
     to { transform: rotate(360deg); }
   }
 
-  .shot .hud, .shot .caption, .shot .modes, .shot .back, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
+  .shot .hud, .shot .caption, .shot .modes, .shot .back, .shot .sound, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
 
   @media (max-width: 680px) {
     .hud { width: min(320px, calc(100vw - 136px)); }
@@ -320,6 +358,8 @@
     .modes button { padding: 8px 10px; font-size: 11px; letter-spacing: 0.08em; white-space: nowrap; gap: 0; }
     .modes button svg { display: none; }
     .back { font-size: 10px; padding: 6px 12px; min-height: 34px; }
+    .sound { top: calc(clamp(18px, 3.6vw, 40px) + env(safe-area-inset-top, 0px) + 42px); font-size: 10px; padding: 6px 12px; min-height: 34px; }
+    .sound svg { width: 14px; height: 14px; }
   }
   @media (max-width: 380px) {
     .eyebrow { display: none; }
@@ -349,6 +389,14 @@
   <div class="grain"></div>
 
   <a class="back" href="../../index.html" title="返回世界入口">← 世界入口</a>
+  <button class="sound" id="sound" type="button" aria-pressed="false" aria-label="开启环境音">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 9.4h3.3L12 5.5v13L7.3 14.6H4z"/>
+      <g class="waves"><path d="M15.3 9.1a4.2 4.2 0 0 1 0 5.8"/><path d="M18.1 6.7a7.6 7.6 0 0 1 0 10.6"/></g>
+      <path class="slash" d="M15.4 9.4l5.2 5.2M20.6 9.4l-5.2 5.2"/>
+    </svg>
+    <span>环境音</span>
+  </button>
 
   <header class="hud">
     <span class="stamp">ADMIT ONE</span>
@@ -356,7 +404,7 @@
     <h1>锈月乐园</h1>
     <p class="en">Rust Moon Park</p>
     <p class="tag">海边的旧乐园，在雪、花与霓虹之间，缓慢转动。</p>
-    <p class="hint">拖动环视 · 双指缩放 · 轻点地面</p>
+    <p class="hint">拖动环视 · 双指缩放 · 轻点设施启动</p>
   </header>
 
   <p class="caption" id="caption">盛景 · 黄昏的最后一班摩天轮</p>
@@ -418,7 +466,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
 <script>
 /* 锈月乐园 — Rust Moon Park
-   海边旧乐园：盛景 / 雨夜 / 废园 三种环境。Requires THREE (inlined above). */
+   海边旧乐园：盛景 / 雨夜 / 废园 / 雪境 / 花季 / 霓虹。Requires THREE (inlined above). */
 (function () {
   'use strict';
 
@@ -505,6 +553,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return out;
   }
 
+  var stageSeq = 0;
+  function nextStageDelay() {
+    stageSeq++;
+    return ((stageSeq * 37) % 23) / 23 * 0.32;
+  }
+
   var paints = [];
   function paintMat(hex, opts) {
     opts = opts || {};
@@ -519,7 +573,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       transparent: !!opts.transparent,
       opacity: opts.opacity !== undefined ? opts.opacity : 1
     });
-    paints.push({ m: m, base: base, rust: rust });
+    paints.push({ m: m, base: base, rust: rust, delay: nextStageDelay(), baseRough: m.roughness });
     return m;
   }
 
@@ -531,13 +585,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       metalness: 0,
       flatShading: true
     });
-    vegs.push({ m: m, base: new THREE.Color(hex), dry: new THREE.Color(dryHex) });
+    vegs.push({ m: m, base: new THREE.Color(hex), dry: new THREE.Color(dryHex), delay: nextStageDelay() });
     return m;
   }
 
   var tints = [];
   function addTint(mat, rustHex) {
-    tints.push({ m: mat, base: new THREE.Color('#ffffff'), rust: new THREE.Color(rustHex || '#8f7b62') });
+    tints.push({ m: mat, base: new THREE.Color('#ffffff'), rust: new THREE.Color(rustHex || '#8f7b62'), delay: nextStageDelay() });
     return mat;
   }
 
@@ -550,7 +604,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       flatShading: true,
       side: THREE.DoubleSide
     });
-    fabrics.push({ m: m, base: new THREE.Color(hex), dry: new THREE.Color(dryHex) });
+    fabrics.push({ m: m, base: new THREE.Color(hex), dry: new THREE.Color(dryHex), delay: nextStageDelay() });
     return m;
   }
 
@@ -1159,6 +1213,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     addBox(gGroup, 1.35, 0.5, 1.15, paintMat('#3b5450'), 0, -2.0, 0);
     gGroup.rotation.z = 0;
     gGroup.userData.phase = rand(0, Math.PI * 2);
+    gGroup.userData.sway = 0;
+    gGroup.userData.swayVel = 0;
     wheelRotor.add(gGroup);
     gondolas.push(gGroup);
   }
@@ -2639,19 +2695,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         (i % 2 ? leavesA : leavesB).push(mm);
       }
     });
+    var vDelay = rand(0, 0.42);
     if (stems.length) {
       var sm = new THREE.Mesh(mergeGeometries(stems.map(function (g) { return { g: g }; })), vineStemMat);
+      sm.userData.delay = vDelay;
       parent.add(sm);
       vineMeshes.push(sm);
     }
     var leafBase = new THREE.IcosahedronGeometry(1, 0);
     if (leavesA.length) {
       var ma = new THREE.Mesh(mergeVineLeaves(leafBase, leavesA), vineLeafMatA);
+      ma.userData.delay = vDelay;
       parent.add(ma);
       vineMeshes.push(ma);
     }
     if (leavesB.length) {
       var mb = new THREE.Mesh(mergeVineLeaves(leafBase, leavesB), vineLeafMatB);
+      mb.userData.delay = vDelay;
       parent.add(mb);
       vineMeshes.push(mb);
     }
@@ -3121,20 +3181,29 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* glow points for all bulbs                                           */
   /* ------------------------------------------------------------------ */
 
+  var bulbOffAt = [];
+  var bulbOffAttr = null;
+  var bulbInst = null;
   var bulbGlowU = { uOpacity: { value: 0.5 }, uColor: { value: new THREE.Color('#ffc778') } };
   (function () {
     var n = bulbPositions.length;
     var pos = new Float32Array(n * 3);
     var size = new Float32Array(n);
+    var off = new Float32Array(n);
     for (var i = 0; i < n; i++) {
       pos[i * 3] = bulbPositions[i].x;
       pos[i * 3 + 1] = bulbPositions[i].y;
       pos[i * 3 + 2] = bulbPositions[i].z;
       size[i] = rand(1.2, 2.5);
+      var d = Math.hypot(bulbPositions[i].x, bulbPositions[i].z - 3);
+      off[i] = clamp(0.1 + clamp(d / 55, 0, 1) * 0.48 + rand(0, 0.18), 0, 0.94);
+      bulbOffAt.push(off[i]);
     }
     var g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    g.setAttribute('aOff', new THREE.BufferAttribute(off, 1));
+    bulbOffAttr = g.attributes.aOff;
     var mat = new THREE.ShaderMaterial({
       uniforms: bulbGlowU,
       transparent: true,
@@ -3144,11 +3213,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       toneMapped: false,
       vertexShader: [
         'attribute float aSize;',
+        'attribute float aOff;',
         'varying float vS;',
+        'varying float vOff;',
         'void main() {',
         '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
         '  gl_Position = projectionMatrix * mv;',
         '  vS = aSize;',
+        '  vOff = aOff;',
         '  gl_PointSize = aSize * (150.0 / max(5.0, -mv.z));',
         '}'
       ].join('\n'),
@@ -3156,10 +3228,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         'uniform vec3 uColor;',
         'uniform float uOpacity;',
         'varying float vS;',
+        'varying float vOff;',
         'void main() {',
         '  vec2 c = gl_PointCoord - 0.5;',
         '  float a = pow(smoothstep(0.5, 0.0, length(c)), 2.2);',
-        '  gl_FragColor = vec4(uColor, a * uOpacity * (0.6 + 0.4 * vS));',
+        '  gl_FragColor = vec4(uColor, a * uOpacity * (0.6 + 0.4 * vS) * (1.0 - vOff));',
         '}'
       ].join('\n')
     });
@@ -3172,13 +3245,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // instantiate the small bulbs
   (function () {
     var inst = new THREE.InstancedMesh(bulbGeo, bulbMat, bulbPositions.length);
+    bulbInst = inst;
     var dummy = new THREE.Object3D();
+    var white = new THREE.Color('#ffffff');
     for (var i = 0; i < bulbPositions.length; i++) {
       dummy.position.copy(bulbPositions[i]);
       dummy.updateMatrix();
       inst.setMatrixAt(i, dummy.matrix);
+      inst.setColorAt(i, white);
     }
     inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
     scene.add(inst);
   })();
 
@@ -3292,6 +3369,132 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var wheelBoost = 0;
   var lightPulse = 0;
 
+  // ride actions: each tap starts a short, self-contained routine
+  var carouselKickT = 0;
+  var coasterRunT = 0;
+  var coasterRunFrom = 0;
+  var shipKickT = 0;
+  var swingKickT = 0;
+  var teaKickT = 0;
+  var bumpKickT = 0;
+  var dropRunT = 0;
+  var CAROUSEL_DUR = 4.8;
+  var COASTER_DUR = 7.0;
+  var SHIP_DUR = 6.0;
+  var SWING_DUR = 5.5;
+  var TEA_DUR = 5.0;
+  var BUMP_DUR = 5.0;
+  var DROP_DUR = 6.0;
+
+  function kickEnv(remain, dur) {
+    var p = clamp(1 - remain / dur, 0, 1);
+    return smoothstep(0, 0.14, p) * (1 - smoothstep(0.7, 1, p));
+  }
+
+  var rideObjects = [];
+  function tagRide(obj, id) {
+    obj.traverse(function (o) { o.userData.ride = id; });
+    rideObjects.push(obj);
+  }
+  tagRide(wheelGroup, 'wheel');
+  tagRide(carousel, 'carousel');
+  tagRide(teaGroup, 'tea');
+  tagRide(ship, 'ship');
+  tagRide(swing, 'swing');
+  tagRide(drop, 'drop');
+  tagRide(bumper, 'bumper');
+  coaster.userData.ride = 'coaster';
+  rail.userData.ride = 'coaster';
+  cart.userData.ride = 'coaster';
+  rideObjects.push(coaster, rail, cart);
+  // the rail is thin, give the coaster a slightly fatter invisible target
+  var coasterHit = new THREE.Mesh(
+    new THREE.TubeGeometry(coasterCurve, 220, 1.0, 5, true),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false })
+  );
+  coasterHit.userData.ride = 'coaster';
+  scene.add(coasterHit);
+  rideObjects.push(coasterHit);
+  // hanging chairs are thin, give the lower swing a soft target
+  var swingHit = new THREE.Mesh(
+    new THREE.CylinderGeometry(4.9, 3.8, 7.8, 10),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false })
+  );
+  swingHit.position.set(40, 8.7, -28);
+  swingHit.userData.ride = 'swing';
+  scene.add(swingHit);
+  rideObjects.push(swingHit);
+
+  var captionFlashTimer = 0;
+  function flashCaption(text) {
+    if (!captionEl) return;
+    captionEl.textContent = text;
+    captionEl.classList.remove('fade');
+    clearTimeout(captionTimer);
+    clearTimeout(captionFlashTimer);
+    captionFlashTimer = setTimeout(function () {
+      captionEl.classList.add('fade');
+      captionTimer = setTimeout(function () {
+        captionEl.textContent = captionText[currentMode];
+        captionEl.classList.remove('fade');
+      }, 220);
+    }, 1700);
+  }
+
+  function triggerRide(id) {
+    if (id === 'wheel') {
+      wheelBoost = 1;
+      lightPulse = 1;
+      spawnRipple(-18, -7, 1.2, '#ffd9a2');
+      flashCaption('摩天轮 · 灯又亮了一轮');
+      return true;
+    }
+    if (id === 'carousel') {
+      carouselKickT = CAROUSEL_DUR;
+      spawnRipple(19, -4, 1.1, '#ffd9a2');
+      flashCaption('旋转木马 · 转一圈');
+      return true;
+    }
+    if (id === 'coaster') {
+      coasterRunT = COASTER_DUR;
+      coasterRunFrom = cartT;
+      spawnRipple(cart.position.x, cart.position.z, 1.0, '#ffcfa0');
+      flashCaption('过山车 · 跑一趟');
+      return true;
+    }
+    if (id === 'ship') {
+      shipKickT = SHIP_DUR;
+      spawnRipple(-39, -24, 1.1, '#ffd9a2');
+      flashCaption('海盗船 · 再荡一回');
+      return true;
+    }
+    if (id === 'swing') {
+      swingKickT = SWING_DUR;
+      spawnRipple(40, -28, 1.0, '#ffd9a2');
+      flashCaption('飞椅 · 转起来了');
+      return true;
+    }
+    if (id === 'tea') {
+      teaKickT = TEA_DUR;
+      spawnRipple(0, -17.5, 1.0, '#ffd9a2');
+      flashCaption('茶杯 · 转起来了');
+      return true;
+    }
+    if (id === 'bumper') {
+      bumpKickT = BUMP_DUR;
+      spawnRipple(28, -18, 1.0, '#ffd9a2');
+      flashCaption('碰碰车 · 撞一下');
+      return true;
+    }
+    if (id === 'drop') {
+      dropRunT = DROP_DUR;
+      spawnRipple(0, -44, 1.1, '#ffd9a2');
+      flashCaption('跳楼机 · 再升一次');
+      return true;
+    }
+    return false;
+  }
+
   function spawnRipple(x, z, strength, color) {
     var geo = new THREE.RingGeometry(0.8, 1.0, 48).rotateX(-Math.PI / 2);
     var mat = new THREE.MeshBasicMaterial({
@@ -3316,18 +3519,546 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);
-    var hitWheel = raycaster.intersectObject(wheelHit, false)[0];
-    if (hitWheel) {
-      wheelBoost = 1;
-      lightPulse = 1;
-      spawnRipple(-18, -7, 1.2, '#ffd9a2');
+    var hits = raycaster.intersectObjects(rideObjects, true);
+    var hitRide = hits.length ? hits[0] : null;
+    var hitGround = raycaster.intersectObject(islandTop, false)[0];
+    if (hitRide && hitRide.object.userData.ride &&
+        (!hitGround || hitRide.distance <= hitGround.distance + 0.5)) {
+      triggerRide(hitRide.object.userData.ride);
       return;
     }
-    var hitGround = raycaster.intersectObject(islandTop, false)[0];
     if (hitGround) {
       spawnRipple(hitGround.point.x, hitGround.point.z, 0.95);
     }
   }
+
+  /* ------------------------------------------------------------------ */
+  /* ambience — procedural web audio, off by default                     */
+  /* ------------------------------------------------------------------ */
+
+  var soundBtn = document.getElementById('sound');
+  var aCtx = null;
+  var aMaster = null;
+  var aVerb = null;
+  var aNoise = null;
+  var aOn = false;
+  var aBeds = [];
+  var aSpatial = [];
+  var aSmall = Math.min(window.innerWidth, window.innerHeight) < 700;
+  var aFwd = new THREE.Vector3();
+  var aUp = new THREE.Vector3(0, 1, 0);
+  var aV = new THREE.Vector3();
+
+  function aSetPos(node, x, y, z) {
+    if (node.positionX) {
+      node.positionX.value = x;
+      node.positionY.value = y;
+      node.positionZ.value = z;
+    } else if (node.setPosition) {
+      node.setPosition(x, y, z);
+    }
+  }
+
+  function aNoiseSource() {
+    var s = aCtx.createBufferSource();
+    s.buffer = aNoise;
+    s.loop = true;
+    s.start(0, Math.random() * 2.3);
+    return s;
+  }
+
+  function aFilter(type, freq, q) {
+    var f = aCtx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    f.Q.value = q || 0.7;
+    return f;
+  }
+
+  function aNoiseInto(dest, type, freq, q, level) {
+    var s = aNoiseSource();
+    var f = aFilter(type, freq, q);
+    var g = aCtx.createGain();
+    g.gain.value = level;
+    s.connect(f); f.connect(g); g.connect(dest);
+    return g;
+  }
+
+  function aToneInto(dest, type, freq, level) {
+    var o = aCtx.createOscillator();
+    o.type = type;
+    o.frequency.value = freq;
+    var g = aCtx.createGain();
+    g.gain.value = level;
+    o.connect(g); g.connect(dest);
+    o.start();
+    return o;
+  }
+
+  function aBedNoise(mode, base, type, freq, q, lfo, depth) {
+    var s = aNoiseSource();
+    var f = aFilter(type, freq, q);
+    var g = aCtx.createGain();
+    g.gain.value = 0;
+    s.connect(f); f.connect(g);
+    if (aCtx.createStereoPanner) {
+      var pn = aCtx.createStereoPanner();
+      g.connect(pn); pn.connect(aMaster);
+      var lfo2 = aCtx.createOscillator();
+      lfo2.frequency.value = 0.03 + Math.random() * 0.07;
+      var lg2 = aCtx.createGain();
+      lg2.gain.value = 0.28 + Math.random() * 0.22;
+      lfo2.connect(lg2); lg2.connect(pn.pan); lfo2.start();
+    } else {
+      g.connect(aMaster);
+    }
+    aBeds.push({ mode: mode, g: g, base: base * 1.8, lfo: lfo || 0, depth: depth || 0, ph: Math.random() * 6.283 });
+  }
+
+  function aBedTone(mode, base, type, freq) {
+    var o = aCtx.createOscillator();
+    o.type = type;
+    o.frequency.value = freq;
+    o.detune.value = (Math.random() * 8) - 4;
+    var g = aCtx.createGain();
+    g.gain.value = 0;
+    o.connect(g); g.connect(aMaster);
+    o.start();
+    aBeds.push({ mode: mode, g: g, base: base * 1.8, lfo: 0, depth: 0, ph: 0 });
+  }
+
+  function aEmitter(x, y, z, base, build, live, follow) {
+    var g = aCtx.createGain();
+    g.gain.value = 0;
+    var lp = aCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 15000;
+    lp.Q.value = 0.4;
+    var p = aCtx.createPanner();
+    p.panningModel = aSmall ? 'equalpower' : 'HRTF';
+    p.distanceModel = 'inverse';
+    p.refDistance = 22;
+    p.rolloffFactor = 0.65;
+    p.maxDistance = 400;
+    aSetPos(p, x, y, z);
+    g.connect(lp); lp.connect(p); p.connect(aMaster);
+    var send = aCtx.createGain();
+    send.gain.value = 0.16;
+    p.connect(send); send.connect(aVerb);
+    build(g);
+    aSpatial.push({
+      x: x, y: y, z: z, g: g, lp: lp, p: p,
+      base: base * 1.7, live: live, follow: follow || null
+    });
+  }
+
+  function aToneShot(f0, f1, dur, gain, pan, type) {
+    var t = aCtx.currentTime;
+    var o = aCtx.createOscillator();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f0, t);
+    if (f1) o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+    var g = aCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + Math.min(0.03, dur * 0.3));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var out = g;
+    var p = null;
+    if (aCtx.createStereoPanner) {
+      p = aCtx.createStereoPanner();
+      p.pan.value = pan || 0;
+      g.connect(p);
+      out = p;
+    }
+    out.connect(aMaster);
+    var send = aCtx.createGain();
+    send.gain.value = 0.2;
+    out.connect(send); send.connect(aVerb);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+    setTimeout(function () {
+      g.disconnect();
+      if (p) p.disconnect();
+      send.disconnect();
+    }, (dur + 0.3) * 1000);
+  }
+
+  function aNoiseShot(dur, gain, type, freq, pan) {
+    var t = aCtx.currentTime;
+    var s = aCtx.createBufferSource();
+    s.buffer = aNoise;
+    s.loop = true;
+    var f = aFilter(type, freq, 0.8);
+    var g = aCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var out = g;
+    var p = null;
+    if (aCtx.createStereoPanner) {
+      p = aCtx.createStereoPanner();
+      p.pan.value = pan || 0;
+      g.connect(p);
+      out = p;
+    }
+    out.connect(aMaster);
+    var send = aCtx.createGain();
+    send.gain.value = 0.25;
+    out.connect(send); send.connect(aVerb);
+    s.connect(f); f.connect(g);
+    s.start(t);
+    s.stop(t + dur + 0.05);
+    setTimeout(function () {
+      g.disconnect();
+      if (p) p.disconnect();
+      send.disconnect();
+    }, (dur + 0.3) * 1000);
+  }
+
+  function aBuild() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    var ctx = new AC();
+    aCtx = ctx;
+
+    var comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 22;
+    comp.ratio.value = 3.2;
+    comp.attack.value = 0.012;
+    comp.release.value = 0.35;
+    var master = ctx.createGain();
+    master.gain.value = 0;
+    master.connect(comp);
+    comp.connect(ctx.destination);
+    aMaster = master;
+
+    // park-sized reverb tail
+    var irLen = Math.floor(ctx.sampleRate * 2.6);
+    var ir = ctx.createBuffer(2, irLen, ctx.sampleRate);
+    for (var ch = 0; ch < 2; ch++) {
+      var d = ir.getChannelData(ch);
+      for (var i = 0; i < irLen; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 2.7);
+      }
+    }
+    var conv = ctx.createConvolver();
+    conv.buffer = ir;
+    var wet = ctx.createGain();
+    wet.gain.value = 0.42;
+    conv.connect(wet);
+    wet.connect(master);
+    aVerb = conv;
+
+    // shared noise texture
+    var nLen = Math.floor(ctx.sampleRate * 2.5);
+    var nb = ctx.createBuffer(2, nLen, ctx.sampleRate);
+    for (var nc = 0; nc < 2; nc++) {
+      var nd = nb.getChannelData(nc);
+      for (var j = 0; j < nLen; j++) nd[j] = Math.random() * 2 - 1;
+    }
+    aNoise = nb;
+
+    // ------- mode beds, crossfaded by the same weights as the visuals -------
+    aBedNoise('golden', 0.075, 'lowpass', 620, 0.7, 0.16, 0.35);
+    aBedNoise('golden', 0.032, 'bandpass', 480, 0.8, 0.09, 0.4);
+    aBedNoise('golden', 0.013, 'bandpass', 950, 1.1, 0.07, 0.5);
+    aBedTone('golden', 0.0045, 'triangle', 110);
+
+    aBedNoise('rain', 0.06, 'highpass', 1500, 0.5, 0.2, 0.12);
+    aBedNoise('rain', 0.04, 'bandpass', 700, 0.6, 0.13, 0.3);
+    aBedNoise('rain', 0.026, 'lowpass', 220, 0.7, 0.1, 0.3);
+    aBedNoise('rain', 0.045, 'lowpass', 500, 0.6, 0.17, 0.25);
+
+    aBedNoise('ruin', 0.08, 'bandpass', 380, 1.4, 0.18, 0.5);
+    aBedNoise('ruin', 0.019, 'highpass', 2600, 0.6, 0.3, 0.4);
+    aBedNoise('ruin', 0.026, 'lowpass', 160, 0.8, 0.08, 0.4);
+    aBedTone('ruin', 0.014, 'sine', 58);
+
+    aBedNoise('snow', 0.075, 'lowpass', 480, 0.7, 0.1, 0.35);
+    aBedNoise('snow', 0.017, 'bandpass', 1200, 0.8, 0.06, 0.3);
+    aBedTone('snow', 0.005, 'sine', 196);
+
+    aBedNoise('bloom', 0.04, 'bandpass', 760, 0.8, 0.12, 0.4);
+    aBedNoise('bloom', 0.012, 'highpass', 2400, 0.5, 0.2, 0.3);
+    aBedNoise('bloom', 0.022, 'lowpass', 900, 0.7, 0.15, 0.25);
+
+    aBedTone('neon', 0.01, 'sine', 100);
+    aBedTone('neon', 0.006, 'sine', 200);
+    aBedTone('neon', 0.0045, 'triangle', 50);
+    aBedNoise('neon', 0.008, 'highpass', 5200, 0.4, 0.3, 0.3);
+
+    // ------- positional sources around the park -------
+    aEmitter(-18, 16.5, -7, 0.5, function (out) {
+      var o = aToneInto(out, 'sawtooth', 54, 0.5);
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.23;
+      var lg = ctx.createGain();
+      lg.gain.value = 11;
+      lfo.connect(lg); lg.connect(o.detune); lfo.start();
+      aNoiseInto(out, 'bandpass', 820, 3, 0.16);
+    }, function () {
+      return (W.golden + W.rain * 0.8 + W.neon * 0.7 + W.snow * 0.2 + W.bloom * 0.5) *
+        (1 - W.ruin * 0.85) + Math.min(0.3, wheelBoost * 0.35);
+    });
+
+    aEmitter(19, 8.2, -4, 0.44, function (out) {
+      var trem = ctx.createGain();
+      trem.gain.value = 0.72;
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.33;
+      var lg = ctx.createGain();
+      lg.gain.value = 0.26;
+      lfo.connect(lg); lg.connect(trem.gain); lfo.start();
+      trem.connect(out);
+      [523.25, 659.25, 783.99].forEach(function (fr) {
+        var o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.value = fr;
+        o.detune.value = (Math.random() * 8) - 4;
+        var g = ctx.createGain();
+        g.gain.value = 0.045;
+        o.connect(g); g.connect(trem); o.start();
+      });
+      aNoiseInto(trem, 'bandpass', 1600, 1.4, 0.035);
+    }, function () {
+      var l = (W.golden + W.rain * 0.7 + W.bloom * 0.9 + W.neon * 0.6 + W.snow * 0.1) * (1 - W.ruin * 0.92);
+      if (carouselKickT > 0) l += 0.25;
+      return l;
+    });
+
+    aEmitter(0, 2.2, 6, 0.4, function (out) {
+      aNoiseInto(out, 'bandpass', 2400, 0.9, 0.2);
+      var s = aNoiseSource();
+      var f = aFilter('lowpass', 700, 0.8);
+      var g = ctx.createGain();
+      g.gain.value = 0.09;
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.21;
+      var lg = ctx.createGain();
+      lg.gain.value = 0.05;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start();
+      s.connect(f); f.connect(g); g.connect(out);
+    }, function () {
+      return (W.golden + W.rain * 0.45 + W.bloom * 0.8 + W.neon * 0.5 + W.snow * 0.05) *
+        (1 - W.ruin * 0.9) * (1 - W.snow * 0.7);
+    });
+
+    aEmitter(0, 8, 0, 0.42, function (out) {
+      aNoiseInto(out, 'lowpass', 520, 0.8, 0.18);
+      aNoiseInto(out, 'bandpass', 1800, 1.6, 0.07);
+    }, function () {
+      var l = (W.golden * 0.35 + W.rain * 0.3 + W.neon * 0.5 + W.bloom * 0.3) * (1 - W.ruin * 0.9);
+      return l + (coasterRunT > 0 ? 0.55 : 0.12);
+    }, cart);
+
+    aEmitter(-39, 11, -24, 0.3, function (out) {
+      var s = aNoiseSource();
+      var f = aFilter('bandpass', 300, 3.2);
+      var g = ctx.createGain();
+      g.gain.value = 0.16;
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.42;
+      var lg = ctx.createGain();
+      lg.gain.value = 0.1;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start();
+      s.connect(f); f.connect(g); g.connect(out);
+      aToneInto(out, 'sine', 72, 0.1);
+    }, function () {
+      var l = (W.golden + W.rain * 0.55 + W.bloom * 0.8 + W.neon * 0.7 + W.snow * 0.12) * (1 - W.ruin * 0.9);
+      l *= 0.5 + 0.5 * Math.abs(Math.cos(shipPhase));
+      return l + (shipKickT > 0 ? 0.25 : 0);
+    });
+
+    aEmitter(40, 12, -28, 0.28, function (out) {
+      aToneInto(out, 'triangle', 88, 0.3);
+      aNoiseInto(out, 'bandpass', 900, 2.2, 0.1);
+    }, function () {
+      var l = (W.golden * 0.55 + W.rain * 0.35 + W.bloom * 0.6 + W.neon * 0.65) * (1 - W.ruin * 0.9);
+      return l + (swingKickT > 0 ? 0.25 : 0);
+    });
+
+    aEmitter(0, 16, -44, 0.3, function (out) {
+      aNoiseInto(out, 'bandpass', 1300, 3.5, 0.11);
+      aToneInto(out, 'triangle', 148, 0.16);
+    }, function () {
+      var l = (W.golden * 0.45 + W.rain * 0.3 + W.neon * 0.6) * (1 - W.ruin * 0.92);
+      return l + (dropRunT > 0 ? 0.45 : 0.08);
+    }, dropCar);
+
+    aEmitter(28, 5, -18, 0.3, function (out) {
+      aToneInto(out, 'sawtooth', 116, 0.2);
+      aNoiseInto(out, 'bandpass', 1500, 1.8, 0.09);
+    }, function () {
+      var l = (W.golden * 0.45 + W.rain * 0.25 + W.neon * 0.75 + W.bloom * 0.35) * (1 - W.ruin * 0.9);
+      return l + (bumpKickT > 0 ? 0.25 : 0);
+    });
+
+    aEmitter(0, 1.5, 108, 0.36, function (out) {
+      var s = aNoiseSource();
+      var f = aFilter('lowpass', 620, 0.7);
+      var g = ctx.createGain();
+      g.gain.value = 0.2;
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.14;
+      var lg = ctx.createGain();
+      lg.gain.value = 0.16;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start();
+      s.connect(f); f.connect(g); g.connect(out);
+    }, function () {
+      return 0.9 - W.ruin * 0.35 - W.neon * 0.2;
+    });
+
+    aEmitter(0, 1.5, -108, 0.38, function (out) {
+      aNoiseInto(out, 'lowpass', 480, 0.7, 0.22);
+    }, function () {
+      return 0.75 - W.ruin * 0.25;
+    });
+
+    // ------- quiet events on top -------
+    setInterval(function () {
+      if (!aOn || !aCtx) return;
+      var mode = null;
+      var best = 0.35;
+      for (var i = 0; i < modeIds.length; i++) {
+        if (W[modeIds[i]] > best) { best = W[modeIds[i]]; mode = modeIds[i]; }
+      }
+      if (!mode) return;
+      var r = Math.random();
+      var pan = Math.random() * 1.4 - 0.7;
+      if (mode === 'golden') {
+        if (r < 0.4) {
+          var notes = [523.25, 587.33, 659.25, 783.99, 880];
+          aToneShot(notes[(Math.random() * notes.length) | 0], 0, 0.85, 0.016, -0.3, 'triangle');
+        } else if (r > 0.95) {
+          aNoiseShot(0.7, 0.014, 'bandpass', 1800, pan);
+        }
+      } else if (mode === 'rain') {
+        if (r < 0.03) {
+          aNoiseShot(2.4, 0.07, 'lowpass', 150, 0.15);
+          aToneShot(58, 32, 1.9, 0.035, 0, 'sine');
+        } else if (r < 0.45) {
+          aToneShot(1500, 620, 0.09, 0.011, pan);
+        }
+      } else if (mode === 'ruin') {
+        if (r < 0.3) {
+          aNoiseShot(1.1, 0.028, 'bandpass', 430, pan);
+          aToneShot(150, 88, 0.9, 0.01, pan, 'sawtooth');
+        } else if (r < 0.62) {
+          aToneShot(4300, 4100, 0.05, 0.006, pan);
+          setTimeout(function () { if (aOn) aToneShot(4200, 4000, 0.05, 0.005, pan); }, 90);
+        }
+      } else if (mode === 'snow') {
+        if (r < 0.14) {
+          aToneShot(880, 0, 2.2, 0.01, pan, 'sine');
+          aToneShot(1320, 0, 1.6, 0.005, pan, 'sine');
+        }
+      } else if (mode === 'bloom') {
+        if (r < 0.55) {
+          aToneShot(2100, 3000, 0.09, 0.012, pan);
+          setTimeout(function () {
+            if (aOn) aToneShot(2600, 3300, 0.07, 0.009, pan);
+          }, 120);
+        }
+      } else if (mode === 'neon') {
+        if (r < 0.45) {
+          var arp = [220, 261.63, 329.63, 392, 440];
+          aToneShot(arp[(Math.random() * arp.length) | 0], 0, 0.28, 0.015, pan, 'triangle');
+        }
+      }
+    }, 900);
+
+    return true;
+  }
+
+  function aSetOn(on) {
+    if (on) {
+      if (!aCtx) {
+        var ok = false;
+        try { ok = aBuild(); } catch (e) { ok = false; }
+        if (!ok) {
+          if (soundBtn) {
+            soundBtn.disabled = true;
+            soundBtn.title = '当前浏览器不支持环境音';
+          }
+          return;
+        }
+      }
+      aOn = true;
+      if (aCtx.state === 'suspended') aCtx.resume();
+      aMaster.gain.cancelScheduledValues(aCtx.currentTime);
+      aMaster.gain.setTargetAtTime(0.9, aCtx.currentTime, 0.4);
+    } else {
+      aOn = false;
+      if (aCtx) {
+        aMaster.gain.cancelScheduledValues(aCtx.currentTime);
+        aMaster.gain.setTargetAtTime(0.0001, aCtx.currentTime, 0.12);
+        setTimeout(function () {
+          if (!aOn && aCtx && aCtx.state === 'running') aCtx.suspend();
+        }, 900);
+      }
+    }
+    if (soundBtn) {
+      soundBtn.setAttribute('aria-pressed', aOn ? 'true' : 'false');
+      soundBtn.setAttribute('aria-label', aOn ? '关闭环境音' : '开启环境音');
+    }
+  }
+
+  if (soundBtn) {
+    soundBtn.addEventListener('click', function () { aSetOn(!aOn); });
+  }
+
+  function aUpdate() {
+    if (!aOn || !aCtx) return;
+    var t = aCtx.currentTime;
+    var cp = camera.position;
+    var l = aCtx.listener;
+    if (l.positionX && l.forwardX) {
+      l.positionX.value = cp.x;
+      l.positionY.value = cp.y;
+      l.positionZ.value = cp.z;
+      aFwd.set(view.target.x - cp.x, view.target.y - cp.y, view.target.z - cp.z).normalize();
+      l.forwardX.value = aFwd.x;
+      l.forwardY.value = aFwd.y;
+      l.forwardZ.value = aFwd.z;
+      l.upX.value = aUp.x;
+      l.upY.value = aUp.y;
+      l.upZ.value = aUp.z;
+    } else if (l.setPosition) {
+      l.setPosition(cp.x, cp.y, cp.z);
+      aFwd.set(view.target.x - cp.x, view.target.y - cp.y, view.target.z - cp.z).normalize();
+      l.setOrientation(aFwd.x, aFwd.y, aFwd.z, aUp.x, aUp.y, aUp.z);
+    }
+
+    for (var i = 0; i < aBeds.length; i++) {
+      var b = aBeds[i];
+      var mod = b.depth ? (1 + b.depth * Math.sin(t * b.lfo + b.ph)) : 1;
+      b.g.gain.value = b.base * (W[b.mode] || 0) * mod;
+    }
+
+    for (var j = 0; j < aSpatial.length; j++) {
+      var s = aSpatial[j];
+      if (s.follow) {
+        s.follow.getWorldPosition(aV);
+        s.x = aV.x; s.y = aV.y; s.z = aV.z;
+        aSetPos(s.p, s.x, s.y, s.z);
+      }
+      var dx = s.x - cp.x, dy = s.y - cp.y, dz = s.z - cp.z;
+      var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      s.lp.frequency.value = clamp(17000 / (1 + dist * 0.014), 1300, 17000);
+      s.g.gain.value = s.base * Math.max(0, s.live ? s.live() : 1);
+    }
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (!aCtx) return;
+    if (document.hidden) {
+      if (aOn) aCtx.suspend();
+    } else if (aOn && aCtx.state === 'suspended') {
+      aCtx.resume();
+    }
+  });
 
   /* ------------------------------------------------------------------ */
   /* modes                                                               */
@@ -3436,9 +4167,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var firstFrame = true;
   var rafId = 0;
   var lastRuin = -1;
+  var lastBulbRuin = -1;
+  var ruinT = startMode === 'ruin' ? 1 : 0;
   var wheelAngle = 0;
+  var prevWheelSpeed = 0;
+  var wheelAccelReady = false;
   var carouselAngle = 0;
+  var shipPhase = 0;
+  var dropPhase = 0;
   var dummy = new THREE.Object3D();
+
+  function stageProgress(delay) {
+    var p = clamp((ruinT - delay) / 0.54, 0, 1);
+    return p * p * (3 - 2 * p);
+  }
 
   function updateBushes(ruinMix) {
     if (Math.abs(ruinMix - lastRuin) < 0.002) return;
@@ -3468,12 +4210,37 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     weedMesh.instanceMatrix.needsUpdate = true;
 
     for (var v = 0; v < vineMats.length; v++) {
-      vineMats[v].opacity = ruinMix * 0.96;
+      vineMats[v].opacity = ruinMix > 0.004 ? 1 : 0;
     }
-    var vineVisible = ruinMix > 0.012;
     for (var vv2 = 0; vv2 < vineMeshes.length; vv2++) {
-      vineMeshes[vv2].visible = vineVisible;
+      var vm = vineMeshes[vv2];
+      var gv = clamp((ruinMix - (vm.userData.delay || 0)) / 0.55, 0, 1);
+      gv = gv * gv * (3 - 2 * gv);
+      vm.scale.y = 0.02 + gv * 0.98;
+      vm.visible = gv > 0.002;
     }
+  }
+
+  function updateBulbs(ambTime) {
+    if (!bulbInst || !bulbInst.instanceColor || !bulbOffAttr) return;
+    if (Math.abs(ruinT - lastBulbRuin) < 0.0015) return;
+    lastBulbRuin = ruinT;
+    var arr = bulbInst.instanceColor.array;
+    var offArr = bulbOffAttr.array;
+    for (var i = 0; i < bulbOffAt.length; i++) {
+      var off = smoothstep(bulbOffAt[i], bulbOffAt[i] + 0.055, ruinT);
+      var f = 1;
+      if (off > 0.03 && off < 0.97) {
+        f = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(ambTime * 16 + i * 2.7));
+      }
+      var c = (1 - off) * f;
+      arr[i * 3] = c;
+      arr[i * 3 + 1] = c;
+      arr[i * 3 + 2] = c;
+      offArr[i] = off;
+    }
+    bulbInst.instanceColor.needsUpdate = true;
+    bulbOffAttr.needsUpdate = true;
   }
 
   function animate() {
@@ -3484,8 +4251,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     elapsed += dt;
     var amb = reduceMotion ? 0 : elapsed;
 
-    // mode weights
-    var k = damp(dt, 1.25);
+    // mode weights: several-second crossfade
+    var k = damp(dt, 0.62);
     var sum = 0;
     for (var mi = 0; mi < modeIds.length; mi++) {
       var mm = modeIds[mi];
@@ -3495,8 +4262,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (sum < 0.0001) sum = 1;
     for (var mj = 0; mj < modeIds.length; mj++) W[modeIds[mj]] /= sum;
 
+    // decay progresses slower than the palette, so rust/vines/bulbs happen in stages
+    ruinT += (WT.ruin - ruinT) * damp(dt, 0.4);
+    if (Math.abs(ruinT - WT.ruin) < 0.0015) ruinT = WT.ruin;
+
     var wG = W.golden, wR = W.rain, wU = W.ruin;
     var wS = W.snow, wB = W.bloom, wN = W.neon;
+    updateBulbs(amb);
 
     // sky
     mixColor(skyUniforms.uTop.value, 'skyTop');
@@ -3540,30 +4312,35 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     mixColor(fillLight.color, 'sun');
     fillLight.intensity = mixNum('fillI');
 
-    // painted materials -> rust / frost
+    // painted materials -> rust / frost (staggered per material)
     for (var p = 0; p < paints.length; p++) {
       var pa = paints[p];
+      var lp = stageProgress(pa.delay);
       pa.m.color.copy(pa.base);
-      if (wU > 0.001) pa.m.color.lerp(pa.rust, wU);
+      if (lp > 0.001) pa.m.color.lerp(pa.rust, lp);
       if (wS > 0.001) pa.m.color.lerp(snowWhite, wS * 0.16);
+      pa.m.roughness = lerp(pa.baseRough, Math.min(1, pa.baseRough + 0.12), lp);
     }
     // vegetation -> dry / snow-laden
     for (var q = 0; q < vegs.length; q++) {
       var vv = vegs[q];
+      var lv = stageProgress(vv.delay);
       vv.m.color.copy(vv.base);
-      if (wU > 0.001) vv.m.color.lerp(vv.dry, wU * 0.78);
+      if (lv > 0.001) vv.m.color.lerp(vv.dry, lv * 0.82);
       if (wS > 0.001) vv.m.color.lerp(snowWhite, wS * 0.74);
     }
     for (var f = 0; f < fabrics.length; f++) {
       var fb = fabrics[f];
+      var lf = stageProgress(fb.delay);
       fb.m.color.copy(fb.base);
-      if (wU > 0.001) fb.m.color.lerp(fb.dry, wU * 0.8);
+      if (lf > 0.001) fb.m.color.lerp(fb.dry, lf * 0.84);
       if (wS > 0.001) fb.m.color.lerp(snowWhite, wS * 0.62);
     }
     for (var tI = 0; tI < tints.length; tI++) {
       var tn = tints[tI];
+      var lt = stageProgress(tn.delay);
       tn.m.color.copy(tn.base);
-      if (wU > 0.001) tn.m.color.lerp(tn.rust, wU * 0.85);
+      if (lt > 0.001) tn.m.color.lerp(tn.rust, lt * 0.88);
       if (wS > 0.001) tn.m.color.lerp(snowWhite, wS * 0.5);
     }
 
@@ -3613,7 +4390,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     for (var s = 0; s < glowSprites.length; s++) {
       var gs = glowSprites[s];
-      gs.material.opacity = (0.12 + mixNum('glow') * 0.38 + lightPulse * 0.12 + wN * 0.18) * (0.85 + 0.15 * Math.sin(amb * 1.7 + s));
+      gs.material.opacity = (0.12 + mixNum('glow') * 0.38 + lightPulse * 0.12 + wN * 0.18) * (0.85 + 0.15 * Math.sin(amb * 1.7 + s)) * (1 - ruinT * 0.92);
       gs.material.color.copy(gs.userData.warm).lerp(neonTint, wN * 0.8);
     }
 
@@ -3625,16 +4402,31 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var wheelSpeed = wG * 0.15 + wR * 0.075 + wU * 0.004 + wheelBoost * 0.45;
     wheelBoost *= Math.exp(-dt * 0.55);
     lightPulse *= Math.exp(-dt * 1.4);
+    var wheelAccel = wheelAccelReady ? (wheelSpeed - prevWheelSpeed) / Math.max(dt, 0.0001) : 0;
+    wheelAccelReady = true;
+    prevWheelSpeed = wheelSpeed;
     wheelAngle += wheelSpeed * dt;
     wheelRotor.rotation.z = wheelAngle;
+    var lagTarget = clamp(-wheelAccel * 0.3, -0.3, 0.3);
+    var swayGain = clamp(wheelSpeed * 6, 0, 1);
     for (var gI = 0; gI < gondolas.length; gI++) {
-      gondolas[gI].rotation.z = -wheelAngle;
-      gondolas[gI].rotation.x = Math.sin(amb * 0.8 + gondolas[gI].userData.phase) * 0.035 * (wG + wR);
+      var gon = gondolas[gI];
+      var swayTarget = lagTarget + Math.sin(wheelAngle + gon.userData.phase) * 0.035 * swayGain;
+      gon.userData.swayVel += (swayTarget - gon.userData.sway) * 20 * dt;
+      gon.userData.swayVel *= Math.exp(-dt * 2.4);
+      gon.userData.sway += gon.userData.swayVel * dt;
+      gon.rotation.z = -wheelAngle + clamp(gon.userData.sway, -0.32, 0.32);
+      gon.rotation.x = Math.sin(amb * 0.8 + gon.userData.phase) * 0.022 * (wG + wR);
     }
 
     var carSpeed = wG * 0.33 + wR * 0.15 + wU * 0.001;
     carouselAngle += carSpeed * dt;
-    carRotor.rotation.y = carouselAngle;
+    var carExtra = 0;
+    if (carouselKickT > 0) {
+      carouselKickT = Math.max(0, carouselKickT - dt);
+      carExtra = Math.PI * 2 * smoothstep(0, 1, 1 - carouselKickT / CAROUSEL_DUR);
+    }
+    carRotor.rotation.y = carouselAngle + carExtra;
     for (var hI = 0; hI < horses.length; hI++) {
       var horse = horses[hI];
       horse.position.y = Math.sin(amb * 2.2 + horse.userData.phase) * 0.22 * (wG + wR);
@@ -3643,14 +4435,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     flag.rotation.y = Math.sin(amb * 2.2) * 0.35;
 
     var cartSpeed = (wG * 0.032 + wR * 0.018) * (1 - smoothstep(0.55, 0.95, wU));
-    cartT = (cartT + cartSpeed * dt) % 1;
+    if (coasterRunT > 0) {
+      coasterRunT = Math.max(0, coasterRunT - dt);
+      cartT = (coasterRunFrom + smoothstep(0, 1, 1 - coasterRunT / COASTER_DUR)) % 1;
+    } else {
+      cartT = (cartT + cartSpeed * dt) % 1;
+    }
     coasterCurve.getPointAt(cartT, cartPos);
     coasterCurve.getTangentAt(cartT, cartTan);
     cart.position.copy(cartPos);
     cart.lookAt(cartPos.clone().add(cartTan));
 
     // teacups
-    var teaSpeed = wG * 0.24 + wR * 0.12 + wU * 0.0 + wS * 0.06 + wB * 0.2 + wN * 0.3;
+    var teaKick = teaKickT > 0 ? kickEnv(teaKickT, TEA_DUR) : 0;
+    if (teaKickT > 0) teaKickT = Math.max(0, teaKickT - dt);
+    var teaSpeed = wG * 0.24 + wR * 0.12 + wU * 0.0 + wS * 0.06 + wB * 0.2 + wN * 0.3 + teaKick * 1.5;
     teaRotor.rotation.y += teaSpeed * dt;
     for (var tci = 0; tci < teaCups.length; tci++) {
       teaCups[tci].g.rotation.y += teaCups[tci].speed * teaSpeed * dt * 3.2;
@@ -3658,12 +4457,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     // pirate ship
     var rideLive = 1 - smoothstep(0.4, 0.9, wU);
-    var shipAmp = (wG * 1.0 + wR * 0.5 + wB * 0.95 + wN * 0.85 + wS * 0.28) * rideLive;
-    shipPivot.rotation.x = Math.sin(amb * 0.62) * 0.82 * shipAmp;
+    var shipKick = shipKickT > 0 ? kickEnv(shipKickT, SHIP_DUR) : 0;
+    if (shipKickT > 0) shipKickT = Math.max(0, shipKickT - dt);
+    var shipAmp = (wG * 1.0 + wR * 0.5 + wB * 0.95 + wN * 0.85 + wS * 0.28) * rideLive + shipKick * 0.95;
+    shipPhase += dt * (0.62 + shipKick * 0.75);
+    shipPivot.rotation.x = Math.sin(shipPhase) * 0.82 * Math.min(shipAmp, 1.18);
     shipFlag.rotation.y = Math.sin(amb * 2.6) * 0.3 + 0.1;
 
     // swing ride
-    var swingSpeed = (wG * 0.5 + wR * 0.24 + wB * 0.46 + wN * 0.6 + wS * 0.12) * rideLive;
+    var swingKick = swingKickT > 0 ? kickEnv(swingKickT, SWING_DUR) : 0;
+    if (swingKickT > 0) swingKickT = Math.max(0, swingKickT - dt);
+    var swingSpeed = (wG * 0.5 + wR * 0.24 + wB * 0.46 + wN * 0.6 + wS * 0.12) * rideLive + swingKick * 1.9;
     swingRotor.rotation.y += swingSpeed * dt;
     for (var saI = 0; saI < swingArms.length; saI++) {
       var saA = swingArms[saI];
@@ -3672,7 +4476,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     // drop tower cycle
     var dropLive = 1 - smoothstep(0.35, 0.85, wU);
-    var dCycle = ((amb * (0.16 + wN * 0.05)) % 1 + 1) % 1;
+    var dCycle;
+    if (dropRunT > 0) {
+      dropRunT = Math.max(0, dropRunT - dt);
+      dropPhase = 1 - dropRunT / DROP_DUR;
+      dCycle = dropPhase;
+    } else {
+      dropPhase = (dropPhase + dt * (0.16 + wN * 0.05)) % 1;
+      dCycle = dropPhase;
+    }
     var dY;
     if (dCycle < 0.34) {
       dY = lerp(4, 23.6, smoothstep(0, 1, dCycle / 0.34));
@@ -3685,11 +4497,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     } else {
       dY = 4;
     }
-    dropCar.position.y = lerp(4, dY, dropLive);
+    dropCar.position.y = lerp(4, dY, dropRunT > 0 ? 1 : dropLive);
     dropCar.rotation.y += dt * 0.12 * dropLive;
 
     // bumper cars
-    var bumpSpeed = (wG * 1.0 + wR * 0.5 + wB * 0.7 + wN * 1.1 + wS * 0.25) * rideLive;
+    var bumpKick = bumpKickT > 0 ? kickEnv(bumpKickT, BUMP_DUR) : 0;
+    if (bumpKickT > 0) bumpKickT = Math.max(0, bumpKickT - dt);
+    var bumpSpeed = (wG * 1.0 + wR * 0.5 + wB * 0.7 + wN * 1.1 + wS * 0.25) * rideLive + bumpKick * 1.4;
     for (var buI = 0; buI < bumperCars.length; buI++) {
       var bcI = bumperCars[buI];
       var bAng = bcI.phase + amb * bcI.speed * bumpSpeed;
@@ -3750,7 +4564,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
 
     // ruin growth, stains, puddles
-    updateBushes(wU);
+    updateBushes(ruinT);
     rustStainMat.opacity = wU * 0.3;
     puddleU.uTime.value = amb;
     mixColor(puddleU.uSky.value, 'skyBot');
@@ -3799,6 +4613,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       view.target.z + view.radius * sp * Math.sin(view.theta)
     );
     camera.lookAt(view.target);
+    aUpdate();
 
     sky.position.copy(camera.position);
     sunGroup.position.copy(camera.position);
