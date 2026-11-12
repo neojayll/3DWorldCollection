@@ -167,16 +167,16 @@
     white-space: nowrap;
   }
 
-  #veil {
+  #flash {
     position: fixed;
     inset: 0;
-    z-index: 5;
-    background: #0d0812;
+    z-index: 4;
     opacity: 0;
     pointer-events: none;
-    transition: opacity .28s var(--ease);
+    mix-blend-mode: screen;
+    background:
+      radial-gradient(72% 64% at 50% 48%, rgba(255,238,208,0.98) 0%, rgba(255,198,142,0.78) 36%, rgba(255,152,96,0.30) 66%, rgba(255,130,80,0) 88%);
   }
-  #veil.on { opacity: 1; }
 
   #boot {
     position: fixed;
@@ -224,7 +224,7 @@
   body.shot .hint,
   body.shot .vignette,
   body.shot .grain,
-  body.shot #veil,
+  body.shot #flash,
   body.shot #boot { display: none !important; }
 
   @media (max-width: 760px) {
@@ -277,7 +277,7 @@
 
 <p class="hint" id="hint">拖拽环视 · <span class="desk-only">滚轮 / </span>双指缩放 · 点击木门进屋</p>
 
-<div id="veil"></div>
+<div id="flash"></div>
 <div id="boot">
   <div class="inner">
     <div class="lamp"></div>
@@ -318,7 +318,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var trailEl = document.getElementById('trail');
   var crumbEl = document.getElementById('crumb');
   var upBtn = document.getElementById('up');
-  var veil = document.getElementById('veil');
+  var flashEl = document.getElementById('flash');
 
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var DPR_CAP = window.innerWidth < 760 ? 1.8 : 2;
@@ -347,6 +347,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function rnd() { return Math.random(); }
   function rand(a, b) { return a + Math.random() * (b - a); }
   function choose(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  var doorLeaves = [];
 
   function std(color, o) {
     o = o || {};
@@ -669,27 +670,52 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   box(house, 0.14, 2.6, 0.3, trimMat, 1.0, 1.3, 3.78);
   box(house, 2.2, 0.14, 0.3, trimMat, 0, 2.55, 3.78);
 
-  // 门（可点击）
+  // 门（可点击）：绕右侧铰链向内开
   var doorGroup = group(house, 0, 1.22, 3.66);
-  var doorPanel = box(doorGroup, 1.8, 2.44, 0.14, woodMat, 0, 0, 0);
+  var doorLeaf = group(doorGroup, 0.9, 0, 0);
+  var doorPanel = box(doorLeaf, 1.8, 2.44, 0.14, woodMat, -0.9, 0, 0);
   doorPanel.castShadow = true;
   for (var dp = 0; dp < 3; dp++) {
-    box(doorGroup, 1.5, 0.06, 0.18, std('#5c3c24', { rough: 0.8 }), 0, -0.86 + dp * 0.86, 0.02);
+    box(doorLeaf, 1.5, 0.06, 0.18, std('#5c3c24', { rough: 0.8 }), -0.9, -0.86 + dp * 0.86, 0.02);
   }
   var knob = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), std('#c9a25e', { rough: 0.35, metal: 0.8 }));
   knob.position.set(-0.66, 0.02, 0.12);
-  doorGroup.add(knob);
-  var doorPlate = plane(doorGroup, 0.7, 0.26, std('#ffffff', { map: canvasTex(256, 96, function (c, w, h) {
+  doorLeaf.add(knob);
+  var doorPlate = plane(doorLeaf, 0.7, 0.26, std('#ffffff', { map: canvasTex(256, 96, function (c, w, h) {
     c.fillStyle = '#2c2119'; c.fillRect(0, 0, w, h);
     c.strokeStyle = '#c9a25e'; c.lineWidth = 4; c.strokeRect(6, 6, w - 12, h - 12);
     c.fillStyle = '#e8cf9f'; c.font = '600 40px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillText('KEEPER', w / 2, h / 2 + 2);
-  }) }), 0, 0.58, 0.085);
+  }) }), -0.9, 0.58, 0.085);
   doorPlate.material.toneMapped = true;
+  doorLeaf.userData.openAngle = -1.75;
+  doorLeaves.push(doorLeaf);
 
   // 门缝透出的暖光
   var doorGlow = plane(house, 2.5, 2.8, basic('#ffb37a', { transparent: true, opacity: 0.10, blending: THREE.AdditiveBlending, depthWrite: false }), 0, 1.4, 3.95);
   doorGlow.material.toneMapped = false;
+
+  // 门内的小门厅：开门后能看到的暖光空间
+  var vest = group(house, 0, 0, 0);
+  var vestFloor = plane(vest, 4.4, 3.3, std('#ffffff', { map: texWood, rough: 0.9 }), 0, 0.015, 1.92, -Math.PI / 2);
+  vestFloor.receiveShadow = true;
+  var vestWall = std('#c7ab88', { rough: 0.95 });
+  var vestCeil = std('#8f7458', { rough: 0.96 });
+  plane(vest, 4.4, 2.9, vestWall, 0, 1.45, 0.27);
+  plane(vest, 3.3, 2.9, vestWall, -2.2, 1.45, 1.92, 0, Math.PI / 2);
+  plane(vest, 3.3, 2.9, vestWall, 2.2, 1.45, 1.92, 0, -Math.PI / 2);
+  plane(vest, 4.4, 3.3, vestCeil, 0, 2.9, 1.92, Math.PI / 2);
+  plane(vest, 2.1, 2.5, std('#6b4038', { rough: 1 }), 0, 0.03, 1.9, -Math.PI / 2);
+  box(vest, 1.1, 0.72, 0.36, std('#6b4a30', { rough: 0.9 }), -1.55, 0.36, 0.55);
+  cyl(vest, 0.09, 0.11, 0.18, 10, std('#c9a25e', { rough: 0.32, metal: 0.82 }), -1.55, 0.81, 0.55);
+  var vestLight = new THREE.PointLight(0xffb877, 2.6, 7, 2);
+  vestLight.position.set(0, 2.35, 2.35);
+  vest.add(vestLight);
+  var vestBulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), basic('#ffe3b6', { toneMapped: false }));
+  vestBulb.position.set(0, 2.55, 2.35);
+  vest.add(vestBulb);
+  var vestGlow = plane(vest, 2.6, 2.9, basic('#ffc78c', { transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 0, 1.4, 0.45);
+  vestGlow.material.toneMapped = false;
 
   // 屋顶
   var roofAng = Math.atan2(2.8, 4.25);
@@ -867,9 +893,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var dummy = new THREE.Object3D();
   var grassCol = new THREE.Color();
   for (var gi = 0; gi < grassCount; gi++) {
-    var ga2 = Math.random() * Math.PI * 2;
-    var gr = Math.sqrt(Math.random()) * 27;
-    dummy.position.set(Math.cos(ga2) * gr, 0, Math.sin(ga2) * gr);
+    var gx = 0, gz = 0, tries = 0;
+    do {
+      var ga2 = Math.random() * Math.PI * 2;
+      var gr = Math.sqrt(Math.random()) * 27;
+      gx = Math.cos(ga2) * gr;
+      gz = Math.sin(ga2) * gr;
+    } while (tries++ < 8 && Math.abs(gx) < 5.6 && gz > -4.4 && gz < 4.4);
+    dummy.position.set(gx, 0, gz);
     dummy.rotation.y = Math.random() * Math.PI;
     dummy.scale.setScalar(rand(0.7, 1.5));
     dummy.updateMatrix();
@@ -1141,7 +1172,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var inIron = std('#332d31', { rough: 0.5, metal: 0.5 });
   var brass = std('#c9a25e', { rough: 0.32, metal: 0.82 });
 
-  function roomShell(w, d, h, floorTex, wallTex, ceilMat) {
+  function roomShell(w, d, h, floorTex, wallTex, ceilMat, closedFront) {
     var g = new THREE.Group();
     var floorMat = std('#ffffff', { map: floorTex || texPlank, rough: 0.9 });
     plane(g, w, d, floorMat, 0, 0, 0, -Math.PI / 2);
@@ -1149,6 +1180,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     plane(g, w, h, wallM, 0, h / 2, -d / 2);
     plane(g, d, h, wallM, -w / 2, h / 2, 0, 0, Math.PI / 2);
     plane(g, d, h, wallM, w / 2, h / 2, 0, 0, -Math.PI / 2);
+    if (closedFront) {
+      plane(g, w, h, wallM, 0, h / 2, d / 2, 0, Math.PI);
+      box(g, w, 0.16, 0.1, std('#4a3526', { rough: 0.85 }), 0, 0.08, d / 2 - 0.06);
+    }
     plane(g, w, d, ceilMat || inCeil, 0, h, 0, Math.PI / 2);
     // 踢脚线与腰线
     box(g, w, 0.16, 0.1, std('#4a3526', { rough: 0.85 }), 0, 0.08, -d / 2 + 0.06);
@@ -1161,6 +1196,37 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return g;
   }
 
+  var doorGlowTex = canvasTex(128, 256, function (c, w, h) {
+    var lg = c.createLinearGradient(0, 0, 0, h);
+    lg.addColorStop(0, '#42291a');
+    lg.addColorStop(0.16, '#96603a');
+    lg.addColorStop(0.44, '#d99a60');
+    lg.addColorStop(0.68, '#c6844d');
+    lg.addColorStop(0.735, '#7d4c2d');
+    lg.addColorStop(0.77, '#a86f45');
+    lg.addColorStop(1, '#40281b');
+    c.fillStyle = lg;
+    c.fillRect(0, 0, w, h);
+    var gr = c.createRadialGradient(w * 0.5, h * 0.3, 2, w * 0.5, h * 0.3, h * 0.46);
+    gr.addColorStop(0, 'rgba(255,240,210,0.96)');
+    gr.addColorStop(0.4, 'rgba(255,200,144,0.44)');
+    gr.addColorStop(1, 'rgba(255,180,120,0)');
+    c.fillStyle = gr;
+    c.fillRect(0, 0, w, h);
+    var fg = c.createRadialGradient(w * 0.5, h * 0.79, 2, w * 0.5, h * 0.79, h * 0.3);
+    fg.addColorStop(0, 'rgba(255,214,164,0.38)');
+    fg.addColorStop(1, 'rgba(255,190,130,0)');
+    c.fillStyle = fg;
+    c.fillRect(0, 0, w, h);
+    var hg = c.createLinearGradient(0, 0, w, 0);
+    hg.addColorStop(0, 'rgba(44,25,14,0.88)');
+    hg.addColorStop(0.16, 'rgba(44,25,14,0)');
+    hg.addColorStop(0.84, 'rgba(44,25,14,0)');
+    hg.addColorStop(1, 'rgba(44,25,14,0.88)');
+    c.fillStyle = hg;
+    c.fillRect(0, 0, w, h);
+  });
+
   function addDoor(parent, x, y, z, ry, label, sub, go, pick, w, h) {
     w = w || 1.9; h = h || 2.2;
     var g = group(parent, x, y, z);
@@ -1168,12 +1234,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     box(g, w + 0.26, 0.13, 0.18, inTrim, 0, h + 0.06, 0);
     box(g, 0.13, h + 0.13, 0.18, inTrim, -w / 2 - 0.06, h / 2, 0);
     box(g, 0.13, h + 0.13, 0.18, inTrim, w / 2 + 0.06, h / 2, 0);
-    var panel = box(g, w, h, 0.1, std('#b88c60', { map: texPlankLight, rough: 0.82 }), 0, h / 2, 0.02);
-    box(g, w - 0.24, 0.05, 0.12, std('#4b3018', { rough: 0.8 }), 0, h * 0.26, 0.03);
-    box(g, w - 0.24, 0.05, 0.12, std('#4b3018', { rough: 0.8 }), 0, h * 0.72, 0.03);
+
+    // 门后的暖光：门扇打开时替代墙面，像是走廊里透出的灯
+    plane(g, w - 0.08, h - 0.03, basic('#ffffff', { map: doorGlowTex, toneMapped: false }), 0, h / 2, -0.035);
+
+    // 门扇：绕左侧铰链，向房间内开
+    var leaf = group(g, -w / 2, 0, 0.02);
+    var panel = box(leaf, w, h, 0.1, std('#b88c60', { map: texPlankLight, rough: 0.82 }), w / 2, h / 2, 0);
+    box(leaf, w - 0.24, 0.05, 0.12, std('#4b3018', { rough: 0.8 }), w / 2, h * 0.26, 0.01);
+    box(leaf, w - 0.24, 0.05, 0.12, std('#4b3018', { rough: 0.8 }), w / 2, h * 0.72, 0.01);
     var kb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), brass);
-    kb.position.set(w * 0.34, h * 0.46, 0.09);
-    g.add(kb);
+    kb.position.set(w - 0.26, h * 0.46, 0.07);
+    leaf.add(kb);
+    leaf.userData.openAngle = -1.68;
+    doorLeaves.push(leaf);
+    g.userData.leaf = leaf;
+
     var plate = plane(g, 0.95, 0.34, std('#ffffff', { map: labelTex(label, sub) }), 0, h + 0.42, 0.04);
     plate.material.toneMapped = true;
     panel.userData.go = go;
@@ -1243,7 +1319,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     addRug(g, 4.8, 3.2, 0, -0.4);
 
     // 衣帽架
-    var rack = group(g, -4.55, 0, -1.4);
+    var rack = group(g, -4.9, 0, -2.55);
     cyl(rack, 0.32, 0.38, 0.1, 10, inWood, 0, 0.05, 0);
     cyl(rack, 0.055, 0.07, 1.95, 8, inWood, 0, 1.0, 0);
     for (var p = 0; p < 3; p++) {
@@ -1288,8 +1364,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       box(fg, 0.07, h + 0.1, 0.06, inTrim, w / 2 + 0.04, 0, 0);
       return fg;
     }
-    frameArt(-3.65, 2.05, -3.94, 0, 1.1, 0.82, 0);
-    frameArt(-2.2, 2.15, -3.94, 0, 0.72, 0.92, 2);
+    frameArt(-4.55, 2.05, -3.94, 0, 0.9, 0.7, 0);
+    frameArt(3.7, 2.12, -3.94, 0, 0.78, 0.9, 2);
     frameArt(-5.44, 2.0, 0.9, Math.PI / 2, 0.95, 0.7, 1);
 
     // 挂钟
@@ -1333,10 +1409,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // 楼梯指示
     plane(stair, 1.0, 0.34, std('#ffffff', { map: labelTex('灯室', 'LAMP ROOM') }), 3.9, 2.55, -2.72);
 
+    // 前墙与前门：可从屋内推门而出
+    var frontWall = std('#ffffff', { map: texPlaster, rough: 0.95 });
+    plane(g, 4.5, 3.2, frontWall, -3.25, 1.6, 4, 0, Math.PI);
+    plane(g, 4.5, 3.2, frontWall, 3.25, 1.6, 4, 0, Math.PI);
+    plane(g, 2.0, 0.75, frontWall, 0, 2.825, 4, 0, Math.PI);
+    box(g, 4.5, 0.16, 0.1, std('#4a3526', { rough: 0.85 }), -3.25, 0.08, 3.94);
+    box(g, 4.5, 0.16, 0.1, std('#4a3526', { rough: 0.85 }), 3.25, 0.08, 3.94);
+    var doorOutside = addDoor(g, 0, 0, 3.9, Math.PI, '屋外', 'OUTSIDE', 'outside', pick, 1.8, 2.44);
+
     // 门
-    addDoor(g, -5.44, 0, -0.7, Math.PI / 2, '厨房', 'KITCHEN', 'kitchen', pick);
-    addDoor(g, -2.6, 0, -3.94, 0, '书房', 'STUDY', 'study', pick);
-    addDoor(g, 1.9, 0, -3.94, 0, '卧室', 'BEDROOM', 'bedroom', pick);
+    var doorKitchen = addDoor(g, -5.44, 0, -0.7, Math.PI / 2, '厨房', 'KITCHEN', 'kitchen', pick);
+    var doorStudy = addDoor(g, -2.6, 0, -3.94, 0, '书房', 'STUDY', 'study', pick);
+    var doorBedroom = addDoor(g, 1.9, 0, -3.94, 0, '卧室', 'BEDROOM', 'bedroom', pick);
 
     // 吊灯
     cyl(g, 0.02, 0.02, 0.55, 6, inIron, 0, 2.95, 0);
@@ -1352,13 +1437,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     flickers.push({ l: hallLight, base: 3.0, seed: 4.7, s: 0.05 });
 
     g.position.copy(base);
-    return { g: g, pick: pick, camPos: new THREE.Vector3(0, 1.66, 4.38), camLook: new THREE.Vector3(0.1, 1.42, -2.4), title: '门厅', crumb: '门厅' };
+    return { g: g, pick: pick, doors: { kitchen: doorKitchen, study: doorStudy, bedroom: doorBedroom, outside: doorOutside }, camPos: new THREE.Vector3(0, 1.66, 3.2), camLook: new THREE.Vector3(0.1, 1.42, -2.4), title: '门厅', crumb: '门厅' };
   }
 
   /* -------------------------------------------------------------- 厨房 */
   function buildKitchen() {
     var base = new THREE.Vector3(-26, 0, 0);
-    var g = roomShell(11, 8, 3.2, texTile);
+    var g = roomShell(11, 8, 3.2, texTile, null, null, true);
     var pick = [];
 
     // 背墙操作台
@@ -1451,15 +1536,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     flickers.push({ l: kWarm, base: 2.2, seed: 8.3, s: 0.05 });
 
     // 返回门厅
-    addDoor(g, 5.44, 0, 2.2, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
+    var doorHall = addDoor(g, 5.44, 0, 2.2, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
 
     g.position.copy(base);
-    return { g: g, pick: pick, camPos: new THREE.Vector3(-26, 1.64, 3.55), camLook: new THREE.Vector3(-26, 1.3, -2.2), title: '厨房', crumb: '门厅 / 厨房' };
+    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(-26, 1.64, 3.55), camLook: new THREE.Vector3(-26, 1.3, -2.2), title: '厨房', crumb: '门厅 / 厨房' };
   }
   /* -------------------------------------------------------------- 书房 */
   function buildStudy() {
     var base = new THREE.Vector3(26, 0, 0);
-    var g = roomShell(11, 8, 3.2);
+    var g = roomShell(11, 8, 3.2, null, null, null, true);
     var pick = [];
     addRug(g, 3.9, 2.7, 0.2, 0.5);
 
@@ -1562,7 +1647,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     // 窗户与门
     addWindow(g, 3.35, 2.05, -3.94, 0, 1.7, 1.15, texSeaView);
-    addDoor(g, 5.44, 0, 2.6, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
+    var doorHall = addDoor(g, 5.44, 0, 2.6, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
     plane(g, 1.2, 0.9, std('#ffffff', { map: paintingTex(1) }), 0.95, 2.15, -3.94);
     box(g, 1.32, 0.07, 0.06, inTrim, 0.95, 2.63, -3.92);
     box(g, 1.32, 0.07, 0.06, inTrim, 0.95, 1.67, -3.92);
@@ -1584,13 +1669,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     flickers.push({ l: sLight, base: 2.3, seed: 9.4, s: 0.05 });
 
     g.position.copy(base);
-    return { g: g, pick: pick, camPos: new THREE.Vector3(26, 1.62, 3.55), camLook: new THREE.Vector3(26, 1.42, -2.5), title: '书房', crumb: '门厅 / 书房' };
+    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(26, 1.62, 3.55), camLook: new THREE.Vector3(26, 1.42, -2.5), title: '书房', crumb: '门厅 / 书房' };
   }
 
   /* -------------------------------------------------------------- 卧室 */
   function buildBedroom() {
     var base = new THREE.Vector3(0, 0, -26);
-    var g = roomShell(10, 8, 3.2);
+    var g = roomShell(10, 8, 3.2, null, null, null, true);
     var pick = [];
     addRug(g, 3.4, 2.4, 0, 0.5);
 
@@ -1676,7 +1761,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     // 窗与门
     addWindow(g, -4.94, 2.05, -1.1, Math.PI / 2, 1.5, 1.15, texMoonView);
-    addDoor(g, 4.94, 0, 2.5, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
+    var doorHall = addDoor(g, 4.94, 0, 2.5, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
     plane(g, 0.9, 0.7, std('#ffffff', { map: paintingTex(0) }), 1.0, 2.0, -3.94);
     box(g, 1.0, 0.06, 0.05, inTrim, 1.0, 2.38, -3.92);
     box(g, 1.0, 0.06, 0.05, inTrim, 1.0, 1.62, -3.92);
@@ -1692,7 +1777,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     flickers.push({ l: bLight, base: 1.9, seed: 11.2, s: 0.05 });
 
     g.position.copy(base);
-    return { g: g, pick: pick, camPos: new THREE.Vector3(0, 1.58, -26 + 3.55), camLook: new THREE.Vector3(0, 1.18, -26 - 2.3), title: '卧室', crumb: '门厅 / 卧室' };
+    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(0, 1.58, -26 + 3.55), camLook: new THREE.Vector3(0, 1.18, -26 - 2.3), title: '卧室', crumb: '门厅 / 卧室' };
   }
   /* -------------------------------------------------------------- 灯室 */
   function buildLamp() {
@@ -1821,7 +1906,24 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   /* -------------------------------------------------------------- 导航 */
   var place = 'outside';
-  var navToken = 0;
+  var tour = null;
+  var flashLevel = 0;
+  var tourFromPos = new THREE.Vector3();
+  var tourFromLook = new THREE.Vector3();
+  var tourFromFov = 48;
+  var tourFromDir = new THREE.Vector3();
+  var tourToDir = new THREE.Vector3();
+  var tourQa = new THREE.Quaternion();
+  var tourQb = new THREE.Quaternion();
+  var TOUR_FWD = new THREE.Vector3(0, 0, -1);
+  var tourDir = new THREE.Vector3();
+
+  function easeIO(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+  function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+  function easeLin(t) { return t; }
+  function V(x, y, z) { return new THREE.Vector3(x, y, z); }
+  function OUT_FOV() { return isPortrait() ? 58 : 48; }
+  function IN_FOV() { return isPortrait() ? 70 : 58; }
 
   var HINTS = {
     outside: '拖拽环视 · <span class="desk-only">滚轮 / </span>双指缩放 · 点击木门进屋',
@@ -1860,53 +1962,320 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       : '黄昏海崖上的守塔人小屋与灯塔。可拖拽环视，点击木门进入屋内。');
   }
 
-  function applyPlace(key) {
+  function applyPlace(key, keepCamera) {
     place = key;
     if (key === 'outside') {
       activeScene = outScene;
-      camera.fov = isPortrait() ? 58 : 48;
-      camera.updateProjectionMatrix();
       inYaw = 0; inPitch = 0;
+      if (!keepCamera) {
+        camera.fov = OUT_FOV();
+        camera.updateProjectionMatrix();
+        camera.position.copy(exteriorCamPos());
+        camera.lookAt(extTarget);
+      }
       setUI('outside');
     } else {
       var r = ensureRoom(key);
       Object.keys(rooms).forEach(function (k) { rooms[k].g.visible = (k === key); });
       activeScene = inScene;
       inYaw = 0; inPitch = 0;
-      inFov = isPortrait() ? 70 : 58;
+      inFov = IN_FOV();
       inFovGoal = inFov;
-      camera.fov = inFov;
-      camera.updateProjectionMatrix();
-      camera.position.copy(r.camPos);
-      lookTarget.copy(r.camLook);
-      camera.lookAt(lookTarget);
+      if (!keepCamera) {
+        camera.fov = inFov;
+        camera.updateProjectionMatrix();
+        camera.position.copy(r.camPos);
+        lookTarget.copy(r.camLook);
+        camera.lookAt(lookTarget);
+      }
       setUI(key);
     }
   }
 
+  /* -------------------------------------------------------------- 开门与暖光 */
+  function pulseFlash(v) { if (v > flashLevel) flashLevel = v; }
+  function updateFlash(dt) {
+    flashLevel *= Math.exp(-dt * 4.8);
+    if (flashLevel < 0.005) flashLevel = 0;
+    flashEl.style.opacity = flashLevel ? flashLevel.toFixed(3) : '0';
+  }
+
+  function updateDoors(dt) {
+    for (var i = 0; i < doorLeaves.length; i++) {
+      var l = doorLeaves[i];
+      var goal = l.userData.open ? l.userData.openAngle : 0;
+      l.rotation.y += (goal - l.rotation.y) * damp(l.userData.open ? 8.5 : 6, dt);
+    }
+  }
+  function setLeaf(doorGroup, open) {
+    if (doorGroup && doorGroup.userData.leaf) doorGroup.userData.leaf.userData.open = !!open;
+  }
+
+  /* -------------------------------------------------------------- 运镜 */
+  function startTour(steps) {
+    if (tour) return;
+    camera.getWorldDirection(tourFromDir);
+    tour = { steps: steps, i: 0, t: 0 };
+    tourFromPos.copy(camera.position);
+    tourFromLook.copy(camera.position).addScaledVector(tourFromDir, 10);
+    tourFromFov = camera.fov;
+    lastInteract = performance.now();
+    if (steps[0] && steps[0].onStart) steps[0].onStart();
+  }
+
+  function updateTour(dt) {
+    if (!tour) return;
+    var s = tour.steps[tour.i];
+    if (!s) { finishTour(); return; }
+    tour.t += dt;
+    var k = s.dur > 0 ? clamp(tour.t / s.dur, 0, 1) : 1;
+    var e = (s.ease || easeIO)(k);
+    var px = lerp(tourFromPos.x, s.to.x, e);
+    var py = lerp(tourFromPos.y, s.to.y, e);
+    var pz = lerp(tourFromPos.z, s.to.z, e);
+    camera.position.set(px, py, pz);
+    tourFromDir.copy(tourFromLook).sub(tourFromPos).normalize();
+    tourToDir.copy(s.look).sub(s.to).normalize();
+    tourQa.setFromUnitVectors(TOUR_FWD, tourFromDir);
+    tourQb.setFromUnitVectors(TOUR_FWD, tourToDir);
+    tourQa.slerp(tourQb, e);
+    tourDir.copy(TOUR_FWD).applyQuaternion(tourQa);
+    camera.lookAt(px + tourDir.x, py + tourDir.y, pz + tourDir.z);
+    var f = lerp(tourFromFov, s.fov !== undefined ? s.fov : tourFromFov, e);
+    if (Math.abs(camera.fov - f) > 0.001) {
+      camera.fov = f;
+      camera.updateProjectionMatrix();
+    }
+    if (k < 1) return;
+    if (s.onEnd) s.onEnd();
+    tour.i++;
+    if (tour.i >= tour.steps.length) { finishTour(); return; }
+    var ns = tour.steps[tour.i];
+    tour.t = 0;
+    tourFromPos.copy(camera.position);
+    camera.getWorldDirection(tourFromDir);
+    tourFromLook.copy(camera.position).addScaledVector(tourFromDir, 10);
+    tourFromFov = camera.fov;
+    if (ns.onStart) ns.onStart();
+  }
+
+  function finishTour() {
+    tour = null;
+    for (var i = 0; i < doorLeaves.length; i++) doorLeaves[i].userData.open = false;
+    lastInteract = performance.now();
+  }
+
+  function stepsEnterHouse() {
+    return [
+      { to: V(0, 7.0, 15.0), look: V(0, 2.0, 3.7), fov: OUT_FOV(), dur: 1.2 },
+      { to: V(0, 3.0, 8.0), look: V(0, 1.6, 3.7), fov: 54, dur: 0.9 },
+      { to: V(0, 1.66, 5.1), look: V(0, 1.45, 3.6), fov: 56, dur: 0.6,
+        onStart: function () { doorLeaf.userData.open = true; } },
+      { to: V(0, 1.58, 3.3), look: V(0, 1.4, 0.5), fov: 60, dur: 0.7, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('hall', true);
+          camera.position.set(0, 1.66, 3.55);
+          camera.lookAt(0.1, 1.42, -2.4);
+        } },
+      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.6, ease: easeOut }
+    ];
+  }
+
+  function stepsLeaveHouse() {
+    return [
+      { to: V(0, 1.66, 2.7), look: V(2.8, 1.45, 3.1), fov: IN_FOV(), dur: 0.6 },
+      { to: V(0, 1.66, 2.95), look: V(0, 1.5, 9.0), fov: 58, dur: 0.7,
+        onStart: function () { setLeaf(rooms.hall.doors.outside, true); } },
+      { to: V(0, 1.62, 3.5), look: V(0, 1.5, 8.0), fov: 60, dur: 0.5,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('outside', true);
+          camera.position.set(0, 1.62, 4.7);
+          camera.lookAt(0, 1.45, 12.0);
+          doorLeaf.userData.open = true;
+        } },
+      { to: V(0, 1.8, 10.0), look: V(0, 2.4, 22.0), fov: 56, dur: 0.9, ease: easeLin },
+      { to: exteriorCamPos(), look: extTarget, fov: OUT_FOV(), dur: 1.6 }
+    ];
+  }
+
+  function stepsHallToKitchen() {
+    var hd = rooms.hall.doors.kitchen;
+    return [
+      { to: V(-2.2, 1.64, 0.5), look: V(-5.44, 1.42, -0.7), fov: IN_FOV(), dur: 1.05 },
+      { to: V(-4.3, 1.62, -0.7), look: V(-6.6, 1.45, -0.7), dur: 0.55,
+        onStart: function () { setLeaf(hd, true); } },
+      { to: V(-5.36, 1.62, -0.7), look: V(-7.2, 1.4, -0.7), dur: 0.5, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('kitchen', true);
+          camera.position.set(-21.35, 1.62, 2.2);
+          camera.lookAt(-26, 1.45, 1.0);
+          setLeaf(rooms.kitchen.doors.hall, true);
+        } },
+      { to: V(-23.0, 1.64, 2.8), look: V(-26, 1.35, 0.5), fov: IN_FOV(), dur: 0.9, ease: easeLin },
+      { to: V(-26, 1.64, 3.55), look: V(-26, 1.3, -2.2), fov: IN_FOV(), dur: 0.7, ease: easeOut }
+    ];
+  }
+
+  function stepsKitchenToHall() {
+    var kd = rooms.kitchen.doors.hall;
+    var hd = rooms.hall.doors.kitchen;
+    return [
+      { to: V(-23.1, 1.64, 2.9), look: V(-20.4, 1.42, 2.2), fov: IN_FOV(), dur: 0.95 },
+      { to: V(-21.45, 1.62, 2.2), look: V(-20.0, 1.42, 2.2), dur: 0.55,
+        onStart: function () { setLeaf(kd, true); } },
+      { to: V(-20.66, 1.62, 2.2), look: V(-19.2, 1.4, 2.2), dur: 0.45, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('hall', true);
+          camera.position.set(-4.55, 1.66, -0.7);
+          camera.lookAt(-2.4, 1.5, -0.2);
+          setLeaf(hd, true);
+        } },
+      { to: V(-2.6, 1.66, 1.5), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.95, ease: easeLin },
+      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.65, ease: easeOut }
+    ];
+  }
+
+  function stepsHallToStudy() {
+    var hd = rooms.hall.doors.study;
+    return [
+      { to: V(-2.55, 1.64, 0.7), look: V(-2.6, 1.45, -3.9), fov: IN_FOV(), dur: 1.05 },
+      { to: V(-2.58, 1.62, -2.35), look: V(-2.6, 1.4, -4.5), dur: 0.6,
+        onStart: function () { setLeaf(hd, true); } },
+      { to: V(-2.6, 1.62, -3.72), look: V(-2.6, 1.4, -5.4), dur: 0.45, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('study', true);
+          camera.position.set(30.6, 1.62, 2.6);
+          camera.lookAt(26, 1.45, 1.2);
+          setLeaf(rooms.study.doors.hall, true);
+        } },
+      { to: V(28.6, 1.64, 2.95), look: V(26, 1.42, 0.5), fov: IN_FOV(), dur: 0.9, ease: easeLin },
+      { to: V(26, 1.62, 3.55), look: V(26, 1.42, -2.5), fov: IN_FOV(), dur: 0.7, ease: easeOut }
+    ];
+  }
+
+  function stepsStudyToHall() {
+    var sd = rooms.study.doors.hall;
+    var hd = rooms.hall.doors.study;
+    return [
+      { to: V(28.7, 1.62, 2.95), look: V(30.9, 1.42, 2.6), fov: IN_FOV(), dur: 0.95 },
+      { to: V(30.55, 1.62, 2.6), look: V(32.0, 1.42, 2.6), dur: 0.5,
+        onStart: function () { setLeaf(sd, true); } },
+      { to: V(31.34, 1.62, 2.6), look: V(32.8, 1.4, 2.6), dur: 0.45, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('hall', true);
+          camera.position.set(-2.6, 1.66, -3.0);
+          camera.lookAt(-2.6, 1.5, -1.2);
+          setLeaf(hd, true);
+        } },
+      { to: V(-1.7, 1.66, 0.7), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.95, ease: easeLin },
+      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.65, ease: easeOut }
+    ];
+  }
+
+  function stepsHallToBedroom() {
+    var hd = rooms.hall.doors.bedroom;
+    return [
+      { to: V(1.95, 1.64, 0.7), look: V(1.9, 1.45, -3.9), fov: IN_FOV(), dur: 1.05 },
+      { to: V(1.92, 1.6, -2.35), look: V(1.9, 1.4, -4.5), dur: 0.6,
+        onStart: function () { setLeaf(hd, true); } },
+      { to: V(1.9, 1.6, -3.72), look: V(1.9, 1.4, -5.4), dur: 0.45, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('bedroom', true);
+          camera.position.set(4.05, 1.58, -23.5);
+          camera.lookAt(0, 1.4, -24.9);
+          setLeaf(rooms.bedroom.doors.hall, true);
+        } },
+      { to: V(1.8, 1.6, -23.95), look: V(0, 1.25, -25.4), fov: IN_FOV(), dur: 0.9, ease: easeLin },
+      { to: V(0, 1.58, -22.45), look: V(0, 1.18, -28.3), fov: IN_FOV(), dur: 0.7, ease: easeOut }
+    ];
+  }
+
+  function stepsBedroomToHall() {
+    var bd = rooms.bedroom.doors.hall;
+    var hd = rooms.hall.doors.bedroom;
+    return [
+      { to: V(2.0, 1.58, -23.7), look: V(4.9, 1.4, -23.5), fov: IN_FOV(), dur: 0.95 },
+      { to: V(3.6, 1.58, -23.5), look: V(5.4, 1.4, -23.5), dur: 0.5,
+        onStart: function () { setLeaf(bd, true); } },
+      { to: V(4.75, 1.58, -23.5), look: V(6.4, 1.4, -23.5), dur: 0.45, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('hall', true);
+          camera.position.set(1.9, 1.66, -3.0);
+          camera.lookAt(1.9, 1.5, -1.2);
+          setLeaf(hd, true);
+        } },
+      { to: V(1.2, 1.66, 0.7), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.95, ease: easeLin },
+      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.65, ease: easeOut }
+    ];
+  }
+
+  function stepsClimb() {
+    return [
+      { to: V(2.3, 1.64, 1.5), look: V(3.9, 1.5, 0.2), fov: IN_FOV(), dur: 0.8 },
+      { to: V(3.35, 1.85, 0.85), look: V(3.9, 2.25, -1.3), dur: 0.6 },
+      { to: V(3.85, 2.5, -1.5), look: V(3.9, 2.4, -2.6), dur: 0.85, ease: easeLin },
+      { to: V(3.9, 2.62, -2.15), look: V(3.9, 2.5, -3.0), dur: 0.35, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('lamp', true);
+          camera.position.set(1.55, 2.15, 27.2);
+          camera.lookAt(0, 1.45, 26.2);
+        } },
+      { to: V(0.9, 1.75, 27.05), look: V(0, 1.35, 26.3), fov: IN_FOV(), dur: 0.7, ease: easeLin },
+      { to: V(0.55, 1.62, 28.5), look: V(0, 1.3, 26.02), fov: IN_FOV(), dur: 0.6, ease: easeOut }
+    ];
+  }
+
+  function stepsDescend() {
+    return [
+      { to: V(1.3, 1.7, 27.7), look: V(1.55, 0.5, 27.2), fov: IN_FOV(), dur: 0.7 },
+      { to: V(1.55, 1.5, 27.2), look: V(1.55, 0.1, 27.2), dur: 0.5, ease: easeLin,
+        onEnd: function () {
+          pulseFlash(1);
+          applyPlace('hall', true);
+          camera.position.set(3.9, 2.62, -2.15);
+          camera.lookAt(3.9, 2.0, -0.8);
+        } },
+      { to: V(3.85, 2.2, 0.2), look: V(3.2, 1.6, 1.8), fov: IN_FOV(), dur: 0.9, ease: easeLin },
+      { to: V(2.5, 1.66, 1.5), look: V(0.1, 1.42, -2.4), dur: 0.7, ease: easeOut },
+      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.6, ease: easeOut }
+    ];
+  }
+
   function go(key, instant) {
-    if (key === place) return;
-    if (instant || reduceMotion) {
-      applyPlace(key);
+    if (key === place || tour) return;
+    if (instant || reduceMotion) { applyPlace(key); return; }
+    if (place === 'outside' && key === 'hall') return startTour(stepsEnterHouse());
+    if (place === 'hall' && key === 'outside') return startTour(stepsLeaveHouse());
+    if (place === 'hall' && key === 'lamp') return startTour(stepsClimb());
+    if (place === 'lamp' && key === 'hall') return startTour(stepsDescend());
+    if (place === 'hall' && (key === 'kitchen' || key === 'study' || key === 'bedroom')) {
+      startTour(key === 'kitchen' ? stepsHallToKitchen() : key === 'study' ? stepsHallToStudy() : stepsHallToBedroom());
       return;
     }
-    var token = ++navToken;
-    veil.classList.add('on');
-    setTimeout(function () {
-      if (token !== navToken) return;
-      applyPlace(key);
-      setTimeout(function () {
-        if (token === navToken) veil.classList.remove('on');
-      }, 90);
-    }, 260);
+    if (key === 'hall' && (place === 'kitchen' || place === 'study' || place === 'bedroom')) {
+      startTour(place === 'kitchen' ? stepsKitchenToHall() : place === 'study' ? stepsStudyToHall() : stepsBedroomToHall());
+      return;
+    }
+    applyPlace(key);
   }
 
   upBtn.addEventListener('click', function () {
+    if (tour) return;
     var p = PARENT[place];
     if (p) go(p);
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
+      if (tour) return;
       var p = PARENT[place];
       if (p) go(p);
     }
@@ -1922,17 +2291,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var inYaw = 0, inPitch = 0, inFov = isPortrait() ? 70 : 58, inFovGoal = inFov;
   var lastInteract = 0;
 
+  function exteriorCamPos() {
+    var sp = Math.sin(extPhi), cp = Math.cos(extPhi);
+    return new THREE.Vector3(
+      extTarget.x + extRadius * sp * Math.sin(extTheta),
+      extTarget.y + extRadius * cp,
+      extTarget.z + extRadius * sp * Math.cos(extTheta)
+    );
+  }
+
   function updateExteriorCamera(dt, now) {
     if (!reduceMotion && !isShot && now - lastInteract > 4200) extThetaGoal += dt * 0.035;
     extTheta += (extThetaGoal - extTheta) * damp(6, dt);
     extPhi += (extPhiGoal - extPhi) * damp(6, dt);
     extRadius += (extRadiusGoal - extRadius) * damp(5, dt);
-    var sp = Math.sin(extPhi), cp = Math.cos(extPhi);
-    camera.position.set(
-      extTarget.x + extRadius * sp * Math.sin(extTheta),
-      extTarget.y + extRadius * cp,
-      extTarget.z + extRadius * sp * Math.cos(extTheta)
-    );
+    camera.position.copy(exteriorCamPos());
     camera.lookAt(extTarget);
   }
 
@@ -1983,6 +2356,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   canvas.addEventListener('pointerdown', function (e) {
+    if (tour) return;
     pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
     lastInteract = performance.now();
     if (pointerCount() === 1) {
@@ -2004,6 +2378,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   });
 
   canvas.addEventListener('pointermove', function (e) {
+    if (tour) return;
     if (!pointers[e.pointerId]) {
       // 鼠标悬停提示
       if (e.pointerType === 'mouse') {
@@ -2064,6 +2439,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   canvas.addEventListener('wheel', function (e) {
     e.preventDefault();
+    if (tour) return;
     lastInteract = performance.now();
     if (place === 'outside') {
       extRadiusGoal = clamp(extRadiusGoal + e.deltaY * 0.022, 22, 64);
@@ -2132,13 +2508,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (document.hidden) return;
     var dt = Math.min(clock.getDelta(), 0.05);
     var t = performance.now() / 1000;
-    if (place === 'outside') {
+    if (tour) {
+      updateTour(dt);
+    } else if (place === 'outside') {
       updateExteriorCamera(dt, performance.now());
-      animateExterior(t, dt);
     } else {
       updateInteriorCamera(dt);
-      animateInterior(t);
     }
+    if (activeScene === outScene) animateExterior(t, dt);
+    else animateInterior(t);
+    updateDoors(dt);
+    updateFlash(dt);
     animateFlickers(t);
     renderer.render(activeScene, camera);
   }
@@ -2157,7 +2537,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, DPR_CAP));
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    if (place === 'outside') {
+    if (!tour && place === 'outside') {
       camera.fov = isPortrait() ? 58 : 48;
       extRadiusGoal = Math.max(extRadiusGoal, isPortrait() ? 52 : 44);
     }
@@ -2194,7 +2574,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // 供截图脚本使用
   window.__cliff = {
     go: go,
-    place: function () { return place; }
+    place: function () { return place; },
+    touring: function () { return !!tour; }
   };
 })();
 
