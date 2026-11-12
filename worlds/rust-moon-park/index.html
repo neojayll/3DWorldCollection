@@ -216,6 +216,44 @@
   .back:hover { color: #fff8ec; border-color: rgba(242, 181, 68, 0.55); background: rgba(52, 38, 34, 0.68); }
   .back:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
+  .sound {
+    position: fixed;
+    top: calc(clamp(18px, 3.6vw, 40px) + env(safe-area-inset-top, 0px) + 46px);
+    right: calc(clamp(16px, 3.6vw, 44px) + env(safe-area-inset-right, 0px));
+    z-index: 5;
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 7px 14px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: rgba(246, 234, 214, 0.62);
+    border: 1px solid rgba(246, 234, 214, 0.18);
+    border-radius: 999px;
+    background: rgba(30, 22, 23, 0.52);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: color .25s ease, border-color .25s ease, background .25s ease;
+  }
+  .sound svg { width: 15px; height: 15px; flex: none; }
+  .sound .waves { opacity: 0; transition: opacity .25s ease; }
+  .sound[aria-pressed="true"] .waves { opacity: 1; }
+  .sound .slash { opacity: 1; transition: opacity .25s ease; }
+  .sound[aria-pressed="true"] .slash { opacity: 0; }
+  .sound:hover { color: #fff8ec; border-color: rgba(242, 181, 68, 0.5); }
+  .sound[aria-pressed="true"] {
+    color: #2c201b;
+    background: var(--accent);
+    border-color: rgba(242, 181, 68, 0.8);
+  }
+  .sound:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
   .vignette {
     position: fixed;
     inset: 0;
@@ -307,7 +345,7 @@
     to { transform: rotate(360deg); }
   }
 
-  .shot .hud, .shot .caption, .shot .modes, .shot .back, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
+  .shot .hud, .shot .caption, .shot .modes, .shot .back, .shot .sound, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
 
   @media (max-width: 680px) {
     .hud { width: min(320px, calc(100vw - 136px)); }
@@ -320,6 +358,8 @@
     .modes button { padding: 8px 10px; font-size: 11px; letter-spacing: 0.08em; white-space: nowrap; gap: 0; }
     .modes button svg { display: none; }
     .back { font-size: 10px; padding: 6px 12px; min-height: 34px; }
+    .sound { top: calc(clamp(18px, 3.6vw, 40px) + env(safe-area-inset-top, 0px) + 42px); font-size: 10px; padding: 6px 12px; min-height: 34px; }
+    .sound svg { width: 14px; height: 14px; }
   }
   @media (max-width: 380px) {
     .eyebrow { display: none; }
@@ -349,6 +389,14 @@
   <div class="grain"></div>
 
   <a class="back" href="../../index.html" title="返回世界入口">← 世界入口</a>
+  <button class="sound" id="sound" type="button" aria-pressed="false" aria-label="开启环境音">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 9.4h3.3L12 5.5v13L7.3 14.6H4z"/>
+      <g class="waves"><path d="M15.3 9.1a4.2 4.2 0 0 1 0 5.8"/><path d="M18.1 6.7a7.6 7.6 0 0 1 0 10.6"/></g>
+      <path class="slash" d="M15.4 9.4l5.2 5.2M20.6 9.4l-5.2 5.2"/>
+    </svg>
+    <span>环境音</span>
+  </button>
 
   <header class="hud">
     <span class="stamp">ADMIT ONE</span>
@@ -3485,6 +3533,534 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   /* ------------------------------------------------------------------ */
+  /* ambience — procedural web audio, off by default                     */
+  /* ------------------------------------------------------------------ */
+
+  var soundBtn = document.getElementById('sound');
+  var aCtx = null;
+  var aMaster = null;
+  var aVerb = null;
+  var aNoise = null;
+  var aOn = false;
+  var aBeds = [];
+  var aSpatial = [];
+  var aSmall = Math.min(window.innerWidth, window.innerHeight) < 700;
+  var aFwd = new THREE.Vector3();
+  var aUp = new THREE.Vector3(0, 1, 0);
+  var aV = new THREE.Vector3();
+
+  function aSetPos(node, x, y, z) {
+    if (node.positionX) {
+      node.positionX.value = x;
+      node.positionY.value = y;
+      node.positionZ.value = z;
+    } else if (node.setPosition) {
+      node.setPosition(x, y, z);
+    }
+  }
+
+  function aNoiseSource() {
+    var s = aCtx.createBufferSource();
+    s.buffer = aNoise;
+    s.loop = true;
+    s.start(0, Math.random() * 2.3);
+    return s;
+  }
+
+  function aFilter(type, freq, q) {
+    var f = aCtx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    f.Q.value = q || 0.7;
+    return f;
+  }
+
+  function aNoiseInto(dest, type, freq, q, level) {
+    var s = aNoiseSource();
+    var f = aFilter(type, freq, q);
+    var g = aCtx.createGain();
+    g.gain.value = level;
+    s.connect(f); f.connect(g); g.connect(dest);
+    return g;
+  }
+
+  function aToneInto(dest, type, freq, level) {
+    var o = aCtx.createOscillator();
+    o.type = type;
+    o.frequency.value = freq;
+    var g = aCtx.createGain();
+    g.gain.value = level;
+    o.connect(g); g.connect(dest);
+    o.start();
+    return o;
+  }
+
+  function aBedNoise(mode, base, type, freq, q, lfo, depth) {
+    var s = aNoiseSource();
+    var f = aFilter(type, freq, q);
+    var g = aCtx.createGain();
+    g.gain.value = 0;
+    s.connect(f); f.connect(g);
+    if (aCtx.createStereoPanner) {
+      var pn = aCtx.createStereoPanner();
+      g.connect(pn); pn.connect(aMaster);
+      var lfo2 = aCtx.createOscillator();
+      lfo2.frequency.value = 0.03 + Math.random() * 0.07;
+      var lg2 = aCtx.createGain();
+      lg2.gain.value = 0.28 + Math.random() * 0.22;
+      lfo2.connect(lg2); lg2.connect(pn.pan); lfo2.start();
+    } else {
+      g.connect(aMaster);
+    }
+    aBeds.push({ mode: mode, g: g, base: base * 1.8, lfo: lfo || 0, depth: depth || 0, ph: Math.random() * 6.283 });
+  }
+
+  function aBedTone(mode, base, type, freq) {
+    var o = aCtx.createOscillator();
+    o.type = type;
+    o.frequency.value = freq;
+    o.detune.value = (Math.random() * 8) - 4;
+    var g = aCtx.createGain();
+    g.gain.value = 0;
+    o.connect(g); g.connect(aMaster);
+    o.start();
+    aBeds.push({ mode: mode, g: g, base: base * 1.8, lfo: 0, depth: 0, ph: 0 });
+  }
+
+  function aEmitter(x, y, z, base, build, live, follow) {
+    var g = aCtx.createGain();
+    g.gain.value = 0;
+    var lp = aCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 15000;
+    lp.Q.value = 0.4;
+    var p = aCtx.createPanner();
+    p.panningModel = aSmall ? 'equalpower' : 'HRTF';
+    p.distanceModel = 'inverse';
+    p.refDistance = 22;
+    p.rolloffFactor = 0.65;
+    p.maxDistance = 400;
+    aSetPos(p, x, y, z);
+    g.connect(lp); lp.connect(p); p.connect(aMaster);
+    var send = aCtx.createGain();
+    send.gain.value = 0.16;
+    p.connect(send); send.connect(aVerb);
+    build(g);
+    aSpatial.push({
+      x: x, y: y, z: z, g: g, lp: lp, p: p,
+      base: base * 1.7, live: live, follow: follow || null
+    });
+  }
+
+  function aToneShot(f0, f1, dur, gain, pan, type) {
+    var t = aCtx.currentTime;
+    var o = aCtx.createOscillator();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(f0, t);
+    if (f1) o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+    var g = aCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + Math.min(0.03, dur * 0.3));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var out = g;
+    var p = null;
+    if (aCtx.createStereoPanner) {
+      p = aCtx.createStereoPanner();
+      p.pan.value = pan || 0;
+      g.connect(p);
+      out = p;
+    }
+    out.connect(aMaster);
+    var send = aCtx.createGain();
+    send.gain.value = 0.2;
+    out.connect(send); send.connect(aVerb);
+    o.connect(g);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+    setTimeout(function () {
+      g.disconnect();
+      if (p) p.disconnect();
+      send.disconnect();
+    }, (dur + 0.3) * 1000);
+  }
+
+  function aNoiseShot(dur, gain, type, freq, pan) {
+    var t = aCtx.currentTime;
+    var s = aCtx.createBufferSource();
+    s.buffer = aNoise;
+    s.loop = true;
+    var f = aFilter(type, freq, 0.8);
+    var g = aCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var out = g;
+    var p = null;
+    if (aCtx.createStereoPanner) {
+      p = aCtx.createStereoPanner();
+      p.pan.value = pan || 0;
+      g.connect(p);
+      out = p;
+    }
+    out.connect(aMaster);
+    var send = aCtx.createGain();
+    send.gain.value = 0.25;
+    out.connect(send); send.connect(aVerb);
+    s.connect(f); f.connect(g);
+    s.start(t);
+    s.stop(t + dur + 0.05);
+    setTimeout(function () {
+      g.disconnect();
+      if (p) p.disconnect();
+      send.disconnect();
+    }, (dur + 0.3) * 1000);
+  }
+
+  function aBuild() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    var ctx = new AC();
+    aCtx = ctx;
+
+    var comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 22;
+    comp.ratio.value = 3.2;
+    comp.attack.value = 0.012;
+    comp.release.value = 0.35;
+    var master = ctx.createGain();
+    master.gain.value = 0;
+    master.connect(comp);
+    comp.connect(ctx.destination);
+    aMaster = master;
+
+    // park-sized reverb tail
+    var irLen = Math.floor(ctx.sampleRate * 2.6);
+    var ir = ctx.createBuffer(2, irLen, ctx.sampleRate);
+    for (var ch = 0; ch < 2; ch++) {
+      var d = ir.getChannelData(ch);
+      for (var i = 0; i < irLen; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 2.7);
+      }
+    }
+    var conv = ctx.createConvolver();
+    conv.buffer = ir;
+    var wet = ctx.createGain();
+    wet.gain.value = 0.42;
+    conv.connect(wet);
+    wet.connect(master);
+    aVerb = conv;
+
+    // shared noise texture
+    var nLen = Math.floor(ctx.sampleRate * 2.5);
+    var nb = ctx.createBuffer(2, nLen, ctx.sampleRate);
+    for (var nc = 0; nc < 2; nc++) {
+      var nd = nb.getChannelData(nc);
+      for (var j = 0; j < nLen; j++) nd[j] = Math.random() * 2 - 1;
+    }
+    aNoise = nb;
+
+    // ------- mode beds, crossfaded by the same weights as the visuals -------
+    aBedNoise('golden', 0.075, 'lowpass', 620, 0.7, 0.16, 0.35);
+    aBedNoise('golden', 0.032, 'bandpass', 480, 0.8, 0.09, 0.4);
+    aBedNoise('golden', 0.013, 'bandpass', 950, 1.1, 0.07, 0.5);
+    aBedTone('golden', 0.0045, 'triangle', 110);
+
+    aBedNoise('rain', 0.06, 'highpass', 1500, 0.5, 0.2, 0.12);
+    aBedNoise('rain', 0.04, 'bandpass', 700, 0.6, 0.13, 0.3);
+    aBedNoise('rain', 0.026, 'lowpass', 220, 0.7, 0.1, 0.3);
+    aBedNoise('rain', 0.045, 'lowpass', 500, 0.6, 0.17, 0.25);
+
+    aBedNoise('ruin', 0.08, 'bandpass', 380, 1.4, 0.18, 0.5);
+    aBedNoise('ruin', 0.019, 'highpass', 2600, 0.6, 0.3, 0.4);
+    aBedNoise('ruin', 0.026, 'lowpass', 160, 0.8, 0.08, 0.4);
+    aBedTone('ruin', 0.014, 'sine', 58);
+
+    aBedNoise('snow', 0.075, 'lowpass', 480, 0.7, 0.1, 0.35);
+    aBedNoise('snow', 0.017, 'bandpass', 1200, 0.8, 0.06, 0.3);
+    aBedTone('snow', 0.005, 'sine', 196);
+
+    aBedNoise('bloom', 0.04, 'bandpass', 760, 0.8, 0.12, 0.4);
+    aBedNoise('bloom', 0.012, 'highpass', 2400, 0.5, 0.2, 0.3);
+    aBedNoise('bloom', 0.022, 'lowpass', 900, 0.7, 0.15, 0.25);
+
+    aBedTone('neon', 0.01, 'sine', 100);
+    aBedTone('neon', 0.006, 'sine', 200);
+    aBedTone('neon', 0.0045, 'triangle', 50);
+    aBedNoise('neon', 0.008, 'highpass', 5200, 0.4, 0.3, 0.3);
+
+    // ------- positional sources around the park -------
+    aEmitter(-18, 16.5, -7, 0.5, function (out) {
+      var o = aToneInto(out, 'sawtooth', 54, 0.5);
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.23;
+      var lg = ctx.createGain();
+      lg.gain.value = 11;
+      lfo.connect(lg); lg.connect(o.detune); lfo.start();
+      aNoiseInto(out, 'bandpass', 820, 3, 0.16);
+    }, function () {
+      return (W.golden + W.rain * 0.8 + W.neon * 0.7 + W.snow * 0.2 + W.bloom * 0.5) *
+        (1 - W.ruin * 0.85) + Math.min(0.3, wheelBoost * 0.35);
+    });
+
+    aEmitter(19, 8.2, -4, 0.44, function (out) {
+      var trem = ctx.createGain();
+      trem.gain.value = 0.72;
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.33;
+      var lg = ctx.createGain();
+      lg.gain.value = 0.26;
+      lfo.connect(lg); lg.connect(trem.gain); lfo.start();
+      trem.connect(out);
+      [523.25, 659.25, 783.99].forEach(function (fr) {
+        var o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.value = fr;
+        o.detune.value = (Math.random() * 8) - 4;
+        var g = ctx.createGain();
+        g.gain.value = 0.045;
+        o.connect(g); g.connect(trem); o.start();
+      });
+      aNoiseInto(trem, 'bandpass', 1600, 1.4, 0.035);
+    }, function () {
+      var l = (W.golden + W.rain * 0.7 + W.bloom * 0.9 + W.neon * 0.6 + W.snow * 0.1) * (1 - W.ruin * 0.92);
+      if (carouselKickT > 0) l += 0.25;
+      return l;
+    });
+
+    aEmitter(0, 2.2, 6, 0.4, function (out) {
+      aNoiseInto(out, 'bandpass', 2400, 0.9, 0.2);
+      var s = aNoiseSource();
+      var f = aFilter('lowpass', 700, 0.8);
+      var g = ctx.createGain();
+      g.gain.value = 0.09;
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.21;
+      var lg = ctx.createGain();
+      lg.gain.value = 0.05;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start();
+      s.connect(f); f.connect(g); g.connect(out);
+    }, function () {
+      return (W.golden + W.rain * 0.45 + W.bloom * 0.8 + W.neon * 0.5 + W.snow * 0.05) *
+        (1 - W.ruin * 0.9) * (1 - W.snow * 0.7);
+    });
+
+    aEmitter(0, 8, 0, 0.42, function (out) {
+      aNoiseInto(out, 'lowpass', 520, 0.8, 0.18);
+      aNoiseInto(out, 'bandpass', 1800, 1.6, 0.07);
+    }, function () {
+      var l = (W.golden * 0.35 + W.rain * 0.3 + W.neon * 0.5 + W.bloom * 0.3) * (1 - W.ruin * 0.9);
+      return l + (coasterRunT > 0 ? 0.55 : 0.12);
+    }, cart);
+
+    aEmitter(-39, 11, -24, 0.3, function (out) {
+      var s = aNoiseSource();
+      var f = aFilter('bandpass', 300, 3.2);
+      var g = ctx.createGain();
+      g.gain.value = 0.16;
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.42;
+      var lg = ctx.createGain();
+      lg.gain.value = 0.1;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start();
+      s.connect(f); f.connect(g); g.connect(out);
+      aToneInto(out, 'sine', 72, 0.1);
+    }, function () {
+      var l = (W.golden + W.rain * 0.55 + W.bloom * 0.8 + W.neon * 0.7 + W.snow * 0.12) * (1 - W.ruin * 0.9);
+      l *= 0.5 + 0.5 * Math.abs(Math.cos(shipPhase));
+      return l + (shipKickT > 0 ? 0.25 : 0);
+    });
+
+    aEmitter(40, 12, -28, 0.28, function (out) {
+      aToneInto(out, 'triangle', 88, 0.3);
+      aNoiseInto(out, 'bandpass', 900, 2.2, 0.1);
+    }, function () {
+      var l = (W.golden * 0.55 + W.rain * 0.35 + W.bloom * 0.6 + W.neon * 0.65) * (1 - W.ruin * 0.9);
+      return l + (swingKickT > 0 ? 0.25 : 0);
+    });
+
+    aEmitter(0, 16, -44, 0.3, function (out) {
+      aNoiseInto(out, 'bandpass', 1300, 3.5, 0.11);
+      aToneInto(out, 'triangle', 148, 0.16);
+    }, function () {
+      var l = (W.golden * 0.45 + W.rain * 0.3 + W.neon * 0.6) * (1 - W.ruin * 0.92);
+      return l + (dropRunT > 0 ? 0.45 : 0.08);
+    }, dropCar);
+
+    aEmitter(28, 5, -18, 0.3, function (out) {
+      aToneInto(out, 'sawtooth', 116, 0.2);
+      aNoiseInto(out, 'bandpass', 1500, 1.8, 0.09);
+    }, function () {
+      var l = (W.golden * 0.45 + W.rain * 0.25 + W.neon * 0.75 + W.bloom * 0.35) * (1 - W.ruin * 0.9);
+      return l + (bumpKickT > 0 ? 0.25 : 0);
+    });
+
+    aEmitter(0, 1.5, 108, 0.36, function (out) {
+      var s = aNoiseSource();
+      var f = aFilter('lowpass', 620, 0.7);
+      var g = ctx.createGain();
+      g.gain.value = 0.2;
+      var lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.14;
+      var lg = ctx.createGain();
+      lg.gain.value = 0.16;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start();
+      s.connect(f); f.connect(g); g.connect(out);
+    }, function () {
+      return 0.9 - W.ruin * 0.35 - W.neon * 0.2;
+    });
+
+    aEmitter(0, 1.5, -108, 0.38, function (out) {
+      aNoiseInto(out, 'lowpass', 480, 0.7, 0.22);
+    }, function () {
+      return 0.75 - W.ruin * 0.25;
+    });
+
+    // ------- quiet events on top -------
+    setInterval(function () {
+      if (!aOn || !aCtx) return;
+      var mode = null;
+      var best = 0.35;
+      for (var i = 0; i < modeIds.length; i++) {
+        if (W[modeIds[i]] > best) { best = W[modeIds[i]]; mode = modeIds[i]; }
+      }
+      if (!mode) return;
+      var r = Math.random();
+      var pan = Math.random() * 1.4 - 0.7;
+      if (mode === 'golden') {
+        if (r < 0.4) {
+          var notes = [523.25, 587.33, 659.25, 783.99, 880];
+          aToneShot(notes[(Math.random() * notes.length) | 0], 0, 0.85, 0.016, -0.3, 'triangle');
+        } else if (r > 0.95) {
+          aNoiseShot(0.7, 0.014, 'bandpass', 1800, pan);
+        }
+      } else if (mode === 'rain') {
+        if (r < 0.03) {
+          aNoiseShot(2.4, 0.07, 'lowpass', 150, 0.15);
+          aToneShot(58, 32, 1.9, 0.035, 0, 'sine');
+        } else if (r < 0.45) {
+          aToneShot(1500, 620, 0.09, 0.011, pan);
+        }
+      } else if (mode === 'ruin') {
+        if (r < 0.3) {
+          aNoiseShot(1.1, 0.028, 'bandpass', 430, pan);
+          aToneShot(150, 88, 0.9, 0.01, pan, 'sawtooth');
+        } else if (r < 0.62) {
+          aToneShot(4300, 4100, 0.05, 0.006, pan);
+          setTimeout(function () { if (aOn) aToneShot(4200, 4000, 0.05, 0.005, pan); }, 90);
+        }
+      } else if (mode === 'snow') {
+        if (r < 0.14) {
+          aToneShot(880, 0, 2.2, 0.01, pan, 'sine');
+          aToneShot(1320, 0, 1.6, 0.005, pan, 'sine');
+        }
+      } else if (mode === 'bloom') {
+        if (r < 0.55) {
+          aToneShot(2100, 3000, 0.09, 0.012, pan);
+          setTimeout(function () {
+            if (aOn) aToneShot(2600, 3300, 0.07, 0.009, pan);
+          }, 120);
+        }
+      } else if (mode === 'neon') {
+        if (r < 0.45) {
+          var arp = [220, 261.63, 329.63, 392, 440];
+          aToneShot(arp[(Math.random() * arp.length) | 0], 0, 0.28, 0.015, pan, 'triangle');
+        }
+      }
+    }, 900);
+
+    return true;
+  }
+
+  function aSetOn(on) {
+    if (on) {
+      if (!aCtx) {
+        var ok = false;
+        try { ok = aBuild(); } catch (e) { ok = false; }
+        if (!ok) {
+          if (soundBtn) {
+            soundBtn.disabled = true;
+            soundBtn.title = '当前浏览器不支持环境音';
+          }
+          return;
+        }
+      }
+      aOn = true;
+      if (aCtx.state === 'suspended') aCtx.resume();
+      aMaster.gain.cancelScheduledValues(aCtx.currentTime);
+      aMaster.gain.setTargetAtTime(0.9, aCtx.currentTime, 0.4);
+    } else {
+      aOn = false;
+      if (aCtx) {
+        aMaster.gain.cancelScheduledValues(aCtx.currentTime);
+        aMaster.gain.setTargetAtTime(0.0001, aCtx.currentTime, 0.12);
+        setTimeout(function () {
+          if (!aOn && aCtx && aCtx.state === 'running') aCtx.suspend();
+        }, 900);
+      }
+    }
+    if (soundBtn) {
+      soundBtn.setAttribute('aria-pressed', aOn ? 'true' : 'false');
+      soundBtn.setAttribute('aria-label', aOn ? '关闭环境音' : '开启环境音');
+    }
+  }
+
+  if (soundBtn) {
+    soundBtn.addEventListener('click', function () { aSetOn(!aOn); });
+  }
+
+  function aUpdate() {
+    if (!aOn || !aCtx) return;
+    var t = aCtx.currentTime;
+    var cp = camera.position;
+    var l = aCtx.listener;
+    if (l.positionX && l.forwardX) {
+      l.positionX.value = cp.x;
+      l.positionY.value = cp.y;
+      l.positionZ.value = cp.z;
+      aFwd.set(view.target.x - cp.x, view.target.y - cp.y, view.target.z - cp.z).normalize();
+      l.forwardX.value = aFwd.x;
+      l.forwardY.value = aFwd.y;
+      l.forwardZ.value = aFwd.z;
+      l.upX.value = aUp.x;
+      l.upY.value = aUp.y;
+      l.upZ.value = aUp.z;
+    } else if (l.setPosition) {
+      l.setPosition(cp.x, cp.y, cp.z);
+      aFwd.set(view.target.x - cp.x, view.target.y - cp.y, view.target.z - cp.z).normalize();
+      l.setOrientation(aFwd.x, aFwd.y, aFwd.z, aUp.x, aUp.y, aUp.z);
+    }
+
+    for (var i = 0; i < aBeds.length; i++) {
+      var b = aBeds[i];
+      var mod = b.depth ? (1 + b.depth * Math.sin(t * b.lfo + b.ph)) : 1;
+      b.g.gain.value = b.base * (W[b.mode] || 0) * mod;
+    }
+
+    for (var j = 0; j < aSpatial.length; j++) {
+      var s = aSpatial[j];
+      if (s.follow) {
+        s.follow.getWorldPosition(aV);
+        s.x = aV.x; s.y = aV.y; s.z = aV.z;
+        aSetPos(s.p, s.x, s.y, s.z);
+      }
+      var dx = s.x - cp.x, dy = s.y - cp.y, dz = s.z - cp.z;
+      var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      s.lp.frequency.value = clamp(17000 / (1 + dist * 0.014), 1300, 17000);
+      s.g.gain.value = s.base * Math.max(0, s.live ? s.live() : 1);
+    }
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (!aCtx) return;
+    if (document.hidden) {
+      if (aOn) aCtx.suspend();
+    } else if (aOn && aCtx.state === 'suspended') {
+      aCtx.resume();
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
   /* modes                                                               */
   /* ------------------------------------------------------------------ */
 
@@ -4037,6 +4613,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       view.target.z + view.radius * sp * Math.sin(view.theta)
     );
     camera.lookAt(view.target);
+    aUpdate();
 
     sky.position.copy(camera.position);
     sunGroup.position.copy(camera.position);
