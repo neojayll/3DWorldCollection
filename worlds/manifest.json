@@ -35,10 +35,10 @@
       "id": "rust-moon-park",
       "name": "锈月乐园",
       "nameEn": "Rust Moon Park",
-      "description": "海边的旧乐园在盛景、雨夜与锈蚀之间切换，摩天轮仍在缓慢转动。",
+      "description": "海边的旧乐园在盛景、雨夜、废园、雪境、花季与霓虹之间切换，摩天轮、海盗船与跳楼机仍在转动。",
       "entry": "worlds/rust-moon-park/index.html",
       "cover": "worlds/rust-moon-park/preview.jpg",
-      "tags": ["游乐园", "黄昏", "可切换"],
+      "tags": ["游乐园", "黄昏", "可切换", "雪景", "霓虹"],
       "added": "2026-11"
     }
   ]
