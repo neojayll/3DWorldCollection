@@ -153,6 +153,7 @@
     border-radius: 999px;
     background: rgba(27, 20, 21, 0.6);
     box-shadow: 0 10px 30px rgba(12, 6, 8, 0.35);
+    max-width: calc(100vw - 24px);
     -webkit-backdrop-filter: blur(13px) saturate(1.05);
     backdrop-filter: blur(13px) saturate(1.05);
     animation: riseCenter 1.3s .6s cubic-bezier(.22, .61, .36, 1) both;
@@ -175,6 +176,8 @@
     border-radius: 999px;
     cursor: pointer;
     touch-action: manipulation;
+    white-space: nowrap;
+    flex: none;
     transition: color .28s ease, background .28s ease, box-shadow .28s ease;
   }
   .modes button svg { width: 14px; height: 14px; flex: none; }
@@ -314,15 +317,16 @@
     .hud h1 { letter-spacing: 0.18em; }
     .caption { font-size: 10px; letter-spacing: 0.14em; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
     .modes { max-width: calc(100vw - 24px); }
-    .modes button { padding: 8px 12px; font-size: 11.5px; letter-spacing: 0.1em; white-space: nowrap; }
+    .modes button { padding: 8px 10px; font-size: 11px; letter-spacing: 0.08em; white-space: nowrap; gap: 0; }
+    .modes button svg { display: none; }
     .back { font-size: 10px; padding: 6px 12px; min-height: 34px; }
   }
   @media (max-width: 380px) {
     .eyebrow { display: none; }
     .hud h1 { margin-top: 0; font-size: 28px; }
-    .modes button { padding: 8px 11px; }
+    .modes button { padding: 8px 10px; }
     .modes button span { display: none; }
-    .modes button svg { width: 16px; height: 16px; }
+    .modes button svg { display: block; width: 16px; height: 16px; }
   }
   @media (max-height: 540px) {
     .hud .tag, .hud .hint { display: none; }
@@ -339,7 +343,7 @@
 </style>
 </head>
 <body data-mode="golden">
-  <canvas id="scene" aria-label="海边旧游乐园场景：摩天轮、旋转木马与过山车在盛景、雨夜与废园之间切换"></canvas>
+  <canvas id="scene" aria-label="海边旧游乐园场景：摩天轮、旋转木马、过山车与新设施在六种环境之间切换"></canvas>
 
   <div class="vignette"></div>
   <div class="grain"></div>
@@ -351,7 +355,7 @@
     <p class="eyebrow">Rust · Moon · Park</p>
     <h1>锈月乐园</h1>
     <p class="en">Rust Moon Park</p>
-    <p class="tag">海边的旧乐园，在盛景与锈蚀之间，缓慢转动。</p>
+    <p class="tag">海边的旧乐园，在雪、花与霓虹之间，缓慢转动。</p>
     <p class="hint">拖动环视 · 双指缩放 · 轻点地面</p>
   </header>
 
@@ -369,6 +373,18 @@
     <button type="button" data-mode="ruin" aria-pressed="false" aria-label="切换到废园">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20c2.2-2 3.6-4.6 4.2-7.6C9 8.2 11.4 5 15 4"/><path d="M8.2 12.4C6 11.8 4.6 10 4.4 7.6c2.7-.2 4.8 1 6 3.2"/><path d="M11.7 8.6c.2-2.2 1.6-3.9 4-4.8.8 2.4.2 4.4-1.6 5.8"/><path d="M14.6 16.2c2.2-.6 3.9.1 5.2 2-2 .9-3.8.6-5.4-.8"/></svg>
       <span>废园</span>
+    </button>
+    <button type="button" data-mode="snow" aria-pressed="false" aria-label="切换到雪境">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9"/><path d="M9.2 4.6L12 7.4l2.8-2.8M9.2 19.4L12 16.6l2.8 2.8M4.9 10.2l3.7.6-.6 3.7M19.1 13.8l-3.7-.6.6-3.7"/></svg>
+      <span>雪境</span>
+    </button>
+    <button type="button" data-mode="bloom" aria-pressed="false" aria-label="切换到花季">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2.2"/><path d="M12 9.8c-.4-2.6.6-4.4 2.4-5.1 1.4 2 .8 4.1-2.4 5.1zM12 14.2c.4 2.6-.6 4.4-2.4 5.1-1.4-2-.8-4.1 2.4-5.1zM9.8 12c-2.6-.4-4.4.6-5.1 2.4 2 1.4 4.1.8 5.1-2.4zM14.2 12c2.6.4 4.4-.6 5.1-2.4-2-1.4-4.1-.8-5.1 2.4z"/></svg>
+      <span>花季</span>
+    </button>
+    <button type="button" data-mode="neon" aria-pressed="false" aria-label="切换到霓虹">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.6 2.8L5.4 13h5.2l-1.2 8.2L18.6 11h-5.2z"/><path d="M19.5 3.5l.5-1.5M20 3.5l1.5.5M4 20.5l-.5 1.2M3.5 20.5L2 20"/></svg>
+      <span>霓虹</span>
     </button>
   </nav>
 
@@ -416,7 +432,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var isShot = /(?:^|[?&])shot=1(?:&|$)/.test(location.search);
   if (isShot) document.body.classList.add('shot');
 
-  var modeIds = ['golden', 'rain', 'ruin'];
+  var modeIds = ['golden', 'rain', 'ruin', 'snow', 'bloom', 'neon'];
+  var neonTint = new THREE.Color('#8fe9ff');
   var startMode = modeIds.indexOf(params.get('mode')) >= 0 ? params.get('mode') : 'golden';
 
   var renderer;
@@ -736,23 +753,58 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       sunI: 1.0, hemiI: 1.1, fillI: 0.38, exposure: 0.99, fogD: 0.0022,
       sunDisc: 0.18, star: 0.0, bird: C('#3d3b34'),
       bulb: 0.07, glow: 0.06, water: 0.16, cloudOp: 0.76
+    },
+    snow: {
+      skyTop: C('#7f97ab'), skyMid: C('#b9c9d2'), skyBot: C('#e8eef0'),
+      sun: C('#f4f8f8'), fog: C('#c4d1d6'),
+      seaDeep: C('#224249'), seaShallow: C('#587d84'), seaGlint: C('#e6f2f2'),
+      hemiSky: C('#e2edf4'), hemiGround: C('#8a949a'), cloud: C('#d8e1e5'),
+      sunI: 0.78, hemiI: 1.4, fillI: 0.38, exposure: 1.07, fogD: 0.0026,
+      sunDisc: 0.08, star: 0.0, bird: C('#5d6a70'),
+      bulb: 0.85, glow: 0.5, water: 0.22, cloudOp: 0.82
+    },
+    bloom: {
+      skyTop: C('#4f86c6'), skyMid: C('#a6cde4'), skyBot: C('#f6eedc'),
+      sun: C('#fff4d6'), fog: C('#d6e6e6'),
+      seaDeep: C('#1f5f70'), seaShallow: C('#62a9a0'), seaGlint: C('#ffe7b0'),
+      hemiSky: C('#eef5ff'), hemiGround: C('#7d8957'), cloud: C('#f6fbff'),
+      sunI: 3.3, hemiI: 1.55, fillI: 0.72, exposure: 1.06, fogD: 0.0014,
+      sunDisc: 0.7, star: 0.0, bird: C('#4b5d4d'),
+      bulb: 0.28, glow: 0.1, water: 1.0, cloudOp: 0.38
+    },
+    neon: {
+      skyTop: C('#070318'), skyMid: C('#1b0b36'), skyBot: C('#4a1656'),
+      sun: C('#ff64c8'), fog: C('#180a28'),
+      seaDeep: C('#050e20'), seaShallow: C('#123247'), seaGlint: C('#33f0e0'),
+      hemiSky: C('#6f5cff'), hemiGround: C('#1b0d28'), cloud: C('#241040'),
+      sunI: 0.35, hemiI: 0.9, fillI: 0.3, exposure: 1.24, fogD: 0.0024,
+      sunDisc: 0.35, star: 0.9, bird: C('#2b2148'),
+      bulb: 1.9, glow: 1.7, water: 0.9, cloudOp: 0.5
     }
   };
 
-  var W = { golden: 1, rain: 0, ruin: 0 };
-  var WT = { golden: 1, rain: 0, ruin: 0 };
+  var W = {};
+  var WT = {};
+  modeIds.forEach(function (m) { W[m] = 0; WT[m] = 0; });
+  W.golden = 1;
+  WT.golden = 1;
 
   function mixColor(out, key) {
-    var g = PAL.golden[key], r = PAL.rain[key], u = PAL.ruin[key];
-    out.setRGB(
-      g.r * W.golden + r.r * W.rain + u.r * W.ruin,
-      g.g * W.golden + r.g * W.rain + u.g * W.ruin,
-      g.b * W.golden + r.b * W.rain + u.b * W.ruin
-    );
+    var r = 0, g = 0, b = 0;
+    for (var i = 0; i < modeIds.length; i++) {
+      var m = modeIds[i];
+      var w = W[m];
+      if (!w) continue;
+      var c = PAL[m][key];
+      r += c.r * w; g += c.g * w; b += c.b * w;
+    }
+    out.setRGB(r, g, b);
     return out;
   }
   function mixNum(key) {
-    return PAL.golden[key] * W.golden + PAL.rain[key] * W.rain + PAL.ruin[key] * W.ruin;
+    var v = 0;
+    for (var i = 0; i < modeIds.length; i++) v += PAL[modeIds[i]][key] * W[modeIds[i]];
+    return v;
   }
 
   /* ------------------------------------------------------------------ */
@@ -919,7 +971,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         '  w += sin((vW.x - vW.z) * 0.045 + uTime * 0.22) * 0.6;',
         '  col += uGlint * pow(max(w, 0.0), 3.0) * 0.10;',
         '  col += uGlint * uRain * pow(max(sin(vW.x * 0.6 + uTime * 2.0), 0.0), 8.0) * 0.05;',
-        '  float shore = 1.0 - smoothstep(42.0, 105.0, d);',
+        '  float shore = 1.0 - smoothstep(52.0, 120.0, d);',
         '  col = mix(col, uShallow * 1.18, shore * 0.32);',
         '  float fogF = smoothstep(150.0, 430.0, d);',
         '  col = mix(col, uFog, fogF * 0.88);',
@@ -936,26 +988,26 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     color: '#f4e8cc', transparent: true, opacity: 0.16,
     depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false
   });
-  var foam = new THREE.Mesh(new THREE.RingGeometry(46.5, 50.5, 80), foamMat);
+  var foam = new THREE.Mesh(new THREE.RingGeometry(56.5, 60.5, 80), foamMat);
   foam.rotation.x = -Math.PI / 2;
   foam.position.y = -1.55;
   scene.add(foam);
 
   var groundMat = vegMat('#9aa562', '#89835f');
-  var islandTop = new THREE.Mesh(new THREE.CircleGeometry(46, 84), groundMat);
+  var islandTop = new THREE.Mesh(new THREE.CircleGeometry(56, 84), groundMat);
   islandTop.rotation.x = -Math.PI / 2;
   islandTop.receiveShadow = true;
   islandTop.position.y = 0;
   scene.add(islandTop);
 
   var cliffMat = new THREE.MeshStandardMaterial({ color: '#77695a', roughness: 0.98, flatShading: true });
-  var cliff = new THREE.Mesh(new THREE.CylinderGeometry(46, 49, 3.4, 72, 1, true), cliffMat);
+  var cliff = new THREE.Mesh(new THREE.CylinderGeometry(56, 59, 3.4, 72, 1, true), cliffMat);
   cliff.position.y = -1.7;
   cliff.receiveShadow = true;
   scene.add(cliff);
 
   var beachMat = new THREE.MeshStandardMaterial({ color: '#d8c79a', roughness: 0.95, flatShading: true });
-  var beach = new THREE.Mesh(new THREE.RingGeometry(46, 55, 80), beachMat);
+  var beach = new THREE.Mesh(new THREE.RingGeometry(56, 66, 80), beachMat);
   beach.rotation.x = -Math.PI / 2;
   beach.position.y = -1.6;
   scene.add(beach);
@@ -980,7 +1032,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   addPath(0, 23.5, 7.5, 22, 0);
   addPath(-9, 3.5, 5, 22, 1.15);
   addPath(10, 1.5, 5, 22, -1.1);
-  addPath(20, 30, 4.5, 26, 0.2);
+  addPath(20, 37, 4.5, 26, 0.2);
 
   /* ------------------------------------------------------------------ */
   /* shared light/bulb bookkeeping                                       */
@@ -995,14 +1047,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     bulbPositions.push(new THREE.Vector3(x, y, z));
   }
   function addHalo(x, y, z, scale, color) {
+    var warm = new THREE.Color(color || '#ffcf92');
     var mat = new THREE.SpriteMaterial({
-      map: glowTex, color: color || '#ffcf92', transparent: true, opacity: 0.5,
+      map: glowTex, color: warm, transparent: true, opacity: 0.5,
       depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false
     });
     var s = new THREE.Sprite(mat);
     s.position.set(x, y, z);
     s.scale.set(scale, scale, 1);
     s.renderOrder = 6;
+    s.userData.warm = warm;
     scene.add(s);
     glowSprites.push(s);
     return s;
@@ -1681,6 +1735,610 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   });
 
   /* ------------------------------------------------------------------ */
+  /* pirate ship                                                         */
+  /* ------------------------------------------------------------------ */
+
+  var ship = new THREE.Group();
+  ship.position.set(-39, 0, -24);
+  ship.rotation.y = 0.16;
+  scene.add(ship);
+
+  addBox(ship, 16, 0.55, 9.5, paintMat('#7a5a42'), 0, 0.28, 0);
+  [[-5.8, -3.1], [5.8, -3.1], [-5.8, 3.1], [5.8, 3.1]].forEach(function (p) {
+    strut(ship, p[0], 0, p[1], 0, 12.5, 0, 0.34, iron, 6);
+    strut(ship, p[0], 0, p[1], 0, 0.4, 0, 0.18, iron, 5);
+  });
+  addBox(ship, 1.6, 0.5, 7.4, iron, 0, 12.5, 0);
+  addBox(ship, 13, 0.28, 0.5, gold, 0, 6.3, 0);
+
+  var shipPivot = new THREE.Group();
+  shipPivot.position.set(0, 12.35, 0);
+  ship.add(shipPivot);
+
+  [-3.45, 3.45].forEach(function (pz) {
+    strut(shipPivot, -1.45, 0, pz, -1.7, -3.5, pz, 0.12, iron, 5);
+    strut(shipPivot, 1.45, 0, pz, 1.7, -3.5, pz, 0.12, iron, 5);
+  });
+  addBox(shipPivot, 4.6, 0.24, 0.24, iron, 0, 0, 0);
+  addBox(shipPivot, 3.4, 1.9, 8.2, paintMat('#8c4a36'), 0, -4.35, 0);
+  addBox(shipPivot, 3.55, 0.3, 8.3, gold, 0, -3.55, 0);
+  addBox(shipPivot, 3.55, 0.18, 8.3, cream, 0, -4.9, 0);
+  for (var sw2 = 0; sw2 < 6; sw2++) {
+    addBox(shipPivot, 0.09, 0.62, 0.5, paintMat('#f2e4c9'), -1.74, -4.1, -3.0 + sw2 * 1.2);
+    addBox(shipPivot, 0.09, 0.62, 0.5, paintMat('#f2e4c9'), 1.74, -4.1, -3.0 + sw2 * 1.2);
+  }
+  var prow = new THREE.Mesh(new THREE.ConeGeometry(1.95, 3.0, 4), paintMat('#8c4a36'));
+  prow.rotation.x = Math.PI / 2;
+  prow.rotation.y = Math.PI / 4;
+  prow.position.set(0, -4.25, -5.2);
+  shipPivot.add(prow);
+  var stern = prow.clone();
+  stern.rotation.x = -Math.PI / 2;
+  stern.position.z = 5.2;
+  shipPivot.add(stern);
+  for (var sb = 0; sb < 5; sb++) {
+    addBox(shipPivot, 3.2, 0.34, 0.7, paintMat('#b8513e'), 0, -3.2, -3.2 + sb * 1.6);
+    addBox(shipPivot, 0.6, 0.5, 0.6, paintMat('#e8ac41'), -1.5, -3.0, -3.2 + sb * 1.6);
+    addBox(shipPivot, 0.6, 0.5, 0.6, paintMat('#e8ac41'), 1.5, -3.0, -3.2 + sb * 1.6);
+  }
+  addCyl(shipPivot, 0.1, 0.12, 4.2, 5, darkWood, 0, -1.2, -0.4);
+  addCyl(shipPivot, 0.08, 0.11, 7.4, 5, darkWood, -0.15, -0.2, 0.5);
+  var sailMat = fabricMat('#f2e4c9', '#c9b79c');
+  var sail = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 3.4), sailMat);
+  sail.position.set(-0.2, 1.35, 0.62);
+  shipPivot.add(sail);
+  var sailStripe = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 0.55), fabricMat('#b8513e', '#8f7a66'));
+  sailStripe.position.set(-0.2, 1.15, 0.66);
+  shipPivot.add(sailStripe);
+  var shipFlag = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.1), fabricMat('#d9564a', '#8f7a66'));
+  shipFlag.position.set(-0.2, 3.55, 0.5);
+  shipPivot.add(shipFlag);
+  var shipLampGeo = new THREE.SphereGeometry(0.16, 6, 5);
+  var shipLampA = new THREE.Mesh(shipLampGeo, bulbMat);
+  shipLampA.position.set(1.9, -2.5, -4.0);
+  shipPivot.add(shipLampA);
+  var shipLampB = new THREE.Mesh(shipLampGeo, bulbMat);
+  shipLampB.position.set(1.9, -2.5, 4.0);
+  shipPivot.add(shipLampB);
+  for (var shb = 0; shb < 10; shb++) {
+    var shba = (shb / 10) * Math.PI * 2;
+    addBulb(-39 + Math.cos(shba) * 5.9, 1.2, -24 + Math.sin(shba) * 3.3);
+  }
+  addHalo(-39, 9.5, -24, 7, '#ffc778');
+
+  /* ------------------------------------------------------------------ */
+  /* swing ride                                                          */
+  /* ------------------------------------------------------------------ */
+
+  var swing = new THREE.Group();
+  swing.position.set(40, 0, -28);
+  scene.add(swing);
+
+  addCyl(swing, 5.3, 5.6, 0.5, 20, cream, 0, 0.25, 0);
+  addCyl(swing, 5.0, 5.0, 0.1, 20, paintMat('#3f7f7d'), 0, 0.53, 0);
+  addCyl(swing, 0.5, 0.75, 12.2, 8, iron, 0, 6.6, 0);
+  var swingRotor = new THREE.Group();
+  swingRotor.position.y = 12.1;
+  swing.add(swingRotor);
+  addCyl(swingRotor, 1.1, 1.3, 1.0, 10, gold, 0, 0, 0);
+  var swingCanopy = new THREE.Mesh(new THREE.ConeGeometry(4.6, 2.1, 12), fabricMat('#d9564a', '#8f7a66'));
+  swingCanopy.position.y = 1.25;
+  swingCanopy.castShadow = true;
+  swingRotor.add(swingCanopy);
+  addCyl(swingRotor, 4.65, 4.65, 0.16, 20, gold, 0, 0.32, 0);
+  var swingArms = [];
+  var swingSeatCols = ['#e8ac41', '#2e8b8a', '#d9564a', '#7d5a9a'];
+  for (var sw = 0; sw < 10; sw++) {
+    var swa = (sw / 10) * Math.PI * 2;
+    var arm = new THREE.Group();
+    arm.rotation.y = swa;
+    strut(arm, 0.9, -0.2, 0, 4.35, -5.4, 0, 0.05, iron, 4);
+    var seat = new THREE.Group();
+    seat.position.set(4.35, -5.4, 0);
+    addBox(seat, 1.0, 0.22, 0.9, paintMat(swingSeatCols[sw % 4]), 0, -0.2, 0);
+    addBox(seat, 1.0, 0.8, 0.16, paintMat(swingSeatCols[sw % 4]), 0, 0.2, 0.38);
+    arm.add(seat);
+    swingRotor.add(arm);
+    swingArms.push(arm);
+  }
+  for (var sbb = 0; sbb < 12; sbb++) {
+    var sbba = (sbb / 12) * Math.PI * 2;
+    addBulb(40 + Math.cos(sbba) * 4.7, 12.6, -28 + Math.sin(sbba) * 4.7);
+  }
+  addHalo(40, 13.6, -28, 6.5, '#ffc778');
+
+  /* ------------------------------------------------------------------ */
+  /* drop tower                                                          */
+  /* ------------------------------------------------------------------ */
+
+  var drop = new THREE.Group();
+  drop.position.set(0, 0, -44);
+  scene.add(drop);
+
+  addBox(drop, 9.2, 0.55, 9.2, paintMat('#6f5a4a'), 0, 0.28, 0);
+  addCyl(drop, 4.3, 4.7, 0.36, 16, cream, 0, 0.74, 0);
+  addCyl(drop, 0.95, 1.2, 30, 12, paintMat('#e8dcc4'), 0, 15.4, 0);
+  for (var db = 0; db < 9; db++) {
+    addCyl(drop, 1.02, 1.02, 0.42, 12, db % 2 ? paintMat('#b8513e') : paintMat('#2e8b8a'), 0, 3.2 + db * 3.0, 0);
+  }
+  [[-3.6, -3.6], [3.6, -3.6], [-3.6, 3.6], [3.6, 3.6]].forEach(function (p) {
+    strut(drop, p[0], 0.5, p[1], p[0], 24, p[1], 0.15, iron, 5);
+    strut(drop, p[0], 0.5, p[1], 0, 3.2, 0, 0.09, iron, 4);
+  });
+  for (var dl = 0; dl < 4; dl++) {
+    var dly = 6.5 + dl * 5.4;
+    addBox(drop, 7.2, 0.14, 0.14, iron, 0, dly, -3.6);
+    addBox(drop, 7.2, 0.14, 0.14, iron, 0, dly, 3.6);
+    addBox(drop, 0.14, 0.14, 7.2, iron, -3.6, dly, 0);
+    addBox(drop, 0.14, 0.14, 7.2, iron, 3.6, dly, 0);
+  }
+  addCyl(drop, 1.7, 1.7, 0.68, 12, paintMat('#e2574c'), 0, 30.6, 0);
+  addCyl(drop, 0.4, 1.4, 1.7, 10, gold, 0, 31.85, 0);
+  for (var dh = 0; dh < 10; dh++) {
+    var dha = (dh / 10) * Math.PI * 2;
+    addBulb(Math.cos(dha) * 1.6, 31.0, -44 + Math.sin(dha) * 1.6);
+  }
+  addBox(drop, 3.8, 1.2, 0.22, paintMat('#2e8b8a'), 0, 2.4, 4.85);
+  addBox(drop, 4.2, 0.16, 0.44, cream, 0, 3.06, 4.85);
+  var dropCar = new THREE.Group();
+  dropCar.position.y = 4;
+  drop.add(dropCar);
+  var dropRing = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.22, 6, 18), gold);
+  dropRing.rotation.x = Math.PI / 2;
+  dropCar.add(dropRing);
+  for (var ds = 0; ds < 8; ds++) {
+    var dsa = (ds / 8) * Math.PI * 2;
+    var dSeat = new THREE.Group();
+    dSeat.position.set(Math.cos(dsa) * 2.6, 0, Math.sin(dsa) * 2.6);
+    dSeat.rotation.y = -dsa;
+    addBox(dSeat, 0.9, 0.28, 0.8, paintMat('#e2574c'), 0, -0.1, 0);
+    addBox(dSeat, 0.9, 0.7, 0.14, paintMat('#e2574c'), 0, 0.3, 0.3);
+    dropCar.add(dSeat);
+  }
+  addCyl(dropCar, 0.95, 1.1, 1.2, 8, paintMat('#2e8b8a'), 0, 0, 0);
+  addHalo(0, 33, -44, 9, '#ff9a5c');
+  for (var dtb = 0; dtb < 6; dtb++) {
+    addBulb(0, 4 + dtb * 4.4, -44 + 1.0);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* bumper cars                                                         */
+  /* ------------------------------------------------------------------ */
+
+  var bumper = new THREE.Group();
+  bumper.position.set(28, 0, -18);
+  bumper.rotation.y = 1.03;
+  scene.add(bumper);
+
+  addCyl(bumper, 7.0, 7.2, 0.35, 26, paintMat('#4d5a58'), 0, 0.18, 0);
+  addCyl(bumper, 6.6, 6.6, 0.08, 26, paintMat('#3f7f7d'), 0, 0.38, 0);
+  var bumperCanopyMat = new THREE.MeshStandardMaterial({ map: stripeTex('#2e8b8a', '#f4e5cc', 16), color: '#ffffff', roughness: 0.86, side: THREE.DoubleSide });
+  addTint(bumperCanopyMat, '#947a5d');
+  var bumperCanopy = new THREE.Mesh(new THREE.ConeGeometry(7.5, 3.0, 16), bumperCanopyMat);
+  bumperCanopy.position.y = 6.4;
+  bumperCanopy.castShadow = true;
+  bumper.add(bumperCanopy);
+  addCyl(bumper, 7.1, 7.1, 0.5, 20, cream, 0, 5.0, 0);
+  for (var bp = 0; bp < 8; bp++) {
+    var bpa = (bp / 8) * Math.PI * 2;
+    addCyl(bumper, 0.1, 0.12, 5.0, 6, poleMat, Math.cos(bpa) * 7.0, 2.7, Math.sin(bpa) * 7.0);
+  }
+  addCyl(bumper, 0.18, 0.22, 5.0, 6, poleMat, 0, 2.7, 0);
+  var bumperCars = [];
+  var bumperCols = ['#e2574c', '#e8ac41', '#2e8b8a', '#7d5a9a', '#f2e4c9', '#d9564a'];
+  for (var bc = 0; bc < 6; bc++) {
+    var carG = new THREE.Group();
+    var carMat = paintMat(bumperCols[bc]);
+    addBox(carG, 1.7, 0.5, 1.15, carMat, 0, 0.32, 0);
+    var bump = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.13, 5, 12), paintMat('#2b2b2b'));
+    bump.rotation.x = Math.PI / 2;
+    bump.position.y = 0.36;
+    carG.add(bump);
+    addBox(carG, 0.75, 0.18, 0.65, paintMat('#2b2b2b'), 0, 0.66, 0);
+    addBox(carG, 0.7, 0.42, 0.12, paintMat('#2b2b2b'), 0, 0.85, 0.28);
+    addCyl(carG, 0.03, 0.03, 0.8, 4, iron, 0.65, 0.9, -0.3);
+    bumper.add(carG);
+    bumperCars.push({
+      g: carG,
+      phase: (bc / 6) * Math.PI * 2,
+      speed: 0.28 + (bc % 3) * 0.05,
+      radius: 2.2 + (bc % 3) * 1.25
+    });
+  }
+  for (var bub = 0; bub < 18; bub++) {
+    var buba = (bub / 18) * Math.PI * 2;
+    addBulb(28 + Math.cos(buba) * 7.25, 5.1, -18 + Math.sin(buba) * 7.25);
+  }
+  addHalo(28, 7.8, -18, 8, '#ffc778');
+
+  /* ------------------------------------------------------------------ */
+  /* new promenade paths, seating and lamps                              */
+  /* ------------------------------------------------------------------ */
+  addPath(-28, -14, 5, 22, 0.92);
+  addPath(24, -6, 5, 20, -0.55);
+  addPath(0, -29, 5, 24, 0);
+  addPath(33, 23, 16, 4.6, 0.12);
+
+  [[-30, -15, 0.3], [28, -15, -0.4], [0, -34, 0], [31, 25, 1.2]].forEach(function (lp) {
+    addCyl(scene, 0.1, 0.14, 4.6, 7, poleMat, lp[0], 2.3, lp[1]);
+    addCyl(scene, 0.34, 0.24, 0.5, 7, iron, lp[0], 4.7, lp[1]);
+    var lb = new THREE.Mesh(new THREE.SphereGeometry(0.31, 8, 6), bulbMat);
+    lb.position.set(lp[0], 4.55, lp[1]);
+    scene.add(lb);
+    addHalo(lp[0], 4.55, lp[1], 6.5, '#ffc778');
+  });
+
+  [[-28, -13.5, 0.85], [26, -13.5, -0.7], [0, -35.5, 0], [29, 25, 1.2]].forEach(function (bp2) {
+    var bg = new THREE.Group();
+    bg.position.set(bp2[0], 0, bp2[1]);
+    bg.rotation.y = bp2[2];
+    addBox(bg, 2.4, 0.16, 0.7, benchMat, 0, 0.55, 0);
+    addBox(bg, 2.4, 0.5, 0.12, benchMat, 0, 0.95, -0.32);
+    addBox(bg, 0.16, 0.55, 0.6, iron, -1.0, 0.28, 0);
+    addBox(bg, 0.16, 0.55, 0.6, iron, 1.0, 0.28, 0);
+    scene.add(bg);
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* seasonal layers: snow, blossom, neon                                */
+  /* ------------------------------------------------------------------ */
+
+  var snowWhite = new THREE.Color('#eff5f7');
+
+  // snow blanket
+  var snowPatchTex = canvasTex(256, 256, function (ctx, w, h) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, w, h);
+    for (var i = 0; i < 110; i++) {
+      var x = rand(0, w), y = rand(0, h), r = rand(12, 58);
+      var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0.98)');
+      g.addColorStop(0.55, 'rgba(255,255,255,0.72)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+  });
+  snowPatchTex.wrapS = snowPatchTex.wrapT = THREE.RepeatWrapping;
+  snowPatchTex.repeat.set(3, 3);
+
+  var snowGroundMat = new THREE.MeshStandardMaterial({
+    color: '#f7fbfc', alphaMap: snowPatchTex, transparent: true, opacity: 0,
+    roughness: 0.95, metalness: 0, depthWrite: false
+  });
+  var snowGround = new THREE.Mesh(new THREE.CircleGeometry(55.9, 84), snowGroundMat);
+  snowGround.rotation.x = -Math.PI / 2;
+  snowGround.position.y = 0.062;
+  snowGround.renderOrder = 2;
+  scene.add(snowGround);
+
+  var snowBeachMat = new THREE.MeshStandardMaterial({
+    color: '#f2f8fa', transparent: true, opacity: 0, roughness: 0.95, depthWrite: false
+  });
+  var snowBeach = new THREE.Mesh(new THREE.RingGeometry(56.3, 66, 80), snowBeachMat);
+  snowBeach.rotation.x = -Math.PI / 2;
+  snowBeach.position.y = -1.52;
+  snowBeach.renderOrder = 2;
+  scene.add(snowBeach);
+
+  var snowMoundMat = new THREE.MeshStandardMaterial({ color: '#f4f9fa', roughness: 0.95, transparent: true, opacity: 0, flatShading: true });
+  var snowMounds = (function () {
+    var count = 30;
+    var inst = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), snowMoundMat, count);
+    var dummy = new THREE.Object3D();
+    for (var i = 0; i < count; i++) {
+      var a = rand(0, Math.PI * 2);
+      var r = rand(19, 51);
+      dummy.position.set(Math.cos(a) * r, 0.06, Math.sin(a) * r);
+      dummy.rotation.y = rand(0, Math.PI);
+      dummy.scale.set(rand(1.4, 3.6), rand(0.22, 0.5), rand(1.4, 3.2));
+      dummy.updateMatrix();
+      inst.setMatrixAt(i, dummy.matrix);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    inst.visible = false;
+    scene.add(inst);
+    return inst;
+  })();
+
+  // snow resting on roofs, canopies and benches
+  var snowCapMat = new THREE.MeshStandardMaterial({ color: '#f9fdfe', roughness: 0.9, transparent: true, opacity: 0, flatShading: true });
+  var snowCaps = new THREE.Group();
+  scene.add(snowCaps);
+  boothSpecs.forEach(function (spec) {
+    var c = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.22, 3.5), snowCapMat);
+    c.position.set(spec.x, 3.12, spec.z);
+    c.rotation.y = spec.ry;
+    snowCaps.add(c);
+  });
+  var ticketCap = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 2.9), snowCapMat);
+  ticketCap.position.set(7.6, 3.46, 28);
+  ticketCap.rotation.y = -0.18;
+  snowCaps.add(ticketCap);
+  [[-6, 22.5, 0], [6, 22.5, 0], [-8, 12, 1.57], [8.5, 12, -1.57],
+    [-28, -13.5, 0.85], [26, -13.5, -0.7], [0, -35.5, 0], [29, 25, 1.2]].forEach(function (b) {
+    var cap = new THREE.Mesh(new THREE.BoxGeometry(2.42, 0.09, 0.72), snowCapMat);
+    cap.position.set(b[0], 0.67, b[1]);
+    cap.rotation.y = b[2];
+    snowCaps.add(cap);
+  });
+  [[19, -4, 7.72, 5.95], [-30, 29, 6.55, 2.95], [28, -18, 7.4, 4.99], [40, -28, 4.7, 12.44]].forEach(function (r) {
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(r[2], 0.09, 5, 48), snowCapMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(r[0], r[3], r[1]);
+    snowCaps.add(ring);
+  });
+
+  // snowfall
+  var snowU = { uTime: { value: 0 }, uOpacity: { value: 0 } };
+  (function () {
+    var count = 900;
+    var pos = new Float32Array(count * 3);
+    var phase = new Float32Array(count);
+    var speed = new Float32Array(count);
+    var size = new Float32Array(count);
+    for (var i = 0; i < count; i++) {
+      pos[i * 3] = rand(-54, 54);
+      pos[i * 3 + 1] = rand(0, 34);
+      pos[i * 3 + 2] = rand(-50, 52);
+      phase[i] = rand(0, Math.PI * 2);
+      speed[i] = rand(0.55, 1.75);
+      size[i] = rand(1.8, 4.4);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
+    g.setAttribute('aSpeed', new THREE.BufferAttribute(speed, 1));
+    g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    var mat = new THREE.ShaderMaterial({
+      uniforms: snowU,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      vertexShader: [
+        'attribute float aPhase;',
+        'attribute float aSpeed;',
+        'attribute float aSize;',
+        'uniform float uTime;',
+        'varying float vA;',
+        'void main() {',
+        '  vec3 p = position;',
+        '  p.y = mod(p.y - uTime * aSpeed, 34.0);',
+        '  p.x += sin(uTime * 0.32 + aPhase) * 1.7;',
+        '  p.z += cos(uTime * 0.27 + aPhase * 1.4) * 1.3;',
+        '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+        '  gl_Position = projectionMatrix * mv;',
+        '  vA = smoothstep(0.0, 2.4, p.y) * 0.9;',
+        '  gl_PointSize = aSize * (125.0 / max(4.0, -mv.z));',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform float uOpacity;',
+        'varying float vA;',
+        'void main() {',
+        '  vec2 c = gl_PointCoord - 0.5;',
+        '  float a = smoothstep(0.5, 0.08, length(c));',
+        '  gl_FragColor = vec4(0.94, 0.97, 1.0, a * vA * uOpacity);',
+        '}'
+      ].join('\n')
+    });
+    var snow = new THREE.Points(g, mat);
+    snow.frustumCulled = false;
+    snow.renderOrder = 8;
+    scene.add(snow);
+  })();
+
+  // blossom meadow
+  var bloomGroup = new THREE.Group();
+  bloomGroup.visible = false;
+  scene.add(bloomGroup);
+  var bloomStemMat = new THREE.MeshStandardMaterial({ color: '#5f8a49', roughness: 0.95, transparent: true, opacity: 0, flatShading: true });
+  var bloomHeadMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, transparent: true, opacity: 0, flatShading: true });
+  (function () {
+    var count = 230;
+    var stemGeo = new THREE.CylinderGeometry(0.035, 0.045, 0.62, 4);
+    var headGeo = mergeGeometries([
+      { g: new THREE.IcosahedronGeometry(0.19, 0), m: new THREE.Matrix4() },
+      { g: new THREE.IcosahedronGeometry(0.14, 0), m: new THREE.Matrix4().makeTranslation(0.2, 0.1, 0.08) },
+      { g: new THREE.IcosahedronGeometry(0.13, 0), m: new THREE.Matrix4().makeTranslation(-0.16, 0.04, -0.13) }
+    ]);
+    var stems = new THREE.InstancedMesh(stemGeo, bloomStemMat, count);
+    var heads = new THREE.InstancedMesh(headGeo, bloomHeadMat, count);
+    var dummy = new THREE.Object3D();
+    var cols = ['#f3a6bf', '#f8c9d8', '#fbe6b4', '#ffffff', '#e98bb2', '#f7d7e2'];
+    for (var i = 0; i < count; i++) {
+      var a = rand(0, Math.PI * 2);
+      var r = 15.5 + Math.pow(rand(0, 1), 1.55) * 37.5;
+      var x = Math.cos(a) * r, z = Math.sin(a) * r;
+      var s = rand(0.75, 1.45);
+      dummy.position.set(x, 0.31 * s, z);
+      dummy.scale.set(s, s, s);
+      dummy.rotation.y = rand(0, Math.PI);
+      dummy.updateMatrix();
+      stems.setMatrixAt(i, dummy.matrix);
+      dummy.position.y = 0.65 * s;
+      var hs = s * rand(1.15, 1.95);
+      dummy.scale.set(hs, hs * 0.85, hs);
+      dummy.updateMatrix();
+      heads.setMatrixAt(i, dummy.matrix);
+      heads.setColorAt(i, new THREE.Color(cols[i % cols.length]));
+    }
+    stems.instanceMatrix.needsUpdate = true;
+    heads.instanceMatrix.needsUpdate = true;
+    if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+    bloomGroup.add(stems);
+    bloomGroup.add(heads);
+  })();
+
+  // blossom trees
+  var bloomTreeMats = [];
+  (function () {
+    var trunkMat = new THREE.MeshStandardMaterial({ color: '#6f4a3a', roughness: 0.95, flatShading: true });
+    [[-46, -8], [-45, 13], [15, -39], [46, -37], [-9, 43], [31, 38], [-37, 39], [-18, 34], [35, 31]].forEach(function (p, i) {
+      var g = new THREE.Group();
+      g.position.set(p[0], 0, p[1]);
+      g.rotation.y = rand(0, Math.PI);
+      addCyl(g, 0.2, 0.33, 2.8, 6, trunkMat, 0, 1.4, 0);
+      var cMat = new THREE.MeshStandardMaterial({
+        color: i % 3 === 0 ? '#ed9db8' : (i % 3 === 1 ? '#f5c3d4' : '#f8dbe5'),
+        roughness: 0.92, flatShading: true, transparent: true, opacity: 0
+      });
+      bloomTreeMats.push(cMat);
+      var c1 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.9, 0), cMat);
+      c1.position.set(0, 3.5, 0); c1.scale.set(1.1, 0.92, 1.05);
+      var c2 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.35, 0), cMat);
+      c2.position.set(1.15, 4.25, 0.4);
+      var c3 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 0), cMat);
+      c3.position.set(-1.05, 4.05, -0.5);
+      g.add(c1); g.add(c2); g.add(c3);
+      bloomGroup.add(g);
+    });
+  })();
+
+  // butterflies / drifting blossom
+  var flutterU = { uTime: { value: 0 }, uOpacity: { value: 0 } };
+  (function () {
+    var count = 90;
+    var pos = new Float32Array(count * 3);
+    var phase = new Float32Array(count);
+    var size = new Float32Array(count);
+    for (var i = 0; i < count; i++) {
+      pos[i * 3] = rand(-44, 44);
+      pos[i * 3 + 1] = rand(1.2, 14);
+      pos[i * 3 + 2] = rand(-40, 44);
+      phase[i] = rand(0, Math.PI * 2);
+      size[i] = rand(3.2, 6.4);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
+    g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    var mat = new THREE.ShaderMaterial({
+      uniforms: flutterU,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      vertexShader: [
+        'attribute float aPhase;',
+        'attribute float aSize;',
+        'uniform float uTime;',
+        'varying float vA;',
+        'void main() {',
+        '  vec3 p = position;',
+        '  p.x += sin(uTime * 0.55 + aPhase) * 2.9;',
+        '  p.y += sin(uTime * 0.8 + aPhase * 1.7) * 0.75;',
+        '  p.z += cos(uTime * 0.47 + aPhase * 1.3) * 2.6;',
+        '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+        '  gl_Position = projectionMatrix * mv;',
+        '  vA = 0.55 + 0.45 * sin(uTime * 2.6 + aPhase * 3.0);',
+        '  gl_PointSize = aSize * (120.0 / max(4.0, -mv.z));',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        'uniform float uOpacity;',
+        'varying float vA;',
+        'void main() {',
+        '  vec2 c = gl_PointCoord - 0.5;',
+        '  float w1 = smoothstep(0.26, 0.06, length((c - vec2(0.17, 0.02)) * vec2(1.0, 1.7)));',
+        '  float w2 = smoothstep(0.26, 0.06, length((c + vec2(0.17, 0.02)) * vec2(1.0, 1.7)));',
+        '  float a = max(w1, w2);',
+        '  gl_FragColor = vec4(1.0, 0.8, 0.88, a * vA * 0.95 * uOpacity);',
+        '}'
+      ].join('\n')
+    });
+    var flutter = new THREE.Points(g, mat);
+    flutter.frustumCulled = false;
+    flutter.renderOrder = 8;
+    scene.add(flutter);
+  })();
+
+  // neon rig
+  var neonMats = [];
+  function neonMat(hex, op) {
+    var m = new THREE.MeshBasicMaterial({
+      color: hex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+      depthWrite: false, toneMapped: false, fog: false, side: THREE.DoubleSide
+    });
+    m.userData.op = op === undefined ? 0.95 : op;
+    neonMats.push(m);
+    return m;
+  }
+
+  var neonWheelMat = neonMat('#7ef2ff', 0.85);
+  var neonWheelRing = new THREE.Mesh(new THREE.TorusGeometry(13.42, 0.1, 6, 72), neonWheelMat);
+  neonWheelRing.position.z = 1.02;
+  wheelRotor.add(neonWheelRing);
+
+  var neonCarMat = neonMat('#ff6ec7', 0.9);
+  var neonCarRing = new THREE.Mesh(new THREE.TorusGeometry(7.86, 0.09, 6, 48), neonCarMat);
+  neonCarRing.rotation.x = Math.PI / 2;
+  neonCarRing.position.y = 5.9;
+  carRotor.add(neonCarRing);
+
+  var neonPlazaMat = neonMat('#63e6ff', 0.9);
+  var neonPlazaRing = new THREE.Mesh(new THREE.RingGeometry(13.55, 13.82, 72), neonPlazaMat);
+  neonPlazaRing.rotation.x = -Math.PI / 2;
+  neonPlazaRing.position.set(0, 0.08, 6);
+  scene.add(neonPlazaRing);
+
+  var neonOuterMat = neonMat('#ff5fc8', 0.75);
+  var neonOuterRing = new THREE.Mesh(new THREE.RingGeometry(27.4, 27.62, 80), neonOuterMat);
+  neonOuterRing.rotation.x = -Math.PI / 2;
+  neonOuterRing.position.y = 0.075;
+  scene.add(neonOuterRing);
+
+  (function () {
+    var verticals = [-4.1, 4.1];
+    verticals.forEach(function (x) {
+      var tube = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 7.2, 6), neonMat('#7ef2ff', 0.9));
+      tube.position.set(x, 3.6, 0.62);
+      arch.add(tube);
+    });
+    var top = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.16, 0.16), neonMat('#ff6ec7', 0.9));
+    top.position.set(0, 7.62, 0.62);
+    arch.add(top);
+  })();
+
+  (function () {
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(4.74, 0.07, 5, 40), neonMat('#7ef2ff', 0.9));
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.34;
+    swingRotor.add(rim);
+    var rim2 = new THREE.Mesh(new THREE.TorusGeometry(7.35, 0.08, 5, 44), neonMat('#ff6ec7', 0.85));
+    rim2.rotation.x = Math.PI / 2;
+    rim2.position.y = 4.98;
+    bumper.add(rim2);
+    for (var i = 0; i < 3; i++) {
+      var ang = (i / 3) * Math.PI * 2;
+      var bar = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 29, 5), neonMat(i % 2 ? '#ff6ec7' : '#7ef2ff', 0.8));
+      bar.position.set(Math.cos(ang) * 1.12, 15.2, Math.sin(ang) * 1.12);
+      drop.add(bar);
+    }
+  })();
+
+  var neonFloats = new THREE.Group();
+  scene.add(neonFloats);
+  var neonFloatMeshes = [];
+  for (var nf = 0; nf < 3; nf++) {
+    var nfMat = neonMat(nf % 2 ? '#ff6ec7' : '#7ef2ff', 0.9);
+    var nfMesh = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.055, 5, 40), nfMat);
+    nfMesh.position.set(-2 + nf * 2.2, 12 + nf * 3.2, 3 - nf * 2.4);
+    nfMesh.rotation.x = 0.12;
+    nfMesh.rotation.y = 0.18;
+    nfMesh.rotation.z = nf * 0.7;
+    neonFloats.add(nfMesh);
+    neonFloatMeshes.push(nfMesh);
+  }
+
+  var neonLightA = new THREE.PointLight('#56e8ff', 0, 46, 2);
+  neonLightA.position.set(-6, 9, 8);
+  scene.add(neonLightA);
+  var neonLightB = new THREE.PointLight('#ff5fc8', 0, 42, 2);
+  neonLightB.position.set(13, 7, -10);
+  scene.add(neonLightB);
+
+
+  /* ------------------------------------------------------------------ */
   /* trees & greenery                                                    */
   /* ------------------------------------------------------------------ */
 
@@ -1688,10 +2346,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var trunkMat = paintMat('#6b4a34');
     for (var i = 0; i < 22; i++) {
       var a = rand(0, Math.PI * 2);
-      var r = rand(34, 43);
+      var r = rand(46, 54);
       var x = Math.cos(a) * r;
       var z = Math.sin(a) * r;
       if (x > 16 && z > 30) continue;
+      var blocked = false;
+      [[-39, -24, 9], [40, -28, 8], [0, -44, 9], [28, -18, 11]].forEach(function (zc) {
+        if (Math.hypot(x - zc[0], z - zc[1]) < zc[2]) blocked = true;
+      });
+      if (blocked) continue;
       var s = rand(0.8, 1.4);
       var g = new THREE.Group();
       g.position.set(x, 0, z);
@@ -1719,7 +2382,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ------------------------------------------------------------------ */
 
   var pier = new THREE.Group();
-  pier.position.set(24, 0, 39);
+  pier.position.set(24, 0, 50);
   scene.add(pier);
   var pierMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.95, flatShading: true });
   for (var pi = 0; pi < 14; pi++) {
@@ -1736,7 +2399,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   addBox(pier, 7.8, 0.14, 0.5, gold, 0, 0.3, 20.4);
 
   var boat = new THREE.Group();
-  boat.position.set(30.5, -1.15, 51);
+  boat.position.set(30.5, -1.15, 63);
   scene.add(boat);
   var hull = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), paintMat('#8f3f36'));
   hull.scale.set(2.6, 0.7, 1.05);
@@ -1850,13 +2513,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var dummy = new THREE.Object3D();
     for (var i = 0; i < count; i++) {
       var a = rand(0, Math.PI * 2);
-      var r = rand(17, 44);
+      var r = rand(17, 52);
       var x = Math.cos(a) * r;
       var z = Math.sin(a) * r + 3;
       if (Math.hypot(x, z - 6) < 14.5) {
         x *= 1.5;
         z *= 1.4;
       }
+      [[-35, -24, 10], [40, -28, 8], [0, -44, 9], [28, -18, 10]].forEach(function (zc) {
+        var dx = x - zc[0], dz = z - zc[1];
+        var dd = Math.hypot(dx, dz);
+        if (dd < zc[2]) {
+          if (dd < 0.01) { dx = 1; dz = 0; dd = 1; }
+          x = zc[0] + dx / dd * zc[2] * 1.12;
+          z = zc[1] + dz / dd * zc[2] * 1.12;
+        }
+      });
       var s = rand(0.26, 0.82);
       bushItems.push({ x: x, z: z, s: s, ry: rand(0, Math.PI), delay: rand(0, 0.35), y: s * 0.5 });
       dummy.position.set(x, 0, z);
@@ -2270,7 +2942,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     scene.add(rain);
   })();
 
-  var petalU = { uTime: { value: 0 }, uOpacity: { value: 1 } };
+  var petalU = { uTime: { value: 0 }, uOpacity: { value: 1 }, uTint: { value: new THREE.Color('#ffbcd4') }, uTintAmt: { value: 0 } };
   (function () {
     var count = 320;
     var pos = new Float32Array(count * 3);
@@ -2298,6 +2970,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         'attribute vec3 aColor;',
         'attribute float aPhase;',
         'uniform float uTime;',
+        'uniform vec3 uTint;',
+        'uniform float uTintAmt;',
         'varying vec3 vColor;',
         'void main() {',
         '  vec3 p = position;',
@@ -2307,7 +2981,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         '  p.z += cos(uTime * 0.4 + aPhase * 1.3) * 1.4;',
         '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
         '  gl_Position = projectionMatrix * mv;',
-        '  vColor = aColor;',
+        '  vColor = mix(aColor, uTint, uTintAmt);',
         '  gl_PointSize = (2.2 + 2.2 * sin(aPhase)) * (150.0 / max(5.0, -mv.z));',
         '}'
       ].join('\n'),
@@ -2515,11 +3189,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var view = {
     theta: Math.PI * 0.5 + 0.06,
     phi: 1.27,
-    radius: 72,
+    radius: 86,
     tTheta: Math.PI * 0.5 + 0.06,
     tPhi: 1.27,
-    tRadius: 72,
-    target: new THREE.Vector3(-1, 8.5, 2),
+    tRadius: 86,
+    target: new THREE.Vector3(-1, 9, -2),
     dragging: false,
     idle: 0,
     userZoomed: false,
@@ -2528,7 +3202,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   if (isShot) {
     view.theta = view.tTheta = Math.PI * 0.5 + 0.02;
     view.phi = view.tPhi = 1.24;
-    view.radius = view.tRadius = window.innerWidth / window.innerHeight > 1.2 ? 68 : 84;
+    view.radius = view.tRadius = window.innerWidth / window.innerHeight > 1.2 ? 82 : 100;
   }
 
   var pointers = {};
@@ -2662,9 +3336,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var captionText = {
     golden: '盛景 · 黄昏的最后一班摩天轮',
     rain: '雨夜 · 灯还亮着，人已散去',
-    ruin: '废园 · 藤蔓收回了这座乐园'
+    ruin: '废园 · 藤蔓收回了这座乐园',
+    snow: '雪境 · 摩天轮停在落雪里',
+    bloom: '花季 · 风把花瓣吹过旋转木马',
+    neon: '霓虹 · 乐园在电流里重新亮起'
   };
-  var themeColor = { golden: '#2a1d1d', rain: '#0a1a2a', ruin: '#4a5048' };
+  var themeColor = {
+    golden: '#2a1d1d', rain: '#0a1a2a', ruin: '#4a5048',
+    snow: '#c9d6db', bloom: '#dce8e2', neon: '#0b0518'
+  };
   var currentMode = startMode;
   var captionTimer = 0;
 
@@ -2704,6 +3384,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       if (e.key === '1') setMode('golden', false);
       else if (e.key === '2') setMode('rain', false);
       else if (e.key === '3') setMode('ruin', false);
+      else if (e.key === '4') setMode('snow', false);
+      else if (e.key === '5') setMode('bloom', false);
+      else if (e.key === '6') setMode('neon', false);
     });
   })();
 
@@ -2721,9 +3404,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var portrait = aspect < 0.95;
     camera.fov = portrait ? 57 : 46;
     camera.updateProjectionMatrix();
-    var r = 70 + Math.max(0, 0.95 - aspect) * 38;
-    if (aspect > 1.8) r = 63;
-    return clamp(r, 58, 96);
+    var r = 84 + Math.max(0, 0.95 - aspect) * 46;
+    if (aspect > 1.8) r = 76;
+    return clamp(r, 72, 112);
   }
 
   function resize() {
@@ -2803,13 +3486,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     // mode weights
     var k = damp(dt, 1.25);
-    W.golden += (WT.golden - W.golden) * k;
-    W.rain += (WT.rain - W.rain) * k;
-    W.ruin += (WT.ruin - W.ruin) * k;
-    var sum = W.golden + W.rain + W.ruin || 1;
-    W.golden /= sum; W.rain /= sum; W.ruin /= sum;
+    var sum = 0;
+    for (var mi = 0; mi < modeIds.length; mi++) {
+      var mm = modeIds[mi];
+      W[mm] += (WT[mm] - W[mm]) * k;
+      sum += W[mm];
+    }
+    if (sum < 0.0001) sum = 1;
+    for (var mj = 0; mj < modeIds.length; mj++) W[modeIds[mj]] /= sum;
 
     var wG = W.golden, wR = W.rain, wU = W.ruin;
+    var wS = W.snow, wB = W.bloom, wN = W.neon;
 
     // sky
     mixColor(skyUniforms.uTop.value, 'skyTop');
@@ -2853,35 +3540,81 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     mixColor(fillLight.color, 'sun');
     fillLight.intensity = mixNum('fillI');
 
-    // painted materials -> rust
+    // painted materials -> rust / frost
     for (var p = 0; p < paints.length; p++) {
       var pa = paints[p];
-      pa.m.color.copy(pa.base).lerp(pa.rust, wU);
+      pa.m.color.copy(pa.base);
+      if (wU > 0.001) pa.m.color.lerp(pa.rust, wU);
+      if (wS > 0.001) pa.m.color.lerp(snowWhite, wS * 0.16);
     }
-    // vegetation -> dry
+    // vegetation -> dry / snow-laden
     for (var q = 0; q < vegs.length; q++) {
       var vv = vegs[q];
-      vv.m.color.copy(vv.base).lerp(vv.dry, wU * 0.78);
+      vv.m.color.copy(vv.base);
+      if (wU > 0.001) vv.m.color.lerp(vv.dry, wU * 0.78);
+      if (wS > 0.001) vv.m.color.lerp(snowWhite, wS * 0.74);
     }
     for (var f = 0; f < fabrics.length; f++) {
       var fb = fabrics[f];
-      fb.m.color.copy(fb.base).lerp(fb.dry, wU * 0.8);
+      fb.m.color.copy(fb.base);
+      if (wU > 0.001) fb.m.color.lerp(fb.dry, wU * 0.8);
+      if (wS > 0.001) fb.m.color.lerp(snowWhite, wS * 0.62);
     }
     for (var tI = 0; tI < tints.length; tI++) {
       var tn = tints[tI];
-      tn.m.color.copy(tn.base).lerp(tn.rust, wU * 0.85);
+      tn.m.color.copy(tn.base);
+      if (wU > 0.001) tn.m.color.lerp(tn.rust, wU * 0.85);
+      if (wS > 0.001) tn.m.color.lerp(snowWhite, wS * 0.5);
     }
+
+    // seasonal layers
+    snowGroundMat.opacity = wS * 0.94;
+    snowGround.visible = wS > 0.012;
+    snowBeachMat.opacity = wS * 0.86;
+    snowBeach.visible = wS > 0.012;
+    snowMoundMat.opacity = wS * 0.92;
+    snowMounds.visible = wS > 0.012;
+    snowCapMat.opacity = wS * 0.94;
+    snowCaps.visible = wS > 0.012;
+    snowU.uTime.value = amb;
+    snowU.uOpacity.value = wS;
+
+    bloomGroup.visible = wB > 0.012;
+    bloomStemMat.opacity = wB;
+    bloomHeadMat.opacity = wB;
+    for (var btm = 0; btm < bloomTreeMats.length; btm++) bloomTreeMats[btm].opacity = wB;
+    flutterU.uTime.value = amb;
+    flutterU.uOpacity.value = wB;
+
+    for (var nm = 0; nm < neonMats.length; nm++) {
+      neonMats[nm].opacity = wN * neonMats[nm].userData.op * (0.88 + 0.12 * Math.sin(amb * 2.4 + nm));
+    }
+    neonFloats.visible = wN > 0.012;
+    for (var nfm = 0; nfm < neonFloatMeshes.length; nfm++) {
+      neonFloatMeshes[nfm].rotation.z += dt * (0.25 + nfm * 0.12) * wN;
+      neonFloatMeshes[nfm].rotation.y += dt * 0.12 * wN;
+      neonFloatMeshes[nfm].position.y = 12 + nfm * 3.4 + Math.sin(amb * 0.7 + nfm) * 0.4 * wN;
+    }
+    neonLightA.intensity = wN * 34;
+    neonLightB.intensity = wN * 28;
 
     // emissive bulbs
     var flicker = 0.5 + 0.5 * Math.sin(amb * 7.3) * Math.sin(amb * 2.1 + 1.2);
     var bulbI = mixNum('bulb') * (0.9 + 0.1 * Math.sin(amb * 2.2)) + wheelBoost * 1.2 * wG;
     if (wU > 0.4) bulbI *= (0.55 + 0.45 * (flicker > 0.82 ? 1 : 0.15));
-    bulbMat.color.setRGB(1.0 * bulbI * 0.98, 0.86 * bulbI * 0.94, 0.58 * bulbI);
-    bulbGlowU.uOpacity.value = mixNum('glow') + wheelBoost * 0.35 + lightPulse * 0.25;
-    bulbGlowU.uColor.value.set('#ffc778');
+    var neonMix = wN * 0.9;
+    bulbMat.color.setRGB(
+      lerp(1.0 * bulbI * 0.98, 0.48 * bulbI, neonMix),
+      lerp(0.86 * bulbI * 0.94, 1.05 * bulbI, neonMix),
+      lerp(0.58 * bulbI, 1.0 * bulbI, neonMix)
+    );
+    bulbGlowU.uOpacity.value = mixNum('glow') + wheelBoost * 0.35 + lightPulse * 0.25 + wN * 0.35;
+    bulbGlowU.uColor.value.setRGB(lerp(1.0, 0.42, wN), lerp(0.78, 0.95, wN), lerp(0.47, 1.0, wN));
 
     for (var s = 0; s < glowSprites.length; s++) {
-      glowSprites[s].material.opacity = (0.12 + mixNum('glow') * 0.38 + lightPulse * 0.12) * (0.85 + 0.15 * Math.sin(amb * 1.7 + s));
+      var gs = glowSprites[s];
+      gs.material.opacity = (0.12 + mixNum('glow') * 0.38 + lightPulse * 0.12 + wN * 0.18) * (0.85 + 0.15 * Math.sin(amb * 1.7 + s));
+      gs.material.color.copy(gs.userData.warm).lerp(neonTint, wN * 0.8);
     }
 
     wheelLight.intensity = (wG * 32 + wR * 46 + wU * 1.5) + wheelBoost * 40 * wG + lightPulse * 18;
@@ -2917,24 +3650,66 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     cart.lookAt(cartPos.clone().add(cartTan));
 
     // teacups
-    var teaSpeed = wG * 0.24 + wR * 0.12 + wU * 0.0;
+    var teaSpeed = wG * 0.24 + wR * 0.12 + wU * 0.0 + wS * 0.06 + wB * 0.2 + wN * 0.3;
     teaRotor.rotation.y += teaSpeed * dt;
     for (var tci = 0; tci < teaCups.length; tci++) {
       teaCups[tci].g.rotation.y += teaCups[tci].speed * teaSpeed * dt * 3.2;
     }
 
+    // pirate ship
+    var rideLive = 1 - smoothstep(0.4, 0.9, wU);
+    var shipAmp = (wG * 1.0 + wR * 0.5 + wB * 0.95 + wN * 0.85 + wS * 0.28) * rideLive;
+    shipPivot.rotation.x = Math.sin(amb * 0.62) * 0.82 * shipAmp;
+    shipFlag.rotation.y = Math.sin(amb * 2.6) * 0.3 + 0.1;
+
+    // swing ride
+    var swingSpeed = (wG * 0.5 + wR * 0.24 + wB * 0.46 + wN * 0.6 + wS * 0.12) * rideLive;
+    swingRotor.rotation.y += swingSpeed * dt;
+    for (var saI = 0; saI < swingArms.length; saI++) {
+      var saA = swingArms[saI];
+      saA.rotation.x = Math.sin(amb * 0.9 + saI * 0.8) * 0.18 * Math.min(1, swingSpeed * 2.2) + (1 - Math.min(1, swingSpeed * 1.6)) * 0.02;
+    }
+
+    // drop tower cycle
+    var dropLive = 1 - smoothstep(0.35, 0.85, wU);
+    var dCycle = ((amb * (0.16 + wN * 0.05)) % 1 + 1) % 1;
+    var dY;
+    if (dCycle < 0.34) {
+      dY = lerp(4, 23.6, smoothstep(0, 1, dCycle / 0.34));
+    } else if (dCycle < 0.52) {
+      dY = 23.6;
+    } else if (dCycle < 0.62) {
+      dY = lerp(23.6, 4.2, smoothstep(0, 1, (dCycle - 0.52) / 0.1));
+    } else if (dCycle < 0.72) {
+      dY = 4.2 + Math.abs(Math.sin((dCycle - 0.62) / 0.1 * Math.PI * 1.4)) * 2.4;
+    } else {
+      dY = 4;
+    }
+    dropCar.position.y = lerp(4, dY, dropLive);
+    dropCar.rotation.y += dt * 0.12 * dropLive;
+
+    // bumper cars
+    var bumpSpeed = (wG * 1.0 + wR * 0.5 + wB * 0.7 + wN * 1.1 + wS * 0.25) * rideLive;
+    for (var buI = 0; buI < bumperCars.length; buI++) {
+      var bcI = bumperCars[buI];
+      var bAng = bcI.phase + amb * bcI.speed * bumpSpeed;
+      bcI.g.position.set(Math.cos(bAng) * bcI.radius, 0, Math.sin(bAng) * bcI.radius);
+      bcI.g.rotation.y = -bAng + Math.PI * 0.5;
+    }
+
     // fountain
     fountainU.uTime.value = amb;
-    fountainU.uWet.value = clamp(wG + wR * 0.75, 0, 1);
+    var wetMode = wG + wR * 0.75 + wB * 0.95 + wN * 0.6;
+    fountainU.uWet.value = clamp(wetMode * (1 - wS * 0.88) * (1 - wU * 0.9), 0, 1);
     for (var j = 0; j < jets.length; j++) {
       var jet = jets[j];
       var jp = 0.5 + 0.5 * Math.sin(amb * 3.4 + jet.userData.phase);
       jet.scale.y = 0.3 + jp * 0.8;
       jet.material.opacity = 0.18 + 0.32 * jp;
     }
-    jetMat.opacity = (0.16 + wG * 0.3 + wR * 0.18) * (1 - wU * 0.85);
-    jetMat.visible = wU < 0.9;
-    fountainWater.material.uniforms.uWet.value = clamp(wG + wR * 0.8, 0.05, 1);
+    jetMat.opacity = (0.14 + wG * 0.3 + wR * 0.18 + wB * 0.26 + wN * 0.22) * (1 - wU * 0.85) * (1 - wS * 0.72);
+    jetMat.visible = wU < 0.9 && wS < 0.85;
+    fountainWater.material.uniforms.uWet.value = clamp(wetMode * (1 - wS * 0.85), 0.03, 1);
     star.rotation.y = amb * 0.25;
 
     // balloons
@@ -2951,9 +3726,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
 
     // birds
-    birdMat.color.copy(PAL.golden.bird).multiplyScalar(wG)
-      .add(PAL.rain.bird.clone().multiplyScalar(wR))
-      .add(PAL.ruin.bird.clone().multiplyScalar(wU));
+    birdMat.color.setRGB(
+      PAL.golden.bird.r * wG + PAL.rain.bird.r * wR + PAL.ruin.bird.r * wU +
+        PAL.snow.bird.r * wS + PAL.bloom.bird.r * wB + PAL.neon.bird.r * wN,
+      PAL.golden.bird.g * wG + PAL.rain.bird.g * wR + PAL.ruin.bird.g * wU +
+        PAL.snow.bird.g * wS + PAL.bloom.bird.g * wB + PAL.neon.bird.g * wN,
+      PAL.golden.bird.b * wG + PAL.rain.bird.b * wR + PAL.ruin.bird.b * wU +
+        PAL.snow.bird.b * wS + PAL.bloom.bird.b * wB + PAL.neon.bird.b * wN
+    );
     birdMat.opacity = 0.9 - wR * 0.65;
     for (var bd = 0; bd < birds.length; bd++) {
       var bird = birds[bd];
@@ -2980,9 +3760,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     rainU.uTime.value = amb;
     rainU.uOpacity.value = wR;
     petalU.uTime.value = amb;
-    petalU.uOpacity.value = wG;
+    petalU.uOpacity.value = wG + wB * 0.55;
+    petalU.uTintAmt.value = wB * 0.9;
     dustU.uTime.value = amb;
-    dustU.uOpacity.value = wU * 0.85;
+    dustU.uOpacity.value = wU * 0.85 * (1 - wS * 0.4);
 
     // ripples
     for (var r = ripples.length - 1; r >= 0; r--) {
