@@ -167,17 +167,6 @@
     white-space: nowrap;
   }
 
-  #flash {
-    position: fixed;
-    inset: 0;
-    z-index: 4;
-    opacity: 0;
-    pointer-events: none;
-    mix-blend-mode: screen;
-    background:
-      radial-gradient(72% 64% at 50% 48%, rgba(255,238,208,0.98) 0%, rgba(255,198,142,0.78) 36%, rgba(255,152,96,0.30) 66%, rgba(255,130,80,0) 88%);
-  }
-
   #boot {
     position: fixed;
     inset: 0;
@@ -224,7 +213,6 @@
   body.shot .hint,
   body.shot .vignette,
   body.shot .grain,
-  body.shot #flash,
   body.shot #boot { display: none !important; }
 
   @media (max-width: 760px) {
@@ -277,7 +265,6 @@
 
 <p class="hint" id="hint">拖拽环视 · <span class="desk-only">滚轮 / </span>双指缩放 · 点击木门进屋</p>
 
-<div id="flash"></div>
 <div id="boot">
   <div class="inner">
     <div class="lamp"></div>
@@ -300,8 +287,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 </script>
 <script>
 /* 崖灯守屋 · Cliff Lantern — 场景脚本
-   室外：海崖、灯塔、守塔人小屋。室内：门厅 / 厨房 / 书房 / 卧室 / 灯室。
-   室内几何在第一次进入时才构建，且同一时刻只显示当前房间。 */
+   整栋守塔人小屋与灯塔同处一个场景：门厅、厨房、书房、卧室由真实门洞相连，
+   推开前门即可从屋外连续走入，登塔沿塔内螺旋梯连续上升。
+   没有切场景、没有二次加载、没有闪白。 */
 (function () {
   'use strict';
 
@@ -318,7 +306,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var trailEl = document.getElementById('trail');
   var crumbEl = document.getElementById('crumb');
   var upBtn = document.getElementById('up');
-  var flashEl = document.getElementById('flash');
 
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var DPR_CAP = window.innerWidth < 760 ? 1.8 : 2;
@@ -650,33 +637,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var roofMat = std('#ffffff', { map: texRoof, rough: 0.9 });
   var trimMat = std('#d9c3a3', { rough: 0.8 });
 
-  // 墙体（正面留出门洞，用四段拼合）
-  function wallSeg(w, h, d, x, y, z) {
-    var m = box(house, w, h, d, wallMat, x, y, z);
-    m.castShadow = true; m.receiveShadow = true;
-    return m;
-  }
-  // 左右侧墙
-  wallSeg(0.4, 3.4, 7.4, -4.8, 1.7, 0);
-  wallSeg(0.4, 3.4, 7.4, 4.8, 1.7, 0);
-  // 后墙
-  wallSeg(9.6, 3.4, 0.4, 0, 1.7, -3.7);
-  // 前墙：门洞两侧 + 门楣
-  wallSeg(3.5, 3.4, 0.4, -2.75, 1.7, 3.7);
-  wallSeg(3.5, 3.4, 0.4, 2.75, 1.7, 3.7);
-  wallSeg(2.6, 0.9, 0.4, 0, 2.95, 3.7);
-  // 门框
-  box(house, 0.14, 2.6, 0.3, trimMat, -1.0, 1.3, 3.78);
-  box(house, 0.14, 2.6, 0.3, trimMat, 1.0, 1.3, 3.78);
-  box(house, 2.2, 0.14, 0.3, trimMat, 0, 2.55, 3.78);
+  /* 墙体由 buildWalls() 在下方统一建造：同一堵墙既是室内墙面也是室外墙面，
+     门洞一次开穿，镜头可以直接走过去。这里只放门扇、屋顶与外部细节。 */
 
   // 门（可点击）：绕右侧铰链向内开
-  var doorGroup = group(house, 0, 1.22, 3.66);
+  var doorGroup = group(house, 0, 1.175, 3.9);
   var doorLeaf = group(doorGroup, 0.9, 0, 0);
-  var doorPanel = box(doorLeaf, 1.8, 2.44, 0.14, woodMat, -0.9, 0, 0);
+  var doorPanel = box(doorLeaf, 1.8, 2.35, 0.14, woodMat, -0.9, 0, 0);
   doorPanel.castShadow = true;
   for (var dp = 0; dp < 3; dp++) {
-    box(doorLeaf, 1.5, 0.06, 0.18, std('#5c3c24', { rough: 0.8 }), -0.9, -0.86 + dp * 0.86, 0.02);
+    box(doorLeaf, 1.5, 0.06, 0.18, std('#5c3c24', { rough: 0.8 }), -0.9, -0.6 + dp * 0.6, 0.02);
   }
   var knob = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), std('#c9a25e', { rough: 0.35, metal: 0.8 }));
   knob.position.set(-0.66, 0.02, 0.12);
@@ -688,84 +658,90 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     c.fillText('KEEPER', w / 2, h / 2 + 2);
   }) }), -0.9, 0.58, 0.085);
   doorPlate.material.toneMapped = true;
-  doorLeaf.userData.openAngle = -1.75;
+  doorLeaf.userData.openAngle = -1.72;
   doorLeaves.push(doorLeaf);
 
-  // 门缝透出的暖光
-  var doorGlow = plane(house, 2.5, 2.8, basic('#ffb37a', { transparent: true, opacity: 0.10, blending: THREE.AdditiveBlending, depthWrite: false }), 0, 1.4, 3.95);
-  doorGlow.material.toneMapped = false;
+  // 门框
+  box(house, 0.14, 2.5, 0.34, trimMat, -1.0, 1.25, 4.0);
+  box(house, 0.14, 2.5, 0.34, trimMat, 1.0, 1.25, 4.0);
+  box(house, 2.2, 0.14, 0.34, trimMat, 0, 2.52, 4.0);
 
-  // 门内的小门厅：开门后能看到的暖光空间
-  var vest = group(house, 0, 0, 0);
-  var vestFloor = plane(vest, 4.4, 3.3, std('#ffffff', { map: texWood, rough: 0.9 }), 0, 0.015, 1.92, -Math.PI / 2);
-  vestFloor.receiveShadow = true;
-  var vestWall = std('#c7ab88', { rough: 0.95 });
-  var vestCeil = std('#8f7458', { rough: 0.96 });
-  plane(vest, 4.4, 2.9, vestWall, 0, 1.45, 0.27);
-  plane(vest, 3.3, 2.9, vestWall, -2.2, 1.45, 1.92, 0, Math.PI / 2);
-  plane(vest, 3.3, 2.9, vestWall, 2.2, 1.45, 1.92, 0, -Math.PI / 2);
-  plane(vest, 4.4, 3.3, vestCeil, 0, 2.9, 1.92, Math.PI / 2);
-  plane(vest, 2.1, 2.5, std('#6b4038', { rough: 1 }), 0, 0.03, 1.9, -Math.PI / 2);
-  box(vest, 1.1, 0.72, 0.36, std('#6b4a30', { rough: 0.9 }), -1.55, 0.36, 0.55);
-  cyl(vest, 0.09, 0.11, 0.18, 10, std('#c9a25e', { rough: 0.32, metal: 0.82 }), -1.55, 0.81, 0.55);
-  var vestLight = new THREE.PointLight(0xffb877, 2.6, 7, 2);
-  vestLight.position.set(0, 2.35, 2.35);
-  vest.add(vestLight);
-  var vestBulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), basic('#ffe3b6', { toneMapped: false }));
-  vestBulb.position.set(0, 2.55, 2.35);
-  vest.add(vestBulb);
-  var vestGlow = plane(vest, 2.6, 2.9, basic('#ffc78c', { transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 0, 1.4, 0.45);
-  vestGlow.material.toneMapped = false;
-
-  // 屋顶
-  var roofAng = Math.atan2(2.8, 4.25);
-  var roofSlope = Math.sqrt(4.25 * 4.25 + 2.8 * 2.8);
-  var roofF = box(house, 10.8, 0.22, roofSlope, roofMat, 0, 4.78, 2.12);
+  // 南翼双坡屋顶（东端收在塔身外侧，不与塔内楼梯相交）
+  var roofAng = Math.atan2(2.6, 3.8);
+  var roofSlope = Math.sqrt(3.8 * 3.8 + 2.6 * 2.6) + 0.42;
+  var roofF = box(house, 14.8, 0.22, roofSlope, roofMat, -3.7, 4.72, 2.3);
   roofF.rotation.x = roofAng; roofF.castShadow = true; roofF.receiveShadow = true;
-  var roofB = box(house, 10.8, 0.22, roofSlope, roofMat, 0, 4.78, -2.12);
+  var roofB = box(house, 14.8, 0.22, roofSlope, roofMat, -3.7, 4.72, -1.9);
   roofB.rotation.x = -roofAng; roofB.castShadow = true; roofB.receiveShadow = true;
-  // 山墙
-  var gableShape = new THREE.Shape();
-  gableShape.moveTo(-3.7, 0); gableShape.lineTo(3.7, 0); gableShape.lineTo(0, 2.6); gableShape.lineTo(-3.7, 0);
-  var gableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: 0.35, bevelEnabled: false });
-  var gableM = std('#8d7a63', { map: texStone, rough: 0.9 });
-  var gableF = new THREE.Mesh(gableGeo, gableM);
-  gableF.position.set(0, 3.4, 3.55); gableF.castShadow = true;
-  house.add(gableF);
-  var gableB = gableF.clone();
-  gableB.position.set(0, 3.4, -3.9);
-  gableB.rotation.y = Math.PI;
-  house.add(gableB);
-  // 烟囱
-  var chimney = box(house, 0.95, 2.7, 0.95, std('#7a5e50', { map: texStone, rough: 0.92 }), -3.0, 5.3, -1.2);
-  chimney.castShadow = true;
-  box(house, 1.15, 0.16, 1.15, std('#4f3c35', { rough: 0.9 }), -3.0, 6.72, -1.2);
 
-  // 正面窗
+  // 北翼双坡屋顶（屋脊沿南北向）
+  var nAng = Math.atan2(2.5, 5.4);
+  var nSlope = Math.sqrt(5.4 * 5.4 + 2.5 * 2.5) + 0.45;
+  var nWest = box(house, nSlope, 0.22, 7.7, roofMat, -1.5, 4.65, -7.0);
+  nWest.rotation.z = nAng; nWest.castShadow = true; nWest.receiveShadow = true;
+  var nEast = box(house, nSlope, 0.22, 7.7, roofMat, 4.3, 4.65, -7.0);
+  nEast.rotation.z = -nAng; nEast.castShadow = true; nEast.receiveShadow = true;
+
+  // 山墙
+  var gableMat = std('#a48d75', { rough: 0.92, side: THREE.DoubleSide });
+  function tri(a, b, c) {
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([
+      a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]
+    ], 3));
+    geo.computeVertexNormals();
+    var m = new THREE.Mesh(geo, gableMat);
+    m.castShadow = true;
+    house.add(m);
+    return m;
+  }
+  tri([-10.62, 3.14, -3.62], [-10.62, 3.14, 4.02], [-10.62, 5.96, 0.2]);
+  tri([-4.02, 3.14, -10.42], [6.82, 3.14, -10.42], [1.4, 5.9, -10.42]);
+
+  // 烟囱
+  var chimney = box(house, 0.95, 3.8, 0.95, std('#7a5e50', { map: texStone, rough: 0.92 }), -8.4, 5.4, -1.0);
+  chimney.castShadow = true;
+  box(house, 1.15, 0.16, 1.15, std('#4f3c35', { rough: 0.9 }), -8.4, 7.3, -1.0);
+
+  /* 真窗：墙体在 buildWalls() 里已按同一位置开洞，这里只补玻璃与内外窗框。
+     玻璃双面、几乎透明，站在屋里就能透过它看到真实的海面与灯塔。 */
   function windowAt(x, y, z, ry, w, h) {
     var g = group(house, x, y, z);
     g.rotation.y = ry || 0;
     var frame = std('#d9c3a3', { rough: 0.8 });
-    box(g, w, h, 0.1, std('#ffd9a0', { emissive: '#ff9f5e', ei: 0.85, rough: 0.6 }), 0, 0, 0);
-    box(g, w + 0.16, 0.1, 0.16, frame, 0, h / 2 + 0.03, 0.02);
-    box(g, w + 0.16, 0.1, 0.16, frame, 0, -h / 2 - 0.03, 0.02);
-    box(g, 0.1, h + 0.16, 0.16, frame, -w / 2 - 0.03, 0, 0.02);
-    box(g, 0.1, h + 0.16, 0.16, frame, w / 2 + 0.03, 0, 0.02);
-    box(g, 0.06, h, 0.1, frame, 0, 0, 0.06);
-    box(g, w, 0.06, 0.1, frame, 0, 0, 0.06);
+    var glass = plane(g, w, h, std('#cfe0e8', {
+      rough: 0.05, metal: 0.1, transparent: true, opacity: 0.14,
+      side: THREE.DoubleSide, depthWrite: false
+    }), 0, 0, 0);
+    glass.renderOrder = 2;
+    for (var s = -1; s <= 1; s += 2) {
+      var zz = s * 0.1;
+      box(g, w + 0.18, 0.1, 0.06, frame, 0, h / 2 + 0.05, zz);
+      box(g, w + 0.18, 0.1, 0.06, frame, 0, -h / 2 - 0.05, zz);
+      box(g, 0.1, h + 0.18, 0.06, frame, -w / 2 - 0.05, 0, zz);
+      box(g, 0.1, h + 0.18, 0.06, frame, w / 2 + 0.05, 0, zz);
+      box(g, 0.055, h, 0.05, frame, 0, 0, zz);
+      box(g, w, 0.055, 0.05, frame, 0, 0, zz);
+    }
+    box(g, w + 0.26, 0.07, 0.24, std('#b9a184', { rough: 0.85 }), 0, -h / 2 - 0.11, 0.06);
     return g;
   }
-  windowAt(-2.8, 1.85, 3.93, 0, 1.15, 1.15);
-  windowAt(2.8, 1.85, 3.93, 0, 1.15, 1.15);
-  windowAt(5.02, 1.85, 0.9, Math.PI / 2, 1.05, 1.05);
-  windowAt(-5.02, 1.85, -0.9, -Math.PI / 2, 1.05, 1.05);
+  windowAt(-2.55, 1.85, 4.0, 0, 1.1, 1.1);
+  windowAt(2.55, 1.85, 4.0, 0, 1.1, 1.1);
+  windowAt(-10.6, 1.85, 0.9, -Math.PI / 2, 1.05, 1.05);
+  windowAt(-7.3, 1.85, -3.6, Math.PI, 1.05, 1.05);
+  windowAt(-4.0, 1.85, -7.0, -Math.PI / 2, 1.05, 1.05);
+  windowAt(6.8, 1.85, -7.0, Math.PI / 2, 1.05, 1.05);
+  windowAt(5.5, 1.85, -3.6, 0, 1.0, 1.0);
+  windowAt(-0.3, 1.85, -10.4, Math.PI, 1.05, 1.05);
+  windowAt(1.7, 1.85, -10.4, Math.PI, 1.05, 1.05);
 
   // 门边壁灯
-  var lampG = group(house, 1.45, 2.35, 3.86);
+  var lampG = group(house, 1.5, 2.4, 3.95);
   box(lampG, 0.16, 0.5, 0.16, std('#3b2f2a', { rough: 0.8, metal: 0.4 }), 0, 0, 0);
   box(lampG, 0.34, 0.4, 0.34, basic('#ffcf9a', { toneMapped: false }), 0, 0.3, 0.16);
   var doorLight = new THREE.PointLight(0xffa35f, 2.6, 9, 2);
-  doorLight.position.set(1.45, 2.75, 4.1);
+  doorLight.position.set(1.5, 2.8, 4.15);
   house.add(doorLight);
 
   // 烟（粒子）
@@ -773,7 +749,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var smokeCount = 26, smokePos = new Float32Array(smokeCount * 3), smokeSeed = [];
   for (var sm = 0; sm < smokeCount; sm++) {
     smokeSeed.push({ t: Math.random(), x: rand(-0.14, 0.14), z: rand(-0.14, 0.14), s: rand(0.5, 1.2) });
-    smokePos[sm * 3] = -3.0; smokePos[sm * 3 + 1] = 6.9; smokePos[sm * 3 + 2] = -1.2;
+    smokePos[sm * 3] = -8.4; smokePos[sm * 3 + 1] = 7.45; smokePos[sm * 3 + 2] = -1.0;
   }
   smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePos, 3));
   var smokeTex = canvasTex(64, 64, function (c, w, h) {
@@ -789,56 +765,87 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }));
   house.add(smoke);
   /* -------------------------------------------------------------- 灯塔 */
-  var lighthouse = group(outScene, 8.9, 0, -0.9);
+  var lighthouse = group(outScene, 5.9, 0, 0.2);
   var towerMat = std('#c6b7a2', { rough: 0.92 });
   var bandMat = std('#9d4337', { rough: 0.8 });
   var ironMat = std('#3a3336', { rough: 0.55, metal: 0.55 });
+  var TOWER_TOP = 21.9;
+  var towerSideMat = std('#c6b7a2', { rough: 0.92, side: THREE.DoubleSide });
 
-  cyl(lighthouse, 3.2, 3.5, 1.1, 12, std('#6d5b53', { map: texStone, rough: 0.9 }), 0, 0.55, 0);
-  var tower = cyl(lighthouse, 1.72, 2.72, 21.4, 12, towerMat, 0, 11.2, 0);
-  tower.castShadow = true; tower.receiveShadow = true;
-  cyl(lighthouse, 2.47, 2.5, 0.7, 12, bandMat, 0, 6.4, 0);
-  cyl(lighthouse, 2.1, 2.14, 0.7, 12, bandMat, 0, 13.4, 0);
-  // 窗
+  // 空心塔身：下段朝西留出与门厅相通的门洞，上段完整
+  var towerGap = 0.9;
+  var towerLower = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.4, 2.52, 2.6, 20, 1, true, -Math.PI / 2 + towerGap / 2, Math.PI * 2 - towerGap),
+    towerSideMat
+  );
+  towerLower.position.y = 1.3;
+  towerLower.castShadow = true; towerLower.receiveShadow = true;
+  lighthouse.add(towerLower);
+  var towerUpper = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.66, 2.4, TOWER_TOP - 2.6, 20, 1, true),
+    towerSideMat
+  );
+  towerUpper.position.y = 2.6 + (TOWER_TOP - 2.6) / 2;
+  towerUpper.castShadow = true; towerUpper.receiveShadow = true;
+  lighthouse.add(towerUpper);
+
+  // 红色环带（空心薄环，不挡楼梯）
+  function bandAt(y, r) {
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 0.03, 0.62, 20, 1, true), std('#9d4337', { rough: 0.8, side: THREE.DoubleSide }));
+    m.position.y = y;
+    lighthouse.add(m);
+  }
+  bandAt(5.0, 2.33); bandAt(11.5, 2.07); bandAt(17.5, 1.84);
+  // 塔顶收口
+  var topRim = new THREE.Mesh(new THREE.TorusGeometry(1.67, 0.06, 6, 26), ironMat);
+  topRim.rotation.x = Math.PI / 2;
+  topRim.position.y = TOWER_TOP;
+  lighthouse.add(topRim);
+  // 门槛石
+  var sill = new THREE.Mesh(new THREE.TorusGeometry(2.52, 0.16, 6, 28), std('#6d5b53', { map: texStone, rough: 0.9 }));
+  sill.rotation.x = Math.PI / 2;
+  sill.position.y = 0.05;
+  lighthouse.add(sill);
+
+  // 塔内小窗
   for (var lw = 0; lw < 3; lw++) {
-    var lwy = 8.4 + lw * 3.0;
-    var wm = plane(lighthouse, 0.5, 0.9, basic('#ffd9a0', { toneMapped: false }), 0, lwy, 2.5 - (lwy - 11.2) * 0.05);
-    wm.rotation.x = -0.06;
-    box(lighthouse, 0.62, 1.02, 0.06, ironMat, 0, lwy, 2.44 - (lwy - 11.2) * 0.05);
+    var lwy = 7.0 + lw * 5.0;
+    var lwr = 2.52 + (1.66 - 2.52) * (lwy / TOWER_TOP);
+    var la = Math.PI * 0.5 + lw * 1.9;
+    var winM = box(lighthouse, 0.06, 0.95, 0.55, basic('#ffd9a0', { toneMapped: false }), Math.cos(la) * lwr, lwy, Math.sin(la) * lwr);
+    winM.rotation.y = -la;
+    box(lighthouse, 0.1, 1.12, 0.7, ironMat, Math.cos(la) * (lwr - 0.02), lwy, Math.sin(la) * (lwr - 0.02)).rotation.y = -la;
   }
-  // 观景台
-  var gallery = cyl(lighthouse, 2.55, 2.45, 0.26, 14, ironMat, 0, 21.9, 0);
-  gallery.castShadow = true;
-  for (var pb = 0; pb < 12; pb++) {
-    var pa = (pb / 12) * Math.PI * 2;
-    box(lighthouse, 0.07, 0.95, 0.07, ironMat, Math.cos(pa) * 2.42, 22.5, Math.sin(pa) * 2.42);
-  }
-  var rail = new THREE.Mesh(new THREE.TorusGeometry(2.42, 0.055, 6, 26), ironMat);
-  rail.rotation.x = Math.PI / 2;
-  rail.position.y = 22.98;
-  lighthouse.add(rail);
 
-  // 灯室
-  var glassMat = std('#bfe3ef', { rough: 0.08, metal: 0.1, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, flat: false });
-  var glassRoom = cyl(lighthouse, 1.52, 1.52, 2.2, 12, glassMat, 0, 23.2, 0);
-  var glassFrame = ironMat;
-  for (var gf = 0; gf < 8; gf++) {
-    var ga = (gf / 8) * Math.PI * 2;
-    box(lighthouse, 0.06, 2.2, 0.06, glassFrame, Math.cos(ga) * 1.5, 23.2, Math.sin(ga) * 1.5);
+  // 螺旋楼梯：105 级，7 圈，从门厅一直通到灯室
+  var STAIR_STEPS = 105;
+  var stairDummy = new THREE.Object3D();
+  var stairMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1.24, 0.07, 0.52),
+    std('#8a6542', { map: texWood, rough: 0.9 }),
+    STAIR_STEPS
+  );
+  for (var si = 0; si < STAIR_STEPS; si++) {
+    var sa = Math.PI + (si / STAIR_STEPS) * Math.PI * 14;
+    var sy = 0.2 + (si / STAIR_STEPS) * (TOWER_TOP - 0.25);
+    stairDummy.position.set(Math.cos(sa) * 0.97, sy, Math.sin(sa) * 0.97);
+    stairDummy.rotation.set(0, -sa, 0);
+    stairDummy.scale.set(1, 1, 1);
+    stairDummy.updateMatrix();
+    stairMesh.setMatrixAt(si, stairDummy.matrix);
   }
-  cyl(lighthouse, 1.7, 1.7, 0.12, 12, ironMat, 0, 24.32, 0);
-  var cap = new THREE.Mesh(new THREE.ConeGeometry(1.85, 1.3, 12), std('#8f4038', { rough: 0.7, metal: 0.2 }));
-  cap.position.y = 25.03; cap.castShadow = true;
-  lighthouse.add(cap);
-  var finial = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), std('#c9a25e', { rough: 0.3, metal: 0.8 }));
-  finial.position.y = 25.85;
-  lighthouse.add(finial);
+  stairMesh.instanceMatrix.needsUpdate = true;
+  stairMesh.castShadow = true; stairMesh.receiveShadow = true;
+  lighthouse.add(stairMesh);
+  cyl(lighthouse, 0.14, 0.18, TOWER_TOP, 10, ironMat, 0, TOWER_TOP / 2, 0).castShadow = true;
 
-  // 透镜与灯
-  var lens = cyl(lighthouse, 0.5, 0.66, 1.05, 10, std('#ffe6b8', { emissive: '#ffbe78', ei: 2.4, rough: 0.2, transparent: true, opacity: 0.92 }), 0, 23.05, 0);
-  var lampLight = new THREE.PointLight(0xffc07a, 6, 42, 2);
-  lampLight.position.set(0, 23.1, 0);
-  lighthouse.add(lampLight);
+  // 塔内暖光
+  var towerLight = new THREE.PointLight(0xffb877, 2.2, 13, 2);
+  towerLight.position.set(0, 9.5, 0);
+  lighthouse.add(towerLight);
+  var towerLight2 = new THREE.PointLight(0xffa86b, 1.6, 10, 2);
+  towerLight2.position.set(0, 17.5, 0);
+  lighthouse.add(towerLight2);
 
   // 扫海光束
   var beamGroup = group(lighthouse, 0, 23.15, 0);
@@ -899,7 +906,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var gr = Math.sqrt(Math.random()) * 27;
       gx = Math.cos(ga2) * gr;
       gz = Math.sin(ga2) * gr;
-    } while (tries++ < 8 && Math.abs(gx) < 5.6 && gz > -4.4 && gz < 4.4);
+    } while (tries++ < 12 && gx > -11.2 && gx < 8.8 && gz > -10.8 && gz < 4.6);
     dummy.position.set(gx, 0, gz);
     dummy.rotation.y = Math.random() * Math.PI;
     dummy.scale.setScalar(rand(0.7, 1.5));
@@ -930,8 +937,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     trees.push({ g: g, phase: rand(0, 6.28) });
     return g;
   }
-  pine(-10.5, -5.5, 1.25);
-  pine(-12.5, -1.8, 0.95);
+  pine(-13.2, -6.2, 1.25);
+  pine(-13.8, -1.6, 0.95);
   pine(14.2, -7.5, 1.1);
   pine(12.4, 5.2, 0.82);
   pine(-8.8, 7.4, 0.7);
@@ -999,11 +1006,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var pickOut = [doorPanel];
   doorPanel.userData.go = 'hall';
   /* -------------------------------------------------------------- 室内场景 */
-  var inScene = new THREE.Scene();
-  inScene.background = new THREE.Color('#100b14');
-  inScene.add(new THREE.HemisphereLight(0xffd9b4, 0x2a2233, 0.78));
-  inScene.add(new THREE.AmbientLight(0xffd2a8, 0.42));
-
   var rooms = {};
   var flickers = [];
   var activeRoom = null;
@@ -1083,39 +1085,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
   });
 
-  var texSeaView = canvasTex(256, 384, function (c, w, h) {
-    var sky = c.createLinearGradient(0, 0, 0, h * 0.62);
-    sky.addColorStop(0, '#3b2b4c'); sky.addColorStop(0.7, '#a05a5c'); sky.addColorStop(1, '#ffb078');
-    c.fillStyle = sky; c.fillRect(0, 0, w, h * 0.62);
-    var sea = c.createLinearGradient(0, h * 0.62, 0, h);
-    sea.addColorStop(0, '#c07a62'); sea.addColorStop(0.35, '#43516b'); sea.addColorStop(1, '#232c42');
-    c.fillStyle = sea; c.fillRect(0, h * 0.62, w, h * 0.38);
-    c.fillStyle = 'rgba(255,214,168,0.85)';
-    c.beginPath(); c.arc(w * 0.68, h * 0.55, 15, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(255,200,150,0.22)';
-    for (var i = 0; i < 20; i++) {
-      var y = h * 0.64 + i * (h * 0.34 / 20);
-      c.fillRect(w * 0.3 + Math.random() * w * 0.42, y, 18 + Math.random() * 40, 2);
-    }
-  });
-
-  var texMoonView = canvasTex(256, 384, function (c, w, h) {
-    var sky = c.createLinearGradient(0, 0, 0, h * 0.6);
-    sky.addColorStop(0, '#141a33'); sky.addColorStop(0.65, '#2c3358'); sky.addColorStop(1, '#7a6a86');
-    c.fillStyle = sky; c.fillRect(0, 0, w, h * 0.6);
-    c.fillStyle = '#e9e2cf';
-    c.beginPath(); c.arc(w * 0.32, h * 0.26, 22, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(233,226,207,0.16)';
-    c.beginPath(); c.arc(w * 0.32, h * 0.26, 40, 0, Math.PI * 2); c.fill();
-    var sea = c.createLinearGradient(0, h * 0.6, 0, h);
-    sea.addColorStop(0, '#5c6784'); sea.addColorStop(0.4, '#2c3550'); sea.addColorStop(1, '#161c2e');
-    c.fillStyle = sea; c.fillRect(0, h * 0.6, w, h * 0.4);
-    c.fillStyle = 'rgba(233,226,207,0.3)';
-    for (var i = 0; i < 14; i++) {
-      c.fillRect(w * 0.2 + Math.random() * w * 0.24, h * 0.62 + i * 9, 10 + Math.random() * 22, 2);
-    }
-  });
-
   function labelTex(text, sub) {
     return canvasTex(256, 96, function (c, w, h) {
       c.fillStyle = '#2b2018'; c.fillRect(0, 0, w, h);
@@ -1172,23 +1141,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var inIron = std('#332d31', { rough: 0.5, metal: 0.5 });
   var brass = std('#c9a25e', { rough: 0.32, metal: 0.82 });
 
-  function roomShell(w, d, h, floorTex, wallTex, ceilMat, closedFront) {
+  function roomShell(w, d, h, floorTex, ceilMat) {
     var g = new THREE.Group();
     var floorMat = std('#ffffff', { map: floorTex || texPlank, rough: 0.9 });
-    plane(g, w, d, floorMat, 0, 0, 0, -Math.PI / 2);
-    var wallM = std('#ffffff', { map: wallTex || texPlaster, rough: 0.95 });
-    plane(g, w, h, wallM, 0, h / 2, -d / 2);
-    plane(g, d, h, wallM, -w / 2, h / 2, 0, 0, Math.PI / 2);
-    plane(g, d, h, wallM, w / 2, h / 2, 0, 0, -Math.PI / 2);
-    if (closedFront) {
-      plane(g, w, h, wallM, 0, h / 2, d / 2, 0, Math.PI);
-      box(g, w, 0.16, 0.1, std('#4a3526', { rough: 0.85 }), 0, 0.08, d / 2 - 0.06);
-    }
+    var fl = plane(g, w, d, floorMat, 0, 0.05, 0, -Math.PI / 2);
+    fl.receiveShadow = true;
     plane(g, w, d, ceilMat || inCeil, 0, h, 0, Math.PI / 2);
-    // 踢脚线与腰线
-    box(g, w, 0.16, 0.1, std('#4a3526', { rough: 0.85 }), 0, 0.08, -d / 2 + 0.06);
-    box(g, 0.1, 0.16, d, std('#4a3526', { rough: 0.85 }), -w / 2 + 0.06, 0.08, 0);
-    box(g, 0.1, 0.16, d, std('#4a3526', { rough: 0.85 }), w / 2 - 0.06, 0.08, 0);
     // 顶部梁
     for (var i = 0; i < 4; i++) {
       box(g, w, 0.14, 0.18, std('#5c4433', { rough: 0.9 }), 0, h - 0.08, -d / 2 + (i + 0.5) * (d / 4));
@@ -1196,47 +1154,91 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return g;
   }
 
-  var doorGlowTex = canvasTex(128, 256, function (c, w, h) {
-    var lg = c.createLinearGradient(0, 0, 0, h);
-    lg.addColorStop(0, '#42291a');
-    lg.addColorStop(0.16, '#96603a');
-    lg.addColorStop(0.44, '#d99a60');
-    lg.addColorStop(0.68, '#c6844d');
-    lg.addColorStop(0.735, '#7d4c2d');
-    lg.addColorStop(0.77, '#a86f45');
-    lg.addColorStop(1, '#40281b');
-    c.fillStyle = lg;
-    c.fillRect(0, 0, w, h);
-    var gr = c.createRadialGradient(w * 0.5, h * 0.3, 2, w * 0.5, h * 0.3, h * 0.46);
-    gr.addColorStop(0, 'rgba(255,240,210,0.96)');
-    gr.addColorStop(0.4, 'rgba(255,200,144,0.44)');
-    gr.addColorStop(1, 'rgba(255,180,120,0)');
-    c.fillStyle = gr;
-    c.fillRect(0, 0, w, h);
-    var fg = c.createRadialGradient(w * 0.5, h * 0.79, 2, w * 0.5, h * 0.79, h * 0.3);
-    fg.addColorStop(0, 'rgba(255,214,164,0.38)');
-    fg.addColorStop(1, 'rgba(255,190,130,0)');
-    c.fillStyle = fg;
-    c.fillRect(0, 0, w, h);
-    var hg = c.createLinearGradient(0, 0, w, 0);
-    hg.addColorStop(0, 'rgba(44,25,14,0.88)');
-    hg.addColorStop(0.16, 'rgba(44,25,14,0)');
-    hg.addColorStop(0.84, 'rgba(44,25,14,0)');
-    hg.addColorStop(1, 'rgba(44,25,14,0.88)');
-    c.fillStyle = hg;
-    c.fillRect(0, 0, w, h);
-  });
+  /* 全局墙体：室内与室外共用同一堵墙，门洞一次开穿。
+     镜头因此可以从屋外直接穿过门洞走进门厅，不需要切换场景。 */
+  function buildWalls() {
+    var H = 3.2, T = 0.18;
+    function wallMat(len, hh) {
+      var t = texPlaster.clone();
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(Math.max(1, len / 2.4), Math.max(1, hh / 2.4));
+      t.needsUpdate = true;
+      return std('#ffffff', { map: t, rough: 0.95 });
+    }
+    function run(axis, fixed, from, to, openings) {
+      openings = (openings || []).slice().sort(function (a, b) { return a.c - b.c; });
+      var cur = from;
+      function seg(a, b, y0, y1) {
+        if (b - a < 0.002 || y1 - y0 < 0.002) return;
+        var len = b - a, hh = y1 - y0, m;
+        if (axis === 'x') m = box(house, len, hh, T, wallMat(len, hh), (a + b) / 2, (y0 + y1) / 2, fixed);
+        else m = box(house, T, hh, len, wallMat(len, hh), fixed, (y0 + y1) / 2, (a + b) / 2);
+        m.castShadow = true; m.receiveShadow = true;
+      }
+      for (var i = 0; i < openings.length; i++) {
+        var o = openings[i], a = o.c - o.w / 2, b = o.c + o.w / 2;
+        seg(cur, a, 0, H);
+        if (o.b) seg(a, b, 0, o.b);      // 窗台以下
+        seg(a, b, o.h, H);               // 窗顶以上
+        cur = b;
+      }
+      seg(cur, to, 0, H);
+    }
+    // 南外墙（前门洞 + 门厅两扇窗）
+    run('x', 4.0, -10.6, 4.2, [
+      { c: 0, w: 1.9, h: 2.35 },
+      { c: -2.55, w: 1.16, b: 1.27, h: 2.43 },
+      { c: 2.55, w: 1.16, b: 1.27, h: 2.43 }
+    ]);
+    // 南翼北墙：书房门、卧室门、厨房窗、卧室南窗
+    run('x', -3.6, -10.6, 6.8, [
+      { c: -1.8, w: 1.8, h: 2.15 },
+      { c: 2.4, w: 1.8, h: 2.15 },
+      { c: -7.3, w: 1.11, b: 1.27, h: 2.43 },
+      { c: 5.5, w: 1.06, b: 1.27, h: 2.43 }
+    ]);
+    // 厨房西外墙（窗）
+    run('z', -10.6, -3.6, 4.0, [{ c: 0.9, w: 1.11, b: 1.27, h: 2.43 }]);
+    // 门厅 / 厨房隔墙（厨房门洞）
+    run('z', -4.0, -3.6, 4.0, [{ c: 0.4, w: 1.8, h: 2.15 }]);
+    // 门厅东墙：塔门两侧的两小段
+    run('z', 4.2, -3.6, -1.63, []);
+    run('z', 4.2, 2.03, 4.0, []);
+    // 书房 / 卧室隔墙
+    run('z', 0.4, -10.4, -3.6, []);
+    // 北翼西墙（书房窗）、东墙（卧室窗）、北墙（书房窗、卧室窗）
+    run('z', -4.0, -10.4, -3.6, [{ c: -7.0, w: 1.11, b: 1.27, h: 2.43 }]);
+    run('z', 6.8, -10.4, -3.6, [{ c: -7.0, w: 1.11, b: 1.27, h: 2.43 }]);
+    run('x', -10.4, -4.0, 6.8, [
+      { c: -0.3, w: 1.11, b: 1.27, h: 2.43 },
+      { c: 1.7, w: 1.11, b: 1.27, h: 2.43 }
+    ]);
+    // 前门门槛石：把室外砾石、门洞与室内木地板连成一条，不露出地面接缝
+    var sillMat = std('#8a7a6e', { map: texStone, rough: 0.92 });
+    var sillFront = box(house, 2.2, 0.05, 0.44, sillMat, 0, 0.025, 4.2);
+    sillFront.receiveShadow = true;
+  }
 
-  function addDoor(parent, x, y, z, ry, label, sub, go, pick, w, h) {
-    w = w || 1.9; h = h || 2.2;
+  function addDoor(parent, x, y, z, ry, label, sub, go, pick, w, h, noLeaf) {
+    w = w || 1.8; h = h || 2.15;
     var g = group(parent, x, y, z);
     g.rotation.y = ry || 0;
-    box(g, w + 0.26, 0.13, 0.18, inTrim, 0, h + 0.06, 0);
-    box(g, 0.13, h + 0.13, 0.18, inTrim, -w / 2 - 0.06, h / 2, 0);
-    box(g, 0.13, h + 0.13, 0.18, inTrim, w / 2 + 0.06, h / 2, 0);
+    box(g, w + 0.26, 0.13, 0.22, inTrim, 0, h + 0.06, 0);
+    box(g, 0.13, h + 0.13, 0.22, inTrim, -w / 2 - 0.06, h / 2, 0);
+    box(g, 0.13, h + 0.13, 0.22, inTrim, w / 2 + 0.06, h / 2, 0);
 
-    // 门后的暖光：门扇打开时替代墙面，像是走廊里透出的灯
-    plane(g, w - 0.08, h - 0.03, basic('#ffffff', { map: doorGlowTex, toneMapped: false }), 0, h / 2, -0.035);
+    var plate = plane(g, 0.95, 0.34, std('#ffffff', { map: labelTex(label, sub) }), 0, h + 0.42, 0.13);
+    plate.material.toneMapped = true;
+    plate.userData.go = go;
+    pick.push(plate);
+
+    if (noLeaf) {
+      var hit = plane(g, w, h, basic('#000000', { transparent: true, opacity: 0, depthWrite: false }), 0, h / 2, -0.02);
+      hit.userData.go = go;
+      pick.push(hit);
+      g.userData.leaf = null;
+      return g;
+    }
 
     // 门扇：绕左侧铰链，向房间内开
     var leaf = group(g, -w / 2, 0, 0.02);
@@ -1249,31 +1251,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     leaf.userData.openAngle = -1.68;
     doorLeaves.push(leaf);
     g.userData.leaf = leaf;
-
-    var plate = plane(g, 0.95, 0.34, std('#ffffff', { map: labelTex(label, sub) }), 0, h + 0.42, 0.04);
-    plate.material.toneMapped = true;
     panel.userData.go = go;
     pick.push(panel);
     return g;
   }
 
-  function addWindow(parent, x, y, z, ry, w, h, tex) {
-    var g = group(parent, x, y, z);
-    g.rotation.y = ry || 0;
-    var view = plane(g, w, h, basic('#ffffff', { map: tex, toneMapped: false }), 0, 0, 0.02);
-    view.material.toneMapped = false;
-    box(g, w + 0.16, 0.1, 0.14, inTrim, 0, h / 2 + 0.05, 0.04);
-    box(g, w + 0.16, 0.1, 0.14, inTrim, 0, -h / 2 - 0.05, 0.04);
-    box(g, 0.1, h + 0.16, 0.14, inTrim, -w / 2 - 0.05, 0, 0.04);
-    box(g, 0.1, h + 0.16, 0.14, inTrim, w / 2 + 0.05, 0, 0.04);
-    box(g, 0.06, h, 0.1, inTrim, 0, 0, 0.07);
-    box(g, w, 0.06, 0.1, inTrim, 0, 0, 0.07);
-    return g;
-  }
-
   function addRug(parent, w, d, x, z, col) {
     var mat = col ? std(col, { rough: 1 }) : std('#ffffff', { map: texRug, rough: 1 });
-    var m = plane(parent, w, d, mat, x, 0.012, z, -Math.PI / 2);
+    var m = plane(parent, w, d, mat, x, 0.062, z, -Math.PI / 2);
     return m;
   }
 
@@ -1313,13 +1298,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
   /* -------------------------------------------------------------- 门厅 */
   function buildHall() {
-    var base = new THREE.Vector3(0, 0, 0);
-    var g = roomShell(11, 8, 3.2);
+    var base = new THREE.Vector3(0.1, 0, 0.2);
+    var g = roomShell(8.2, 7.6, 3.2);
     var pick = [];
-    addRug(g, 4.8, 3.2, 0, -0.4);
+    addRug(g, 4.4, 3.0, 0, -0.3);
 
-    // 衣帽架
-    var rack = group(g, -4.9, 0, -2.55);
+    // 衣帽架（门边）
+    var rack = group(g, -3.35, 0, 2.95);
     cyl(rack, 0.32, 0.38, 0.1, 10, inWood, 0, 0.05, 0);
     cyl(rack, 0.055, 0.07, 1.95, 8, inWood, 0, 1.0, 0);
     for (var p = 0; p < 3; p++) {
@@ -1331,11 +1316,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     box(rack, 0.5, 0.16, 0.3, std('#2e3b35', { rough: 0.95 }), 0.08, 1.78, 0.14);
     cyl(rack, 0.2, 0.2, 0.12, 10, std('#2c2622', { rough: 0.9 }), -0.12, 1.92, -0.02);
     cyl(rack, 0.34, 0.34, 0.03, 12, std('#2c2622', { rough: 0.9 }), -0.12, 1.86, -0.02);
-    // 围巾
     box(rack, 0.16, 0.7, 0.12, std('#a24f45', { rough: 0.95 }), 0.34, 1.4, 0.24);
 
-    // 边桌 + 油灯
-    var console = addTable(g, -0.35, 0, -3.45, 1.35, 0.52, 0.85, inWood);
+    // 两门之间的边桌、油灯与镜子
+    var console = addTable(g, 0.2, 0, -3.35, 1.35, 0.5, 0.85, inWood);
     var lampB = group(console, 0, 0.89, 0);
     cyl(lampB, 0.12, 0.16, 0.09, 10, brass, 0, 0.04, 0);
     cyl(lampB, 0.055, 0.075, 0.2, 8, brass, 0, 0.16, 0);
@@ -1343,36 +1327,38 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     bulb.position.y = 0.34;
     lampB.add(bulb);
     var oilLight = new THREE.PointLight(0xffb06a, 2.1, 8, 2);
-    oilLight.position.set(-0.35, 1.28, -3.45);
+    oilLight.position.set(0.2, 1.28, -3.35);
     g.add(oilLight);
     flickers.push({ l: oilLight, base: 2.1, seed: 2.1, s: 0.14 });
-    // 镜子
-    plane(g, 0.9, 1.2, std('#a8c0c8', { rough: 0.16, metal: 0.7 }), -0.35, 2.1, -3.93);
-    box(g, 1.02, 0.06, 0.08, inTrim, -0.35, 2.73, -3.91);
-    box(g, 1.02, 0.06, 0.08, inTrim, -0.35, 1.47, -3.91);
-    box(g, 0.06, 1.3, 0.08, inTrim, -0.86, 2.1, -3.91);
-    box(g, 0.06, 1.3, 0.08, inTrim, 0.16, 2.1, -3.91);
+    plane(g, 0.86, 1.1, std('#a8c0c8', { rough: 0.16, metal: 0.7 }), 0.2, 2.05, -3.7);
+    box(g, 0.98, 0.06, 0.08, inTrim, 0.2, 2.63, -3.68);
+    box(g, 0.98, 0.06, 0.08, inTrim, 0.2, 1.47, -3.68);
+    box(g, 0.06, 1.22, 0.08, inTrim, -0.3, 2.05, -3.68);
+    box(g, 0.06, 1.22, 0.08, inTrim, 0.7, 2.05, -3.68);
 
-    // 相框
+    // 相框与挂钟
     function frameArt(x, y, z, ry, w, h, kind) {
       var fg = group(g, x, y, z);
       fg.rotation.y = ry || 0;
-      plane(fg, w, h, std('#ffffff', { map: paintingTex(kind) }), 0, 0, 0.01);
+      plane(fg, w, h, basic('#ffffff', { map: paintingTex(kind), side: THREE.DoubleSide }), 0, 0, 0.01);
       box(fg, w + 0.12, 0.07, 0.06, inTrim, 0, h / 2 + 0.04, 0);
       box(fg, w + 0.12, 0.07, 0.06, inTrim, 0, -h / 2 - 0.04, 0);
       box(fg, 0.07, h + 0.1, 0.06, inTrim, -w / 2 - 0.04, 0, 0);
       box(fg, 0.07, h + 0.1, 0.06, inTrim, w / 2 + 0.04, 0, 0);
       return fg;
     }
-    frameArt(-4.55, 2.05, -3.94, 0, 0.9, 0.7, 0);
-    frameArt(3.7, 2.12, -3.94, 0, 0.78, 0.9, 2);
-    frameArt(-5.44, 2.0, 0.9, Math.PI / 2, 0.95, 0.7, 1);
+    frameArt(-3.62, 2.05, 3.68, Math.PI, 0.85, 0.7, 0);
+    frameArt(-3.95, 2.0, -2.1, Math.PI / 2, 0.95, 0.7, 1);
+    frameArt(3.55, 2.12, -3.68, 0, 0.78, 0.9, 2);
+    frameArt(3.88, 2.1, 3.0, -Math.PI / 2, 0.8, 0.62, 1);
+
+    // 南墙的窗洞由 buildWalls() 直接开穿，室内外共用同一扇窗
 
     // 挂钟
-    var clock = group(g, -5.4, 2.2, 1.2);
+    var clock = group(g, -3.98, 2.2, 1.9);
     clock.rotation.y = Math.PI / 2;
     cyl(clock, 0.36, 0.36, 0.09, 18, inWood, 0, 0, 0).rotation.x = Math.PI / 2;
-    var face = plane(clock, 0.62, 0.62, basic('#ffffff', { map: canvasTex(128, 128, function (c, w, h) {
+    plane(clock, 0.62, 0.62, basic('#ffffff', { map: canvasTex(128, 128, function (c, w, h) {
       c.fillStyle = '#efe4cc'; c.beginPath(); c.arc(w / 2, h / 2, w / 2 - 2, 0, Math.PI * 2); c.fill();
       c.strokeStyle = '#3a2c22'; c.lineWidth = 2;
       for (var i = 0; i < 12; i++) {
@@ -1387,41 +1373,25 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       c.lineWidth = 2; c.beginPath(); c.moveTo(w / 2, h / 2); c.lineTo(w / 2 - 6, h / 2 + 34); c.stroke();
     }), toneMapped: false }), 0, 0, 0.06);
 
-    // 楼梯
-    var stair = group(g, 0, 0, 0);
-    var steps = 8, rise = 0.19, run = 0.4;
-    for (var s = 0; s < steps; s++) {
-      var sh = (s + 1) * rise;
-      box(stair, 1.3, sh, run + 0.04, inWood, 3.9, sh / 2, 0.95 - s * run).castShadow = false;
-    }
-    // 扶手
-    var handrail = box(stair, 0.09, 0.09, 3.5, inWood, 3.28, 2.05, -0.45);
-    handrail.rotation.x = -0.52;
-    for (var b = 0; b < 5; b++) {
-      var bz = 0.9 - b * 0.72;
-      var by = 0.19 * (b * 2 + 1) + 0.05;
-      box(stair, 0.06, 1.0, 0.06, inWood, 3.28, by + 0.5, bz);
-    }
-    var stairTop = box(stair, 1.35, 0.14, 1.1, inWood, 3.9, 1.55, -2.35);
-    stairTop.userData.go = 'lamp';
-    pick.push(stairTop);
-    box(stair, 0.06, 0.9, 1.1, inWood, 3.23, 2.0, -2.35);
-    // 楼梯指示
-    plane(stair, 1.0, 0.34, std('#ffffff', { map: labelTex('灯室', 'LAMP ROOM') }), 3.9, 2.55, -2.72);
+    // 塔门：门厅东侧的圆形塔身直接开口，走进去就是螺旋梯
+    var towerSign = plane(g, 1.1, 0.34, std('#ffffff', { map: labelTex('灯室', 'TOWER STAIRS') }), 3.35, 2.05, 0.2, 0, -Math.PI / 2);
+    towerSign.material.toneMapped = true;
+    towerSign.userData.go = 'lamp';
+    pick.push(towerSign);
+    // 塔门本身也整块可点，避免只靠小标牌
+    var towerHit = plane(g, 1.4, 2.2, basic('#ffffff', { transparent: true, opacity: 0, depthWrite: false }), 4.02, 1.15, 0.04, 0, -Math.PI / 2);
+    towerHit.userData.go = 'lamp';
+    pick.push(towerHit);
 
-    // 前墙与前门：可从屋内推门而出
-    var frontWall = std('#ffffff', { map: texPlaster, rough: 0.95 });
-    plane(g, 4.5, 3.2, frontWall, -3.25, 1.6, 4, 0, Math.PI);
-    plane(g, 4.5, 3.2, frontWall, 3.25, 1.6, 4, 0, Math.PI);
-    plane(g, 2.0, 0.75, frontWall, 0, 2.825, 4, 0, Math.PI);
-    box(g, 4.5, 0.16, 0.1, std('#4a3526', { rough: 0.85 }), -3.25, 0.08, 3.94);
-    box(g, 4.5, 0.16, 0.1, std('#4a3526', { rough: 0.85 }), 3.25, 0.08, 3.94);
-    var doorOutside = addDoor(g, 0, 0, 3.9, Math.PI, '屋外', 'OUTSIDE', 'outside', pick, 1.8, 2.44);
+    // 前门内侧：点门即出屋，门外仍是同一个场景
+    var outHit = plane(g, 1.9, 2.4, basic('#ffffff', { transparent: true, opacity: 0, depthWrite: false }), 0, 1.2, 3.62, 0, Math.PI);
+    outHit.userData.go = 'outside';
+    pick.push(outHit);
 
     // 门
-    var doorKitchen = addDoor(g, -5.44, 0, -0.7, Math.PI / 2, '厨房', 'KITCHEN', 'kitchen', pick);
-    var doorStudy = addDoor(g, -2.6, 0, -3.94, 0, '书房', 'STUDY', 'study', pick);
-    var doorBedroom = addDoor(g, 1.9, 0, -3.94, 0, '卧室', 'BEDROOM', 'bedroom', pick);
+    var doorKitchen = addDoor(g, -4.1, 0, 0.2, Math.PI / 2, '厨房', 'KITCHEN', 'kitchen', pick);
+    var doorStudy = addDoor(g, -1.9, 0, -3.8, 0, '书房', 'STUDY', 'study', pick);
+    var doorBedroom = addDoor(g, 2.3, 0, -3.8, 0, '卧室', 'BEDROOM', 'bedroom', pick);
 
     // 吊灯
     cyl(g, 0.02, 0.02, 0.55, 6, inIron, 0, 2.95, 0);
@@ -1437,76 +1407,81 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     flickers.push({ l: hallLight, base: 3.0, seed: 4.7, s: 0.05 });
 
     g.position.copy(base);
-    return { g: g, pick: pick, doors: { kitchen: doorKitchen, study: doorStudy, bedroom: doorBedroom, outside: doorOutside }, camPos: new THREE.Vector3(0, 1.66, 3.2), camLook: new THREE.Vector3(0.1, 1.42, -2.4), title: '门厅', crumb: '门厅' };
+    return {
+      g: g, pick: pick,
+      doors: { kitchen: doorKitchen, study: doorStudy, bedroom: doorBedroom, outside: null, tower: null },
+      camPos: new THREE.Vector3(0.2, 1.62, 3.0),
+      camLook: new THREE.Vector3(0.2, 1.4, -2.2),
+      title: '门厅', crumb: '门厅'
+    };
   }
 
   /* -------------------------------------------------------------- 厨房 */
   function buildKitchen() {
-    var base = new THREE.Vector3(-26, 0, 0);
-    var g = roomShell(11, 8, 3.2, texTile, null, null, true);
+    var base = new THREE.Vector3(-7.3, 0, 0.2);
+    var g = roomShell(6.6, 7.6, 3.2, texTile);
     var pick = [];
 
-    // 背墙操作台
+    // 北墙操作台
     var cabinetMat = std('#44554f', { rough: 0.82 });
-    box(g, 9.0, 0.86, 0.72, cabinetMat, 0, 0.43, -3.28);
-    box(g, 9.16, 0.07, 0.8, std('#c9b79a', { rough: 0.55 }), 0, 0.89, -3.28);
-    for (var c = 0; c < 5; c++) {
-      var cx = -3.6 + c * 1.8;
-      box(g, 1.5, 0.66, 0.03, std('#3a4a45', { rough: 0.8 }), cx, 0.44, -2.9);
+    box(g, 5.9, 0.86, 0.7, cabinetMat, -0.1, 0.43, -3.34);
+    box(g, 5.96, 0.07, 0.78, std('#c9b79a', { rough: 0.55 }), -0.1, 0.89, -3.34);
+    for (var c = 0; c < 3; c++) {
+      var cx = -2.1 + c * 1.95;
+      box(g, 1.66, 0.66, 0.03, std('#3a4a45', { rough: 0.8 }), cx, 0.44, -2.96);
       var kn = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 5), brass);
-      kn.position.set(cx, 0.72, -2.87);
+      kn.position.set(cx, 0.72, -2.93);
       g.add(kn);
     }
     // 水槽
-    box(g, 1.05, 0.06, 0.52, std('#9aa4a2', { rough: 0.28, metal: 0.75 }), 1.35, 0.92, -3.28);
-    box(g, 0.9, 0.03, 0.38, std('#3b4442', { rough: 0.4, metal: 0.6 }), 1.35, 0.935, -3.28);
-    cyl(g, 0.035, 0.035, 0.42, 8, brass, 1.35, 1.13, -3.5);
-    var spout = cyl(g, 0.028, 0.028, 0.34, 8, brass, 1.19, 1.32, -3.5);
+    box(g, 1.0, 0.06, 0.5, std('#9aa4a2', { rough: 0.28, metal: 0.75 }), 0.75, 0.92, -3.34);
+    box(g, 0.86, 0.03, 0.36, std('#3b4442', { rough: 0.4, metal: 0.6 }), 0.75, 0.935, -3.34);
+    cyl(g, 0.035, 0.035, 0.4, 8, brass, 0.75, 1.12, -3.55);
+    var spout = cyl(g, 0.028, 0.028, 0.32, 8, brass, 0.6, 1.3, -3.55);
     spout.rotation.z = Math.PI / 2;
 
-    // 窗户
-    addWindow(g, 0, 2.18, -3.94, 0, 2.2, 1.25, texSeaView);
+    // 北墙窗洞由 buildWalls() 直接开穿
 
     // 灶台
-    var stove = group(g, -3.4, 0, -3.2);
+    var stove = group(g, -2.05, 0, -3.3);
     box(stove, 1.5, 0.95, 0.8, std('#2f3436', { rough: 0.42, metal: 0.55 }), 0, 0.48, 0);
     box(stove, 1.58, 0.06, 0.86, std('#3d4446', { rough: 0.35, metal: 0.6 }), 0, 0.99, 0);
     for (var bu = 0; bu < 4; bu++) {
       cyl(stove, 0.14, 0.14, 0.03, 10, inIron, (bu % 2 ? 1 : -1) * 0.34, 1.03, (bu < 2 ? 1 : -1) * 0.2);
     }
-    var fire = plane(stove, 0.6, 0.22, basic('#ff8f4a', { transparent: true, opacity: 0.85, toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false }), 0, 0.55, 0.42);
-    var kettle = cyl(stove, 0.17, 0.2, 0.26, 10, std('#b45a3f', { rough: 0.5, metal: 0.4 }), 0.34, 1.15, 0);
+    plane(stove, 0.6, 0.22, basic('#ff8f4a', { transparent: true, opacity: 0.85, toneMapped: false, blending: THREE.AdditiveBlending, depthWrite: false }), 0, 0.55, 0.42);
+    cyl(stove, 0.17, 0.2, 0.26, 10, std('#b45a3f', { rough: 0.5, metal: 0.4 }), 0.34, 1.15, 0);
     cyl(stove, 0.03, 0.04, 0.2, 6, std('#b45a3f', { rough: 0.5, metal: 0.4 }), 0.48, 1.24, 0);
     var fireLight = new THREE.PointLight(0xff8a45, 1.8, 7, 2);
-    fireLight.position.set(-3.4, 0.7, -2.5);
+    fireLight.position.set(-2.05, 0.7, -2.6);
     g.add(fireLight);
     flickers.push({ l: fireLight, base: 1.8, seed: 6.1, s: 0.4 });
 
     // 挂锅
-    box(g, 3.2, 0.05, 0.05, inIron, -1.9, 2.32, -3.35);
+    box(g, 1.5, 0.05, 0.05, inIron, -2.55, 2.32, -3.4);
     for (var p2 = 0; p2 < 3; p2++) {
-      var ppx = -3.0 + p2 * 1.1;
-      cyl(g, 0.015, 0.015, 0.3, 5, inIron, ppx, 2.18, -3.35);
-      var pot = cyl(g, 0.17, 0.14, 0.16, 10, std('#b06a3f', { rough: 0.4, metal: 0.6 }), ppx, 1.94, -3.35);
-      cyl(g, 0.18, 0.18, 0.02, 10, std('#8d5230', { rough: 0.4, metal: 0.6 }), ppx, 2.02, -3.35);
+      var ppx = -3.05 + p2 * 0.6;
+      cyl(g, 0.015, 0.015, 0.3, 5, inIron, ppx, 2.18, -3.4);
+      cyl(g, 0.17, 0.14, 0.16, 10, std('#b06a3f', { rough: 0.4, metal: 0.6 }), ppx, 1.94, -3.4);
+      cyl(g, 0.18, 0.18, 0.02, 10, std('#8d5230', { rough: 0.4, metal: 0.6 }), ppx, 2.02, -3.4);
     }
 
-    // 罐子架
-    var shelf = group(g, 5.35, 0, -1.1);
-    shelf.rotation.y = -Math.PI / 2;
-    box(shelf, 2.4, 0.07, 0.34, inWood, 0, 1.65, 0);
-    box(shelf, 2.4, 0.07, 0.34, inWood, 0, 2.15, 0);
+    // 罐子架（西墙）
+    var shelf = group(g, -3.15, 0, -1.0);
+    shelf.rotation.y = Math.PI / 2;
+    box(shelf, 2.0, 0.07, 0.34, inWood, 0, 1.65, 0);
+    box(shelf, 2.0, 0.07, 0.34, inWood, 0, 2.15, 0);
     var jarCols = ['#c9a25e', '#8fa07a', '#b4695a', '#d6c39a', '#7b8d9b'];
     for (var j = 0; j < 11; j++) {
-      var jx = -1.0 + (j % 6) * 0.4;
-      var jy = j < 6 ? 1.72 : 2.22;
-      var jh = rand(0.16, 0.28);
-      cyl(shelf, 0.09, 0.1, jh, 8, std(choose(jarCols), { rough: 0.4 }), jx, jy + jh / 2, 0);
-      cyl(shelf, 0.1, 0.1, 0.03, 8, std('#5a4433', { rough: 0.8 }), jx, jy + jh + 0.02, 0);
+      var jx = -0.8 + (j % 6) * 0.32;
+      var jy = j < 6 ? 1.69 : 2.19;
+      var jh = rand(0.16, 0.26);
+      cyl(shelf, 0.08, 0.09, jh, 8, std(choose(jarCols), { rough: 0.4 }), jx, jy + jh / 2, 0);
+      cyl(shelf, 0.09, 0.09, 0.03, 8, std('#5a4433', { rough: 0.8 }), jx, jy + jh + 0.02, 0);
     }
     // 干草药
     for (var hb = 0; hb < 3; hb++) {
-      var hx = 2.2 + hb * 0.34;
+      var hx = 2.3 + hb * 0.3;
       cyl(g, 0.012, 0.012, 0.3, 5, std('#6d5a3a', { rough: 0.9 }), hx, 2.55, -3.5);
       var herb = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.4, 5), std('#5f6b45', { rough: 0.95 }));
       herb.position.set(hx, 2.3, -3.5);
@@ -1515,38 +1490,38 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
 
     // 餐桌
-    addTable(g, -1.2, 0, -0.4, 2.0, 1.05, 0.84, inWood);
-    addChair(g, -2.1, -0.0, 0.5);
-    addChair(g, -0.3, -0.9, -2.5);
-    var board = cyl(g, 0.3, 0.3, 0.04, 12, std('#b98a52', { rough: 0.85 }), -1.5, 0.86, -0.4);
-    box(g, 0.34, 0.1, 0.22, std('#c99a5e', { rough: 0.9 }), -1.5, 0.92, -0.4);
+    addTable(g, 0.5, 0, 0.9, 1.75, 1.0, 0.82, inWood);
+    addChair(g, -0.45, 2.0, 0);
+    addChair(g, 1.45, 0.3, Math.PI);
+    cyl(g, 0.3, 0.3, 0.04, 12, std('#b98a52', { rough: 0.85 }), 0.2, 0.875, 0.9);
+    box(g, 0.34, 0.1, 0.22, std('#c99a5e', { rough: 0.9 }), 0.2, 0.945, 0.9);
     var bowl = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), std('#d8cbb4', { rough: 0.6, side: THREE.DoubleSide }));
-    bowl.position.set(-0.7, 0.9, -0.2);
+    bowl.position.set(0.9, 1.01, 1.1);
     g.add(bowl);
-    cyl(g, 0.07, 0.06, 0.12, 8, std('#c9b79a', { rough: 0.7 }), -0.3, 0.9, -0.5);
+    cyl(g, 0.07, 0.06, 0.12, 8, std('#c9b79a', { rough: 0.7 }), 1.0, 0.915, 0.7);
 
     // 吊灯
-    cyl(g, 0.015, 0.015, 0.5, 5, inIron, 0, 2.95, -0.6);
+    cyl(g, 0.015, 0.015, 0.5, 5, inIron, 0.5, 2.95, 0.8);
     var kShade = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.28, 10, 1, true), std('#52605a', { rough: 0.8, side: THREE.DoubleSide }));
-    kShade.position.set(0, 2.62, -0.6);
+    kShade.position.set(0.5, 2.62, 0.8);
     g.add(kShade);
     var kWarm = new THREE.PointLight(0xffbd82, 2.2, 10, 2);
-    kWarm.position.set(0, 2.45, -0.6);
+    kWarm.position.set(0.5, 2.45, 0.8);
     g.add(kWarm);
     flickers.push({ l: kWarm, base: 2.2, seed: 8.3, s: 0.05 });
 
     // 返回门厅
-    var doorHall = addDoor(g, 5.44, 0, 2.2, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
+    var doorHall = addDoor(g, 3.3, 0, 0.2, -Math.PI / 2, '门厅', 'HALL', 'hall', pick, 1.8, 2.15, true);
 
     g.position.copy(base);
-    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(-26, 1.64, 3.55), camLook: new THREE.Vector3(-26, 1.3, -2.2), title: '厨房', crumb: '门厅 / 厨房' };
+    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(-5.6, 1.62, 2.1), camLook: new THREE.Vector3(-9.1, 1.3, 0.2), title: '厨房', crumb: '门厅 / 厨房' };
   }
   /* -------------------------------------------------------------- 书房 */
   function buildStudy() {
-    var base = new THREE.Vector3(26, 0, 0);
-    var g = roomShell(11, 8, 3.2, null, null, null, true);
+    var base = new THREE.Vector3(-1.8, 0, -7.0);
+    var g = roomShell(4.4, 6.8, 3.2);
     var pick = [];
-    addRug(g, 3.9, 2.7, 0.2, 0.5);
+    addRug(g, 3.0, 2.2, 0.1, 0.7);
 
     function bookcase(x, z, ry, w, h) {
       var bc = group(g, x, 0, z);
@@ -1585,25 +1560,25 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       bc.add(inst);
       return bc;
     }
-    bookcase(-2.5, -3.42, 0, 5.0, 2.45);
-    bookcase(-5.32, -0.7, Math.PI / 2, 4.4, 2.45);
+    bookcase(-0.7, -3.16, 0, 3.0, 2.45);
+    bookcase(-1.99, -1.9, Math.PI / 2, 1.6, 2.45);
 
     // 书桌
-    var desk = addTable(g, -1.1, 0, -1.55, 2.25, 1.05, 0.8, inWood);
-    addChair(g, -1.1, -0.45, Math.PI);
+    var desk = addTable(g, 0.55, 0, 0.5, 1.8, 0.95, 0.8, inWood);
+    addChair(g, 0.55, 1.25, Math.PI);
     // 纸张与墨水瓶
-    plane(desk, 0.42, 0.56, std('#e6dcc6', { rough: 0.95 }), -0.4, 0.815, 0.05, -Math.PI / 2, 0.15);
-    plane(desk, 0.42, 0.56, std('#efe6d2', { rough: 0.95 }), 0.05, 0.818, 0.02, -Math.PI / 2, -0.1);
-    cyl(desk, 0.055, 0.06, 0.09, 8, std('#2a3038', { rough: 0.3 }), 0.55, 0.86, -0.16);
-    var quill = cyl(desk, 0.006, 0.01, 0.42, 5, std('#e8e0cc', { rough: 0.9 }), 0.62, 1.05, -0.1);
+    plane(desk, 0.42, 0.56, std('#e6dcc6', { rough: 0.95 }), -0.4, 0.842, 0.05, -Math.PI / 2, 0.15);
+    plane(desk, 0.42, 0.56, std('#efe6d2', { rough: 0.95 }), 0.05, 0.845, 0.02, -Math.PI / 2, -0.1);
+    cyl(desk, 0.055, 0.06, 0.09, 8, std('#2a3038', { rough: 0.3 }), 0.55, 0.88, -0.16);
+    var quill = cyl(desk, 0.006, 0.01, 0.42, 5, std('#e8e0cc', { rough: 0.9 }), 0.62, 1.045, -0.1);
     quill.rotation.z = 0.4;
-    addCandle(g, -1.85, 0.82, -1.5);
+    addCandle(desk, -0.62, 0.835, -0.18);
     // 桌上书堆
-    box(desk, 0.34, 0.05, 0.24, std('#7d3b35', { rough: 0.9 }), 0.85, 0.84, 0.2);
-    box(desk, 0.3, 0.045, 0.22, std('#3c5060', { rough: 0.9 }), 0.85, 0.885, 0.21);
+    box(desk, 0.34, 0.05, 0.24, std('#7d3b35', { rough: 0.9 }), 0.7, 0.86, 0.2);
+    box(desk, 0.3, 0.045, 0.22, std('#3c5060', { rough: 0.9 }), 0.7, 0.907, 0.21);
 
     // 地球仪
-    var globe = group(g, 4.35, 0, -1.9);
+    var globe = group(g, 1.55, 0, -1.65);
     cyl(globe, 0.26, 0.32, 0.06, 12, inWood, 0, 0.03, 0);
     cyl(globe, 0.035, 0.035, 0.72, 8, brass, 0, 0.4, 0);
     var sphere = new THREE.Mesh(new THREE.SphereGeometry(0.33, 18, 14), std('#ffffff', { map: canvasTex(256, 128, function (c, w, h) {
@@ -1623,7 +1598,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     globe.add(meridian);
 
     // 望远镜
-    var tele = group(g, 3.2, 0, -2.55);
+    var tele = group(g, -1.35, 0, -2.45);
     tele.rotation.y = 0.25;
     for (var t = 0; t < 3; t++) {
       var ta = (t / 3) * Math.PI * 2;
@@ -1637,7 +1612,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     lens2.rotation.x = Math.PI / 2 - 0.5;
 
     // 扶手椅
-    var chair = group(g, -3.9, 0, 1.5);
+    var chair = group(g, -1.35, 0, 1.95);
     chair.rotation.y = 0.85;
     box(chair, 1.0, 0.42, 0.9, std('#5a3b3f', { rough: 0.95 }), 0, 0.21, 0);
     box(chair, 1.0, 0.62, 0.16, std('#5a3b3f', { rough: 0.95 }), 0, 0.62, -0.38);
@@ -1645,42 +1620,39 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     box(chair, 0.14, 0.34, 0.9, std('#6b474b', { rough: 0.95 }), 0.44, 0.5, 0);
     box(chair, 0.78, 0.14, 0.74, std('#7b5357', { rough: 0.95 }), 0, 0.45, 0.04);
 
-    // 窗户与门
-    addWindow(g, 3.35, 2.05, -3.94, 0, 1.7, 1.15, texSeaView);
-    var doorHall = addDoor(g, 5.44, 0, 2.6, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
-    plane(g, 1.2, 0.9, std('#ffffff', { map: paintingTex(1) }), 0.95, 2.15, -3.94);
-    box(g, 1.32, 0.07, 0.06, inTrim, 0.95, 2.63, -3.92);
-    box(g, 1.32, 0.07, 0.06, inTrim, 0.95, 1.67, -3.92);
+    // 画与门（窗洞由 buildWalls() 直接开穿）
+    plane(g, 1.1, 0.8, std('#ffffff', { map: paintingTex(1) }), 2.09, 2.06, 0.5, 0, -Math.PI / 2);
+    var doorHall = addDoor(g, 0, 0, 3.4, Math.PI, '门厅', 'HALL', 'hall', pick, 1.8, 2.15, true);
     // 书桌上的船模
-    var ship = group(g, -1.1, 0.82, -1.3);
+    var ship = group(g, 0.55, 0.835, 0.2);
     box(ship, 0.5, 0.1, 0.16, std('#6b4a30', { rough: 0.8 }), 0, 0.05, 0);
     box(ship, 0.36, 0.04, 0.13, std('#8a5f3c', { rough: 0.8 }), 0, 0.12, 0);
     cyl(ship, 0.01, 0.01, 0.5, 5, inWood, 0, 0.36, 0);
     plane(ship, 0.3, 0.3, std('#e6dcc6', { rough: 0.95, side: THREE.DoubleSide }), 0.02, 0.34, 0);
 
     // 吊灯
-    cyl(g, 0.015, 0.015, 0.55, 5, inIron, 0.4, 2.92, -0.4);
+    cyl(g, 0.015, 0.015, 0.55, 5, inIron, 0.25, 2.92, 0.3);
     var sShade = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.26, 10, 1, true), std('#4c4740', { rough: 0.8, side: THREE.DoubleSide }));
-    sShade.position.set(0.4, 2.62, -0.4);
+    sShade.position.set(0.25, 2.62, 0.3);
     g.add(sShade);
     var sLight = new THREE.PointLight(0xffc28c, 2.3, 10, 2);
-    sLight.position.set(0.4, 2.5, -0.4);
+    sLight.position.set(0.25, 2.5, 0.3);
     g.add(sLight);
     flickers.push({ l: sLight, base: 2.3, seed: 9.4, s: 0.05 });
 
     g.position.copy(base);
-    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(26, 1.62, 3.55), camLook: new THREE.Vector3(26, 1.42, -2.5), title: '书房', crumb: '门厅 / 书房' };
+    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(-3.0, 1.6, -5.0), camLook: new THREE.Vector3(-0.6, 1.35, -9.0), title: '书房', crumb: '门厅 / 书房' };
   }
 
   /* -------------------------------------------------------------- 卧室 */
   function buildBedroom() {
-    var base = new THREE.Vector3(0, 0, -26);
-    var g = roomShell(10, 8, 3.2, null, null, null, true);
+    var base = new THREE.Vector3(3.6, 0, -7.0);
+    var g = roomShell(6.4, 6.8, 3.2);
     var pick = [];
-    addRug(g, 3.4, 2.4, 0, 0.5);
+    addRug(g, 3.0, 2.2, 0.2, 0.7);
 
     // 床
-    var bed = group(g, 0, 0, -2.0);
+    var bed = group(g, 0.3, 0, -1.85);
     box(bed, 2.15, 0.32, 3.15, inWood, 0, 0.22, 0);
     box(bed, 2.0, 0.28, 2.95, std('#e8e0d0', { rough: 0.95 }), 0, 0.5, 0.02);
     box(bed, 2.2, 1.15, 0.14, inWood, 0, 0.86, -1.6);
@@ -1701,7 +1673,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     box(bed, 0.6, 0.18, 0.36, std('#efe6d4', { rough: 0.95 }), 0.5, 0.72, -1.22);
 
     // 床头柜
-    var night = group(g, -1.72, 0, -2.9);
+    var night = group(g, -1.5, 0, -2.85);
     box(night, 0.7, 0.62, 0.55, inWood, 0, 0.31, 0);
     box(night, 0.62, 0.16, 0.03, std('#5c3f28', { rough: 0.85 }), 0, 0.42, 0.28);
     var nk = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), brass);
@@ -1711,7 +1683,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     box(night, 0.22, 0.05, 0.16, std('#7d3b35', { rough: 0.9 }), -0.14, 0.66, -0.02);
 
     // 衣柜
-    var wardrobe = group(g, 3.75, 0, -2.55);
+    var wardrobe = group(g, 2.25, 0, -2.6);
     box(wardrobe, 1.85, 2.3, 0.78, inWood, 0, 1.15, 0);
     box(wardrobe, 0.86, 2.05, 0.06, std('#5a3c25', { rough: 0.86 }), -0.45, 1.13, 0.4);
     box(wardrobe, 0.86, 2.05, 0.06, std('#5a3c25', { rough: 0.86 }), 0.45, 1.13, 0.4);
@@ -1721,7 +1693,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var h2 = h1.clone(); h2.position.x = 0.12; wardrobe.add(h2);
 
     // 摇椅
-    var rock = group(g, -3.25, 0, 0.5);
+    var rock = group(g, -2.2, 0, 0.9);
     rock.rotation.y = 0.5;
     box(rock, 0.9, 0.36, 0.8, std('#6b4a3a', { rough: 0.92 }), 0, 0.4, 0);
     box(rock, 0.9, 0.6, 0.14, std('#6b4a3a', { rough: 0.92 }), 0, 0.75, -0.36);
@@ -1733,14 +1705,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     box(rock, 0.74, 0.1, 0.7, std('#8a5f4a', { rough: 0.95 }), 0, 0.46, 0.02);
 
     // 洗脸架
-    var basin = addTable(g, 3.6, 0, 1.7, 0.7, 0.5, 0.7, inWood);
+    var basin = addTable(g, 2.5, 0, 1.5, 0.7, 0.5, 0.7, inWood);
     var bowl2 = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 8, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5), std('#cfd6d2', { rough: 0.5, side: THREE.DoubleSide }));
-    bowl2.position.set(3.6, 0.78, 1.7);
+    bowl2.position.set(2.5, 0.955, 1.5);
     g.add(bowl2);
-    cyl(g, 0.11, 0.14, 0.28, 10, std('#c0cbc6', { rough: 0.4 }), 3.6, 0.9, 2.05);
+    cyl(g, 0.11, 0.14, 0.28, 10, std('#c0cbc6', { rough: 0.4 }), 2.5, 0.875, 1.62);
 
     // 猫
-    var cat = group(g, -0.55, 0, 1.35);
+    var cat = group(g, 0.5, 0, 1.2);
     cat.rotation.y = 0.7;
     var catMat = std('#c08a52', { rough: 0.95 });
     var body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), catMat);
@@ -1759,65 +1731,32 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     tail.position.set(-0.24, 0.1, 0.06);
     cat.add(tail);
 
-    // 窗与门
-    addWindow(g, -4.94, 2.05, -1.1, Math.PI / 2, 1.5, 1.15, texMoonView);
-    var doorHall = addDoor(g, 4.94, 0, 2.5, -Math.PI / 2, '门厅', 'HALL', 'hall', pick);
-    plane(g, 0.9, 0.7, std('#ffffff', { map: paintingTex(0) }), 1.0, 2.0, -3.94);
-    box(g, 1.0, 0.06, 0.05, inTrim, 1.0, 2.38, -3.92);
-    box(g, 1.0, 0.06, 0.05, inTrim, 1.0, 1.62, -3.92);
+    // 画与门（窗洞由 buildWalls() 直接开穿）
+    var doorHall = addDoor(g, -1.2, 0, 3.4, Math.PI, '门厅', 'HALL', 'hall', pick, 1.8, 2.15, true);
+    plane(g, 0.9, 0.7, std('#ffffff', { map: paintingTex(0) }), 0.9, 2.0, -3.28);
+    box(g, 1.0, 0.06, 0.05, inTrim, 0.9, 2.38, -3.26);
+    box(g, 1.0, 0.06, 0.05, inTrim, 0.9, 1.62, -3.26);
 
     // 吊灯
-    cyl(g, 0.015, 0.015, 0.48, 5, inIron, -1.6, 2.95, 0.4);
+    cyl(g, 0.015, 0.015, 0.48, 5, inIron, -0.9, 2.95, 0.4);
     var bShade = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.26, 10, 1, true), std('#5a4b41', { rough: 0.85, side: THREE.DoubleSide }));
-    bShade.position.set(-1.6, 2.66, 0.4);
+    bShade.position.set(-0.9, 2.66, 0.4);
     g.add(bShade);
     var bLight = new THREE.PointLight(0xffb884, 1.9, 9, 2);
-    bLight.position.set(-1.6, 2.52, 0.4);
+    bLight.position.set(-0.9, 2.52, 0.4);
     g.add(bLight);
     flickers.push({ l: bLight, base: 1.9, seed: 11.2, s: 0.05 });
 
     g.position.copy(base);
-    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(0, 1.58, -26 + 3.55), camLook: new THREE.Vector3(0, 1.18, -26 - 2.3), title: '卧室', crumb: '门厅 / 卧室' };
+    return { g: g, pick: pick, doors: { hall: doorHall }, camPos: new THREE.Vector3(2.4, 1.58, -5.0), camLook: new THREE.Vector3(3.8, 1.15, -9.0), title: '卧室', crumb: '门厅 / 卧室' };
   }
   /* -------------------------------------------------------------- 灯室 */
   function buildLamp() {
-    var base = new THREE.Vector3(0, 0, 26);
+    var base = new THREE.Vector3(5.9, 21.9, 0.2);
     var g = new THREE.Group();
     var pick = [];
 
-    // 海天全景
-    var panoTex = canvasTex(1024, 512, function (c, w, h) {
-      var sky = c.createLinearGradient(0, 0, 0, h * 0.58);
-      sky.addColorStop(0, '#191227'); sky.addColorStop(0.45, '#3b2a48');
-      sky.addColorStop(0.82, '#8d5560'); sky.addColorStop(1, '#e7966a');
-      c.fillStyle = sky; c.fillRect(0, 0, w, h * 0.58);
-      var sea = c.createLinearGradient(0, h * 0.58, 0, h);
-      sea.addColorStop(0, '#b4776a'); sea.addColorStop(0.25, '#475a72'); sea.addColorStop(1, '#141d2c');
-      c.fillStyle = sea; c.fillRect(0, h * 0.58, w, h * 0.42);
-      c.fillStyle = 'rgba(255,222,180,0.9)';
-      c.beginPath(); c.arc(w * 0.72, h * 0.5, 22, 0, Math.PI * 2); c.fill();
-      c.fillStyle = 'rgba(255,205,160,0.18)';
-      c.beginPath(); c.arc(w * 0.72, h * 0.5, 60, 0, Math.PI * 2); c.fill();
-      c.fillStyle = 'rgba(255,235,210,0.75)';
-      for (var s = 0; s < 60; s++) {
-        c.globalAlpha = 0.15 + Math.random() * 0.5;
-        c.fillRect(Math.random() * w, Math.random() * h * 0.38, 1.6, 1.6);
-      }
-      c.globalAlpha = 1;
-      c.fillStyle = 'rgba(255,190,150,0.18)';
-      for (var i = 0; i < 26; i++) {
-        var y = h * 0.6 + i * (h * 0.38 / 26);
-        c.fillRect(w * 0.55 + Math.random() * w * 0.26, y, 12 + Math.random() * 40, 2);
-      }
-    });
-    var pano = new THREE.Mesh(
-      new THREE.CylinderGeometry(30, 30, 34, 40, 1, true),
-      basic('#ffffff', { map: panoTex, side: THREE.BackSide, toneMapped: false, fog: false })
-    );
-    pano.position.y = 10;
-    g.add(pano);
-
-    // 地板与玻璃
+    // 地板：环形走道，西侧留出楼梯洞口
     var grateTex = canvasTex(256, 256, function (c, w, h) {
       c.fillStyle = '#2c2b2e'; c.fillRect(0, 0, w, h);
       c.strokeStyle = '#585349'; c.lineWidth = 3;
@@ -1825,40 +1764,61 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         c.beginPath(); c.moveTo(i * w / 8, 0); c.lineTo(i * w / 8, h); c.stroke();
         c.beginPath(); c.moveTo(0, i * h / 8); c.lineTo(w, i * h / 8); c.stroke();
       }
-    }, 3, 3);
-    var floor = cyl(g, 2.62, 2.62, 0.14, 28, std('#ffffff', { map: grateTex, rough: 0.55, metal: 0.4 }), 0, -0.07, 0);
-    floor.receiveShadow = false;
-    var glass = cyl(g, 2.56, 2.56, 2.8, 24, std('#cfe4ef', { rough: 0.06, metal: 0.1, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false, flat: false }), 0, 1.4, 0);
+    }, 2, 2);
+    var floorShape = new THREE.Shape();
+    floorShape.absarc(0, 0, 3.0, 0, Math.PI * 2, false);
+    var floorHole = new THREE.Path();
+    floorHole.absarc(-0.7, 0, 0.82, 0, Math.PI * 2, true);
+    floorShape.holes.push(floorHole);
+    var floor = new THREE.Mesh(
+      new THREE.ShapeGeometry(floorShape, 48),
+      std('#ffffff', { map: grateTex, rough: 0.55, metal: 0.4, side: THREE.DoubleSide })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0;
+    g.add(floor);
+
+    // 玻璃灯罩
+    var glass = cyl(g, 2.3, 2.3, 2.8, 24, std('#a8c2d2', { rough: 0.08, metal: 0.04, transparent: true, opacity: 0.055, side: THREE.DoubleSide, depthWrite: false }), 0, 1.4, 0);
     glass.renderOrder = 4;
-    for (var m = 0; m < 12; m++) {
-      var ma = (m / 12) * Math.PI * 2;
-      box(g, 0.055, 2.8, 0.055, inIron, Math.cos(ma) * 2.53, 1.4, Math.sin(ma) * 2.53);
+    for (var m = 0; m < 16; m++) {
+      var ma = (m / 16) * Math.PI * 2;
+      box(g, 0.055, 2.8, 0.055, inIron, Math.cos(ma) * 2.28, 1.4, Math.sin(ma) * 2.28);
     }
     var rimMat = std('#e0bc7c', { rough: 0.4, metal: 0.08, emissive: '#8a5a22', ei: 0.9 });
     [0.06, 2.82].forEach(function (ry) {
-      var rim = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.035, 6, 32), rimMat);
+      var rim = new THREE.Mesh(new THREE.TorusGeometry(2.34, 0.035, 6, 32), rimMat);
       rim.rotation.x = Math.PI / 2;
       rim.position.y = ry;
       g.add(rim);
     });
     // 外圈栏杆
-    for (var rp = 0; rp < 16; rp++) {
-      var ra = (rp / 16) * Math.PI * 2;
-      box(g, 0.05, 1.0, 0.05, inIron, Math.cos(ra) * 2.85, 0.5, Math.sin(ra) * 2.85);
+    for (var rp = 0; rp < 18; rp++) {
+      var ra = (rp / 18) * Math.PI * 2;
+      box(g, 0.05, 1.0, 0.05, inIron, Math.cos(ra) * 2.88, 0.5, Math.sin(ra) * 2.88);
     }
-    var topRail = new THREE.Mesh(new THREE.TorusGeometry(2.85, 0.05, 6, 30), inIron);
+    var topRail = new THREE.Mesh(new THREE.TorusGeometry(2.88, 0.05, 6, 32), inIron);
     topRail.rotation.x = Math.PI / 2;
     topRail.position.y = 1.0;
     g.add(topRail);
 
+    // 顶盖
+    cyl(g, 2.5, 2.5, 0.1, 20, inIron, 0, 2.9, 0);
+    var cap = new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.35, 16), std('#8f4038', { rough: 0.7, metal: 0.2 }));
+    cap.position.y = 3.62; cap.castShadow = true;
+    g.add(cap);
+    var finial = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), std('#c9a25e', { rough: 0.3, metal: 0.8 }));
+    finial.position.y = 4.4;
+    g.add(finial);
+
     // 中央透镜
     cyl(g, 0.72, 0.86, 0.18, 16, brass, 0, 0.09, 0);
-    cyl(g, 0.52, 0.62, 0.35, 16, std('#f6dfae', { emissive: '#ffb066', ei: 1.6, rough: 0.25, transparent: true, opacity: 0.9 }), 0, 0.35, 0);
-    var lensCore = cyl(g, 0.4, 0.46, 1.2, 16, std('#ffe6bc', { emissive: '#ffbe78', ei: 2.6, rough: 0.15, transparent: true, opacity: 0.94 }), 0, 1.15, 0);
+    cyl(g, 0.52, 0.62, 0.35, 16, std('#f2d49c', { emissive: '#ffb066', ei: 0.9, rough: 0.25, transparent: true, opacity: 0.9 }), 0, 0.35, 0);
+    var lensCore = cyl(g, 0.36, 0.42, 1.1, 16, std('#ffd9a0', { emissive: '#ff9f48', ei: 1.35, rough: 0.18, transparent: true, opacity: 0.82 }), 0, 1.14, 0);
     lensCore.renderOrder = 3;
     var ringMat = std('#d8b06a', { rough: 0.3, metal: 0.35, emissive: '#7a4f1e', ei: 0.8 });
     for (var lr = 0; lr < 3; lr++) {
-      var ring = new THREE.Mesh(new THREE.TorusGeometry(0.46 - lr * 0.015, 0.028, 6, 22), ringMat);
+      var ring = new THREE.Mesh(new THREE.TorusGeometry(0.43 - lr * 0.014, 0.026, 6, 22), ringMat);
       ring.rotation.x = Math.PI / 2;
       ring.position.y = 0.68 + lr * 0.44;
       g.add(ring);
@@ -1872,10 +1832,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     g.add(lampL);
     flickers.push({ l: lampL, base: 4.6, seed: 3.4, s: 0.07 });
     var coolL = new THREE.PointLight(0x8aa4d6, 0.9, 12, 2);
-    coolL.position.set(-1.5, 1.7, -1.2);
+    coolL.position.set(-1.3, 1.7, -1.0);
     g.add(coolL);
 
-    // 室内看到的光束
+    // 室内光束
     var inBeam = group(g, 0, 1.3, 0);
     var inBeamMesh = (function () {
       var geo = new THREE.ConeGeometry(0.8, 5.5, 12, 1, true);
@@ -1887,38 +1847,40 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var inBeam2 = inBeamMesh.clone();
     inBeam2.rotation.y = Math.PI;
     inBeam.add(inBeam2);
-    g.add(inBeam);
 
-    // 舱门与下楼标志
-    var hatch = box(g, 1.0, 0.09, 0.9, std('#6b4a30', { map: texPlank, rough: 0.85 }), 1.55, 0.03, 1.2, 0.3);
-    hatch.userData.go = 'hall';
-    pick.push(hatch);
-    var hatchRing = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.02, 5, 14), brass);
-    hatchRing.rotation.x = Math.PI / 2;
-    hatchRing.position.set(1.55, 0.09, 1.2);
-    g.add(hatchRing);
-    plane(g, 0.9, 0.3, std('#ffffff', { map: labelTex('门厅', 'STAIRS DOWN') }), 1.55, 1.2, 2.2, 0, 0.3);
-    cyl(g, 1.5, 1.5, 0.02, 22, std('#3a3336', { rough: 0.6 }), 0, 0.01, 0).rotation.x = 0;
+    // 楼梯洞口与下楼标志
+    var lip = new THREE.Mesh(new THREE.TorusGeometry(0.82, 0.05, 6, 26), brass);
+    lip.rotation.x = Math.PI / 2;
+    lip.position.set(-0.7, 0.02, 0);
+    lip.userData.go = 'hall';
+    g.add(lip);
+    pick.push(lip);
+    var signG = group(g, -1.75, 0, 1.25);
+    box(signG, 0.06, 0.95, 0.06, inIron, 0, 0.47, 0);
+    var sign = plane(signG, 1.0, 0.32, std('#ffffff', { map: labelTex('门厅', 'STAIRS DOWN') }), 0, 0.86, 0.02, 0, 1.15);
+    sign.userData.go = 'hall';
+    pick.push(sign);
 
     g.position.copy(base);
-    return { g: g, pick: pick, camPos: new THREE.Vector3(0.55, 1.62, 26 + 2.5), camLook: new THREE.Vector3(0, 1.3, 26 + 0.02), title: '灯室', crumb: '门厅 / 灯室', beam: inBeam };
+    return {
+      g: g, pick: pick,
+      camPos: new THREE.Vector3(7.05, 23.32, 1.75),
+      camLook: new THREE.Vector3(4.55, 22.82, 0.35),
+      title: '灯室', crumb: '门厅 / 灯室', beam: inBeam, lampLight: lampL
+    };
   }
 
   /* -------------------------------------------------------------- 导航 */
   var place = 'outside';
   var tour = null;
-  var flashLevel = 0;
   var tourFromPos = new THREE.Vector3();
-  var tourFromLook = new THREE.Vector3();
+  var tourFromQ = new THREE.Quaternion();
   var tourFromFov = 48;
-  var tourFromDir = new THREE.Vector3();
-  var tourToDir = new THREE.Vector3();
-  var tourQa = new THREE.Quaternion();
   var tourQb = new THREE.Quaternion();
-  var TOUR_FWD = new THREE.Vector3(0, 0, -1);
-  var tourDir = new THREE.Vector3();
+  var tourM = new THREE.Matrix4();
+  var TOUR_UP = new THREE.Vector3(0, 1, 0);
 
-  function easeIO(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+  function easeIn(t) { return t * t; }
   function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
   function easeLin(t) { return t; }
   function V(x, y, z) { return new THREE.Vector3(x, y, z); }
@@ -1926,12 +1888,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function IN_FOV() { return isPortrait() ? 70 : 58; }
 
   var HINTS = {
-    outside: '拖拽环视 · <span class="desk-only">滚轮 / </span>双指缩放 · 点击木门进屋',
-    hall: '拖动环视 · 点击左右与里侧的门，或右侧楼梯',
-    kitchen: '拖动环视 · 点击木门回门厅',
-    study: '拖动环视 · 点击木门回门厅',
-    bedroom: '拖动环视 · 木门在右侧 · 也可左上返回',
-    lamp: '拖动环视 · 左上角返回门厅'
+    outside: '拖拽环视 · <span class="desk-only">滚轮 / </span>双指缩放 · 点击木门走进小屋',
+    hall: '拖动环视 · 点击门牌进房间 · 右侧圆塔可登顶',
+    kitchen: '拖动环视 · 点击门牌回门厅',
+    study: '拖动环视 · 点击门牌回门厅',
+    bedroom: '拖动环视 · 点击门牌回门厅',
+    lamp: '拖动环视 · 点击地面铜环或标牌下楼'
   };
   var TITLES = { outside: '崖灯守屋', hall: '门厅', kitchen: '厨房', study: '书房', bedroom: '卧室', lamp: '灯室' };
   var PARENT = { kitchen: 'hall', study: 'hall', bedroom: 'hall', lamp: 'hall', hall: 'outside' };
@@ -1944,8 +1906,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     else if (key === 'study') r = buildStudy();
     else if (key === 'bedroom') r = buildBedroom();
     else r = buildLamp();
-    r.g.visible = false;
-    inScene.add(r.g);
+    outScene.add(r.g);
     rooms[key] = r;
     return r;
   }
@@ -1964,9 +1925,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function applyPlace(key, keepCamera) {
     place = key;
+    inYaw = 0; inPitch = 0;
     if (key === 'outside') {
-      activeScene = outScene;
-      inYaw = 0; inPitch = 0;
       if (!keepCamera) {
         camera.fov = OUT_FOV();
         camera.updateProjectionMatrix();
@@ -1974,32 +1934,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         camera.lookAt(extTarget);
       }
       setUI('outside');
-    } else {
-      var r = ensureRoom(key);
-      Object.keys(rooms).forEach(function (k) { rooms[k].g.visible = (k === key); });
-      activeScene = inScene;
-      inYaw = 0; inPitch = 0;
-      inFov = IN_FOV();
-      inFovGoal = inFov;
-      if (!keepCamera) {
-        camera.fov = inFov;
-        camera.updateProjectionMatrix();
-        camera.position.copy(r.camPos);
-        lookTarget.copy(r.camLook);
-        camera.lookAt(lookTarget);
-      }
-      setUI(key);
+      return;
     }
+    var r = ensureRoom(key);
+    inFov = IN_FOV();
+    inFovGoal = inFov;
+    if (!keepCamera) {
+      camera.fov = inFov;
+      camera.updateProjectionMatrix();
+      camera.position.copy(r.camPos);
+      lookTarget.copy(r.camLook);
+      camera.lookAt(lookTarget);
+    }
+    setUI(key);
   }
 
-  /* -------------------------------------------------------------- 开门与暖光 */
-  function pulseFlash(v) { if (v > flashLevel) flashLevel = v; }
-  function updateFlash(dt) {
-    flashLevel *= Math.exp(-dt * 4.8);
-    if (flashLevel < 0.005) flashLevel = 0;
-    flashEl.style.opacity = flashLevel ? flashLevel.toFixed(3) : '0';
-  }
-
+  /* -------------------------------------------------------------- 开门 */
   function updateDoors(dt) {
     for (var i = 0; i < doorLeaves.length; i++) {
       var l = doorLeaves[i];
@@ -2012,12 +1962,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   /* -------------------------------------------------------------- 运镜 */
-  function startTour(steps) {
+  function startTour(steps, dest) {
     if (tour) return;
-    camera.getWorldDirection(tourFromDir);
-    tour = { steps: steps, i: 0, t: 0 };
+    tour = { steps: steps, i: 0, t: 0, dest: dest || null };
     tourFromPos.copy(camera.position);
-    tourFromLook.copy(camera.position).addScaledVector(tourFromDir, 10);
+    tourFromQ.copy(camera.quaternion);
     tourFromFov = camera.fov;
     lastInteract = performance.now();
     if (steps[0] && steps[0].onStart) steps[0].onStart();
@@ -2029,18 +1978,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (!s) { finishTour(); return; }
     tour.t += dt;
     var k = s.dur > 0 ? clamp(tour.t / s.dur, 0, 1) : 1;
-    var e = (s.ease || easeIO)(k);
+    /* 只有整段运镜的头尾加减速，中间弯点保持匀速：
+       镜头是一次连续的移动，而不是一段一段地停下再启动。 */
+    var segEase = s.ease || (tour.i === 0 ? easeIn : tour.i === tour.steps.length - 1 ? easeOut : easeLin);
+    var e = segEase(k);
     var px = lerp(tourFromPos.x, s.to.x, e);
     var py = lerp(tourFromPos.y, s.to.y, e);
     var pz = lerp(tourFromPos.z, s.to.z, e);
     camera.position.set(px, py, pz);
-    tourFromDir.copy(tourFromLook).sub(tourFromPos).normalize();
-    tourToDir.copy(s.look).sub(s.to).normalize();
-    tourQa.setFromUnitVectors(TOUR_FWD, tourFromDir);
-    tourQb.setFromUnitVectors(TOUR_FWD, tourToDir);
-    tourQa.slerp(tourQb, e);
-    tourDir.copy(TOUR_FWD).applyQuaternion(tourQa);
-    camera.lookAt(px + tourDir.x, py + tourDir.y, pz + tourDir.z);
+    /* 用“标准 lookAt 姿态”做 slerp：起点和终点都以世界 +Y 为上方向，
+       转向时不会像逐段 setFromUnitVectors 那样发生滚转/翻转。 */
+    tourM.lookAt(s.to, s.look, TOUR_UP);
+    tourQb.setFromRotationMatrix(tourM);
+    camera.quaternion.copy(tourFromQ).slerp(tourQb, e);
     var f = lerp(tourFromFov, s.fov !== undefined ? s.fov : tourFromFov, e);
     if (Math.abs(camera.fov - f) > 0.001) {
       camera.fov = f;
@@ -2053,216 +2003,168 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var ns = tour.steps[tour.i];
     tour.t = 0;
     tourFromPos.copy(camera.position);
-    camera.getWorldDirection(tourFromDir);
-    tourFromLook.copy(camera.position).addScaledVector(tourFromDir, 10);
+    tourFromQ.copy(camera.quaternion);
     tourFromFov = camera.fov;
     if (ns.onStart) ns.onStart();
   }
 
   function finishTour() {
+    var dest = tour ? tour.dest : null;
     tour = null;
     for (var i = 0; i < doorLeaves.length; i++) doorLeaves[i].userData.open = false;
     lastInteract = performance.now();
+    /* 房间状态与 HUD 等镜头完全落位后才切换，移动途中世界不“跳”。 */
+    if (dest) applyPlace(dest, true);
+  }
+
+  /* 塔心与螺旋梯：镜头沿真实楼梯连续上升，不做任何换场 */
+  var TOWER_C = new THREE.Vector3(5.9, 0, 0.2);
+  var STAIR_R = 0.95;
+
+  function stairAt(f) {
+    var a = Math.PI + f * Math.PI * 14;
+    return {
+      a: a,
+      x: TOWER_C.x + Math.cos(a) * STAIR_R,
+      z: TOWER_C.z + Math.sin(a) * STAIR_R,
+      y: 1.75 + f * 21.65
+    };
+  }
+
+  /* 退出 = 进入的反向播放：位置和视线沿原路退回，最后落到出发时的机位。
+     不再单独维护一套“出门”运镜，也就不会出现两种运镜方向不一致的问题。 */
+  function reverseSteps(steps, endTo, endLook, endFov, onStart) {
+    function fovAt(i) {
+      for (var k = i; k >= 0; k--) if (steps[k].fov !== undefined) return steps[k].fov;
+      return endFov;
+    }
+    var out = [];
+    for (var j = steps.length - 1; j >= 1; j--) {
+      out.push({ to: steps[j - 1].to, look: steps[j - 1].look, fov: fovAt(j - 1), dur: steps[j].dur });
+    }
+    out.push({ to: endTo, look: endLook, fov: endFov, dur: 0.65, ease: easeOut });
+    if (onStart) out[0].onStart = onStart;
+    return out;
   }
 
   function stepsEnterHouse() {
     return [
-      { to: V(0, 7.0, 15.0), look: V(0, 2.0, 3.7), fov: OUT_FOV(), dur: 1.2 },
-      { to: V(0, 3.0, 8.0), look: V(0, 1.6, 3.7), fov: 54, dur: 0.9 },
-      { to: V(0, 1.66, 5.1), look: V(0, 1.45, 3.6), fov: 56, dur: 0.6,
+      { to: V(10.5, 4.4, 19.0), look: V(1.5, 3.2, 4.0), fov: 52, dur: 1.6 },
+      { to: V(2.4, 2.3, 10.0), look: V(0.2, 2.0, 3.9), fov: 54, dur: 1.0 },
+      { to: V(0.2, 1.72, 5.8), look: V(0.2, 1.55, 3.9), fov: 56, dur: 0.8,
         onStart: function () { doorLeaf.userData.open = true; } },
-      { to: V(0, 1.58, 3.3), look: V(0, 1.4, 0.5), fov: 60, dur: 0.7, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('hall', true);
-          camera.position.set(0, 1.66, 3.55);
-          camera.lookAt(0.1, 1.42, -2.4);
-        } },
-      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.6, ease: easeOut }
+      /* 这一步直接穿过门槛，全程匀速，不在门口停留 */
+      { to: V(0.2, 1.63, 3.2), look: V(0.2, 1.45, 0.2), fov: 57, dur: 0.62 },
+      { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.45, ease: easeOut }
     ];
   }
 
   function stepsLeaveHouse() {
-    return [
-      { to: V(0, 1.66, 2.7), look: V(2.8, 1.45, 3.1), fov: IN_FOV(), dur: 0.6 },
-      { to: V(0, 1.66, 2.95), look: V(0, 1.5, 9.0), fov: 58, dur: 0.7,
-        onStart: function () { setLeaf(rooms.hall.doors.outside, true); } },
-      { to: V(0, 1.62, 3.5), look: V(0, 1.5, 8.0), fov: 60, dur: 0.5,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('outside', true);
-          camera.position.set(0, 1.62, 4.7);
-          camera.lookAt(0, 1.45, 12.0);
-          doorLeaf.userData.open = true;
-        } },
-      { to: V(0, 1.8, 10.0), look: V(0, 2.4, 22.0), fov: 56, dur: 0.9, ease: easeLin },
-      { to: exteriorCamPos(), look: extTarget, fov: OUT_FOV(), dur: 1.6 }
-    ];
+    return reverseSteps(stepsEnterHouse(), exteriorCamPos(), extTarget, OUT_FOV(), function () {
+      doorLeaf.userData.open = true;
+    });
   }
 
   function stepsHallToKitchen() {
     var hd = rooms.hall.doors.kitchen;
     return [
-      { to: V(-2.2, 1.64, 0.5), look: V(-5.44, 1.42, -0.7), fov: IN_FOV(), dur: 1.05 },
-      { to: V(-4.3, 1.62, -0.7), look: V(-6.6, 1.45, -0.7), dur: 0.55,
+      { to: V(0.2, 1.62, 2.0), look: V(-3.9, 1.5, 0.6), fov: IN_FOV(), dur: 0.7 },
+      { to: V(-1.9, 1.62, 0.4), look: V(-5.6, 1.45, 0.3), dur: 0.75 },
+      { to: V(-3.5, 1.62, 0.4), look: V(-6.2, 1.45, 0.4), dur: 0.5,
         onStart: function () { setLeaf(hd, true); } },
-      { to: V(-5.36, 1.62, -0.7), look: V(-7.2, 1.4, -0.7), dur: 0.5, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('kitchen', true);
-          camera.position.set(-21.35, 1.62, 2.2);
-          camera.lookAt(-26, 1.45, 1.0);
-          setLeaf(rooms.kitchen.doors.hall, true);
-        } },
-      { to: V(-23.0, 1.64, 2.8), look: V(-26, 1.35, 0.5), fov: IN_FOV(), dur: 0.9, ease: easeLin },
-      { to: V(-26, 1.64, 3.55), look: V(-26, 1.3, -2.2), fov: IN_FOV(), dur: 0.7, ease: easeOut }
+      { to: V(-4.9, 1.62, 0.4), look: V(-7.4, 1.4, 0.4), dur: 0.45 },
+      { to: V(-5.6, 1.62, 2.1), look: V(-9.1, 1.3, 0.2), fov: IN_FOV(), dur: 0.7, ease: easeOut }
     ];
   }
 
   function stepsKitchenToHall() {
     var kd = rooms.kitchen.doors.hall;
     var hd = rooms.hall.doors.kitchen;
-    return [
-      { to: V(-23.1, 1.64, 2.9), look: V(-20.4, 1.42, 2.2), fov: IN_FOV(), dur: 0.95 },
-      { to: V(-21.45, 1.62, 2.2), look: V(-20.0, 1.42, 2.2), dur: 0.55,
-        onStart: function () { setLeaf(kd, true); } },
-      { to: V(-20.66, 1.62, 2.2), look: V(-19.2, 1.4, 2.2), dur: 0.45, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('hall', true);
-          camera.position.set(-4.55, 1.66, -0.7);
-          camera.lookAt(-2.4, 1.5, -0.2);
-          setLeaf(hd, true);
-        } },
-      { to: V(-2.6, 1.66, 1.5), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.95, ease: easeLin },
-      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.65, ease: easeOut }
-    ];
+    return reverseSteps(stepsHallToKitchen(), rooms.kitchen.camPos, rooms.kitchen.camLook, IN_FOV(), function () {
+      setLeaf(kd, true); setLeaf(hd, true);
+    });
   }
 
   function stepsHallToStudy() {
     var hd = rooms.hall.doors.study;
     return [
-      { to: V(-2.55, 1.64, 0.7), look: V(-2.6, 1.45, -3.9), fov: IN_FOV(), dur: 1.05 },
-      { to: V(-2.58, 1.62, -2.35), look: V(-2.6, 1.4, -4.5), dur: 0.6,
+      { to: V(-0.9, 1.62, 1.4), look: V(-1.8, 1.5, -3.0), fov: IN_FOV(), dur: 0.85 },
+      { to: V(-1.8, 1.62, -1.5), look: V(-1.8, 1.45, -4.2), dur: 0.75 },
+      { to: V(-1.8, 1.62, -3.5), look: V(-1.8, 1.4, -5.6), dur: 0.5,
         onStart: function () { setLeaf(hd, true); } },
-      { to: V(-2.6, 1.62, -3.72), look: V(-2.6, 1.4, -5.4), dur: 0.45, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('study', true);
-          camera.position.set(30.6, 1.62, 2.6);
-          camera.lookAt(26, 1.45, 1.2);
-          setLeaf(rooms.study.doors.hall, true);
-        } },
-      { to: V(28.6, 1.64, 2.95), look: V(26, 1.42, 0.5), fov: IN_FOV(), dur: 0.9, ease: easeLin },
-      { to: V(26, 1.62, 3.55), look: V(26, 1.42, -2.5), fov: IN_FOV(), dur: 0.7, ease: easeOut }
+      { to: V(-1.8, 1.6, -3.9), look: V(-1.8, 1.35, -6.5), dur: 0.4 },
+      { to: V(-3.0, 1.6, -5.0), look: V(-0.6, 1.35, -9.0), fov: IN_FOV(), dur: 0.7, ease: easeOut }
     ];
   }
 
   function stepsStudyToHall() {
     var sd = rooms.study.doors.hall;
     var hd = rooms.hall.doors.study;
-    return [
-      { to: V(28.7, 1.62, 2.95), look: V(30.9, 1.42, 2.6), fov: IN_FOV(), dur: 0.95 },
-      { to: V(30.55, 1.62, 2.6), look: V(32.0, 1.42, 2.6), dur: 0.5,
-        onStart: function () { setLeaf(sd, true); } },
-      { to: V(31.34, 1.62, 2.6), look: V(32.8, 1.4, 2.6), dur: 0.45, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('hall', true);
-          camera.position.set(-2.6, 1.66, -3.0);
-          camera.lookAt(-2.6, 1.5, -1.2);
-          setLeaf(hd, true);
-        } },
-      { to: V(-1.7, 1.66, 0.7), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.95, ease: easeLin },
-      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.65, ease: easeOut }
-    ];
+    return reverseSteps(stepsHallToStudy(), rooms.study.camPos, rooms.study.camLook, IN_FOV(), function () {
+      setLeaf(sd, true); setLeaf(hd, true);
+    });
   }
 
   function stepsHallToBedroom() {
     var hd = rooms.hall.doors.bedroom;
     return [
-      { to: V(1.95, 1.64, 0.7), look: V(1.9, 1.45, -3.9), fov: IN_FOV(), dur: 1.05 },
-      { to: V(1.92, 1.6, -2.35), look: V(1.9, 1.4, -4.5), dur: 0.6,
+      { to: V(1.2, 1.62, 1.4), look: V(2.4, 1.5, -3.0), fov: IN_FOV(), dur: 0.85 },
+      { to: V(2.4, 1.62, -1.5), look: V(2.4, 1.45, -4.2), dur: 0.75 },
+      { to: V(2.4, 1.62, -3.5), look: V(2.4, 1.4, -5.6), dur: 0.5,
         onStart: function () { setLeaf(hd, true); } },
-      { to: V(1.9, 1.6, -3.72), look: V(1.9, 1.4, -5.4), dur: 0.45, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('bedroom', true);
-          camera.position.set(4.05, 1.58, -23.5);
-          camera.lookAt(0, 1.4, -24.9);
-          setLeaf(rooms.bedroom.doors.hall, true);
-        } },
-      { to: V(1.8, 1.6, -23.95), look: V(0, 1.25, -25.4), fov: IN_FOV(), dur: 0.9, ease: easeLin },
-      { to: V(0, 1.58, -22.45), look: V(0, 1.18, -28.3), fov: IN_FOV(), dur: 0.7, ease: easeOut }
+      { to: V(2.4, 1.58, -3.9), look: V(2.4, 1.3, -6.5), dur: 0.4 },
+      { to: V(2.4, 1.58, -5.0), look: V(3.8, 1.15, -9.0), fov: IN_FOV(), dur: 0.7, ease: easeOut }
     ];
   }
 
   function stepsBedroomToHall() {
     var bd = rooms.bedroom.doors.hall;
     var hd = rooms.hall.doors.bedroom;
-    return [
-      { to: V(2.0, 1.58, -23.7), look: V(4.9, 1.4, -23.5), fov: IN_FOV(), dur: 0.95 },
-      { to: V(3.6, 1.58, -23.5), look: V(5.4, 1.4, -23.5), dur: 0.5,
-        onStart: function () { setLeaf(bd, true); } },
-      { to: V(4.75, 1.58, -23.5), look: V(6.4, 1.4, -23.5), dur: 0.45, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('hall', true);
-          camera.position.set(1.9, 1.66, -3.0);
-          camera.lookAt(1.9, 1.5, -1.2);
-          setLeaf(hd, true);
-        } },
-      { to: V(1.2, 1.66, 0.7), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.95, ease: easeLin },
-      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.65, ease: easeOut }
-    ];
+    return reverseSteps(stepsHallToBedroom(), rooms.bedroom.camPos, rooms.bedroom.camLook, IN_FOV(), function () {
+      setLeaf(bd, true); setLeaf(hd, true);
+    });
   }
 
   function stepsClimb() {
-    return [
-      { to: V(2.3, 1.64, 1.5), look: V(3.9, 1.5, 0.2), fov: IN_FOV(), dur: 0.8 },
-      { to: V(3.35, 1.85, 0.85), look: V(3.9, 2.25, -1.3), dur: 0.6 },
-      { to: V(3.85, 2.5, -1.5), look: V(3.9, 2.4, -2.6), dur: 0.85, ease: easeLin },
-      { to: V(3.9, 2.62, -2.15), look: V(3.9, 2.5, -3.0), dur: 0.35, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('lamp', true);
-          camera.position.set(1.55, 2.15, 27.2);
-          camera.lookAt(0, 1.45, 26.2);
-        } },
-      { to: V(0.9, 1.75, 27.05), look: V(0, 1.35, 26.3), fov: IN_FOV(), dur: 0.7, ease: easeLin },
-      { to: V(0.55, 1.62, 28.5), look: V(0, 1.3, 26.02), fov: IN_FOV(), dur: 0.6, ease: easeOut }
+    var list = [
+      { to: V(1.7, 1.62, 2.3), look: V(4.6, 1.6, 0.7), fov: IN_FOV(), dur: 0.75 },
+      { to: V(3.3, 1.62, 0.75), look: V(4.9, 1.7, 0.25), dur: 0.65 },
+      { to: V(4.35, 1.7, 0.35), look: V(5.1, 1.9, 0.2), fov: 64, dur: 0.5 }
     ];
+    var N = 44;
+    for (var i = 0; i <= N; i++) {
+      var f = i / N;
+      var p = stairAt(f);
+      var q = stairAt(f + 0.45 / (Math.PI * 14));
+      list.push({
+        to: V(p.x, p.y, p.z),
+        look: V(q.x, q.y + 0.25, q.z),
+        fov: 66,
+        dur: i === 0 ? 0.3 : 0.22
+      });
+    }
+    list.push({ to: V(5.45, 23.35, 0.55), look: V(7.2, 23.0, 1.0), fov: 62, dur: 0.6 });
+    list.push({ to: V(7.05, 23.32, 1.75), look: V(4.55, 22.82, 0.35), fov: IN_FOV(), dur: 0.7, ease: easeOut });
+    return list;
   }
 
   function stepsDescend() {
-    return [
-      { to: V(1.3, 1.7, 27.7), look: V(1.55, 0.5, 27.2), fov: IN_FOV(), dur: 0.7 },
-      { to: V(1.55, 1.5, 27.2), look: V(1.55, 0.1, 27.2), dur: 0.5, ease: easeLin,
-        onEnd: function () {
-          pulseFlash(1);
-          applyPlace('hall', true);
-          camera.position.set(3.9, 2.62, -2.15);
-          camera.lookAt(3.9, 2.0, -0.8);
-        } },
-      { to: V(3.85, 2.2, 0.2), look: V(3.2, 1.6, 1.8), fov: IN_FOV(), dur: 0.9, ease: easeLin },
-      { to: V(2.5, 1.66, 1.5), look: V(0.1, 1.42, -2.4), dur: 0.7, ease: easeOut },
-      { to: V(0, 1.66, 3.2), look: V(0.1, 1.42, -2.4), fov: IN_FOV(), dur: 0.6, ease: easeOut }
-    ];
+    return reverseSteps(stepsClimb(), rooms.hall.camPos, rooms.hall.camLook, IN_FOV());
   }
 
   function go(key, instant) {
     if (key === place || tour) return;
     if (instant || reduceMotion) { applyPlace(key); return; }
-    if (place === 'outside' && key === 'hall') return startTour(stepsEnterHouse());
-    if (place === 'hall' && key === 'outside') return startTour(stepsLeaveHouse());
-    if (place === 'hall' && key === 'lamp') return startTour(stepsClimb());
-    if (place === 'lamp' && key === 'hall') return startTour(stepsDescend());
+    if (place === 'outside' && key === 'hall') return startTour(stepsEnterHouse(), key);
+    if (place === 'hall' && key === 'outside') return startTour(stepsLeaveHouse(), key);
+    if (place === 'hall' && key === 'lamp') return startTour(stepsClimb(), key);
+    if (place === 'lamp' && key === 'hall') return startTour(stepsDescend(), key);
     if (place === 'hall' && (key === 'kitchen' || key === 'study' || key === 'bedroom')) {
-      startTour(key === 'kitchen' ? stepsHallToKitchen() : key === 'study' ? stepsHallToStudy() : stepsHallToBedroom());
+      startTour(key === 'kitchen' ? stepsHallToKitchen() : key === 'study' ? stepsHallToStudy() : stepsHallToBedroom(), key);
       return;
     }
     if (key === 'hall' && (place === 'kitchen' || place === 'study' || place === 'bedroom')) {
-      startTour(place === 'kitchen' ? stepsKitchenToHall() : place === 'study' ? stepsStudyToHall() : stepsBedroomToHall());
+      startTour(place === 'kitchen' ? stepsKitchenToHall() : place === 'study' ? stepsStudyToHall() : stepsBedroomToHall(), key);
       return;
     }
     applyPlace(key);
@@ -2282,7 +2184,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   });
 
   /* -------------------------------------------------------------- 相机 */
-  var activeScene = outScene;
   var isPortrait = function () { return window.innerWidth / window.innerHeight < 0.85; };
   var extTarget = new THREE.Vector3(2.3, 8.0, 0);
   var extTheta = isPortrait() ? 0.42 : 0.5, extPhi = 1.535, extRadius = isPortrait() ? 60 : 50;
@@ -2413,8 +2314,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       extThetaGoal -= dx * 0.005;
       extPhiGoal = clamp(extPhiGoal - dy * 0.004, 1.08, 1.56);
     } else {
-      inYaw = clamp(inYaw - dx * 0.0026, -0.62, 0.62);
-      inPitch = clamp(inPitch - dy * 0.0022, -0.34, 0.34);
+      inYaw = clamp(inYaw - dx * 0.0026, -Math.PI, Math.PI);
+      inPitch = clamp(inPitch - dy * 0.0022, -0.42, 0.42);
     }
   });
 
@@ -2460,8 +2361,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       beamGroup.rotation.y = t * 0.42;
       if (rooms.lamp && rooms.lamp.beam) rooms.lamp.beam.rotation.y = -t * 0.5;
     }
-    lampLight.intensity = 5.6 + Math.sin(t * 6.4) * 0.45;
-    doorGlow.material.opacity = 0.07 + (Math.sin(t * 1.4) * 0.5 + 0.5) * 0.05;
+    if (rooms.lamp) rooms.lamp.lampLight.intensity = 4.2 + Math.sin(t * 6.4) * 0.35;
 
     for (var i = 0; i < gulls.length; i++) {
       var gl = gulls[i];
@@ -2482,9 +2382,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         var life = (t * 0.16 + sd.t) % 1;
         pos.setXYZ(
           s,
-          -3.0 + sd.x + Math.sin(t * 0.8 + sd.t * 9) * 0.22 * life,
-          6.9 + life * 4.4 * sd.s,
-          -1.2 + sd.z + Math.cos(t * 0.6 + sd.t * 7) * 0.2 * life
+          -8.4 + sd.x + Math.sin(t * 0.8 + sd.t * 9) * 0.22 * life,
+          7.45 + life * 4.4 * sd.s,
+          -1.0 + sd.z + Math.cos(t * 0.6 + sd.t * 7) * 0.2 * life
         );
       }
       pos.needsUpdate = true;
@@ -2515,12 +2415,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     } else {
       updateInteriorCamera(dt);
     }
-    if (activeScene === outScene) animateExterior(t, dt);
-    else animateInterior(t);
+    animateExterior(t, dt);
+    animateInterior(t);
     updateDoors(dt);
-    updateFlash(dt);
     animateFlickers(t);
-    renderer.render(activeScene, camera);
+    renderer.render(outScene, camera);
   }
 
   document.addEventListener('visibilitychange', function () {
@@ -2558,8 +2457,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   /* -------------------------------------------------------------- 启动 */
   resize();
+  buildWalls();
+  ['hall', 'kitchen', 'study', 'bedroom', 'lamp'].forEach(ensureRoom);
   var validJump = jump && (jump === 'outside' || jump === 'hall' || jump === 'kitchen' || jump === 'study' || jump === 'bedroom' || jump === 'lamp');
   applyPlace(validJump ? jump : 'outside');
+  /* 预编译整座屋子的材质：镜头推进、房间第一次进入视野时不会因为编译着色器而卡一下 */
+  renderer.compile(outScene, camera);
   frame();
 
   if (isShot) {
