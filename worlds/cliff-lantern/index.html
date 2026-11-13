@@ -1224,6 +1224,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     run('z', -4.0, -10.4, -3.6, []);
     run('z', 6.8, -10.4, -3.6, []);
     run('x', -10.4, -4.0, 6.8, []);
+    // 前门门槛石：把室外砾石、门洞与室内木地板连成一条，不露出地面接缝
+    var sillMat = std('#8a7a6e', { map: texStone, rough: 0.92 });
+    var sillFront = box(house, 2.2, 0.05, 0.44, sillMat, 0, 0.025, 4.2);
+    sillFront.receiveShadow = true;
   }
 
   function addDoor(parent, x, y, z, ry, label, sub, go, pick, w, h, noLeaf) {
@@ -1907,7 +1911,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var TOUR_FWD = new THREE.Vector3(0, 0, -1);
   var tourDir = new THREE.Vector3();
 
-  function easeIO(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+  function easeIn(t) { return t * t; }
   function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
   function easeLin(t) { return t; }
   function V(x, y, z) { return new THREE.Vector3(x, y, z); }
@@ -1989,10 +1993,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   /* -------------------------------------------------------------- 运镜 */
-  function startTour(steps) {
+  function startTour(steps, dest) {
     if (tour) return;
     camera.getWorldDirection(tourFromDir);
-    tour = { steps: steps, i: 0, t: 0 };
+    tour = { steps: steps, i: 0, t: 0, dest: dest || null };
     tourFromPos.copy(camera.position);
     tourFromLook.copy(camera.position).addScaledVector(tourFromDir, 10);
     tourFromFov = camera.fov;
@@ -2006,7 +2010,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (!s) { finishTour(); return; }
     tour.t += dt;
     var k = s.dur > 0 ? clamp(tour.t / s.dur, 0, 1) : 1;
-    var e = (s.ease || easeIO)(k);
+    /* 只有整段运镜的头尾加减速，中间弯点保持匀速：
+       镜头是一次连续的移动，而不是一段一段地停下再启动。 */
+    var segEase = s.ease || (tour.i === 0 ? easeIn : tour.i === tour.steps.length - 1 ? easeOut : easeLin);
+    var e = segEase(k);
     var px = lerp(tourFromPos.x, s.to.x, e);
     var py = lerp(tourFromPos.y, s.to.y, e);
     var pz = lerp(tourFromPos.z, s.to.z, e);
@@ -2037,9 +2044,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function finishTour() {
+    var dest = tour ? tour.dest : null;
     tour = null;
     for (var i = 0; i < doorLeaves.length; i++) doorLeaves[i].userData.open = false;
     lastInteract = performance.now();
+    /* 房间状态与 HUD 等镜头完全落位后才切换，移动途中世界不“跳”。 */
+    if (dest) applyPlace(dest, true);
   }
 
   /* 塔心与螺旋梯：镜头沿真实楼梯连续上升，不做任何换场 */
@@ -2058,22 +2068,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function stepsEnterHouse() {
     return [
-      { to: V(10.5, 4.4, 19.0), look: V(1.5, 3.2, 4.0), fov: 52, dur: 1.5 },
+      { to: V(10.5, 4.4, 19.0), look: V(1.5, 3.2, 4.0), fov: 52, dur: 1.6 },
       { to: V(2.4, 2.3, 10.0), look: V(0.2, 2.0, 3.9), fov: 54, dur: 1.0 },
-      { to: V(0.2, 1.72, 5.8), look: V(0.2, 1.55, 3.9), fov: 56, dur: 0.7,
+      { to: V(0.2, 1.72, 5.8), look: V(0.2, 1.55, 3.9), fov: 56, dur: 0.8,
         onStart: function () { doorLeaf.userData.open = true; } },
-      { to: V(0.2, 1.62, 3.4), look: V(0.2, 1.45, 0.5), fov: 58, dur: 0.75, ease: easeLin,
-        onEnd: function () { applyPlace('hall', true); } },
-      { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.55, ease: easeOut }
+      /* 这一步直接穿过门槛，全程匀速，不在门口停留 */
+      { to: V(0.2, 1.63, 3.2), look: V(0.2, 1.45, 0.2), fov: 57, dur: 0.62 },
+      { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.45, ease: easeOut }
     ];
   }
 
   function stepsLeaveHouse() {
     return [
-      { to: V(0.2, 1.62, 3.2), look: V(0.2, 1.5, 6.0), fov: IN_FOV(), dur: 0.5,
+      { to: V(0.2, 1.62, 3.55), look: V(0.2, 1.5, 6.0), fov: IN_FOV(), dur: 0.45,
         onStart: function () { doorLeaf.userData.open = true; } },
-      { to: V(0.2, 1.66, 4.9), look: V(0.2, 1.6, 9.0), fov: 60, dur: 0.7, ease: easeLin,
-        onEnd: function () { applyPlace('outside', true); } },
+      { to: V(0.2, 1.66, 4.9), look: V(0.2, 1.6, 9.0), fov: 60, dur: 0.6 },
       { to: V(2.0, 2.3, 9.5), look: V(0, 2.6, 2.0), fov: 56, dur: 1.0 },
       { to: exteriorCamPos(), look: extTarget, fov: OUT_FOV(), dur: 1.5 }
     ];
@@ -2086,8 +2095,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       { to: V(-1.9, 1.62, 0.4), look: V(-5.6, 1.45, 0.3), dur: 0.75 },
       { to: V(-3.5, 1.62, 0.4), look: V(-6.2, 1.45, 0.4), dur: 0.5,
         onStart: function () { setLeaf(hd, true); } },
-      { to: V(-4.9, 1.62, 0.4), look: V(-7.4, 1.4, 0.4), dur: 0.45, ease: easeLin,
-        onEnd: function () { applyPlace('kitchen', true); } },
+      { to: V(-4.9, 1.62, 0.4), look: V(-7.4, 1.4, 0.4), dur: 0.45 },
       { to: V(-5.6, 1.62, 2.1), look: V(-9.1, 1.3, 0.2), fov: IN_FOV(), dur: 0.7, ease: easeOut }
     ];
   }
@@ -2100,8 +2108,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       { to: V(-4.9, 1.62, 0.4), look: V(-2.0, 1.45, 0.4), dur: 0.6 },
       { to: V(-3.4, 1.62, 0.4), look: V(-1.0, 1.45, 0.4), dur: 0.45,
         onStart: function () { setLeaf(kd, true); setLeaf(hd, true); } },
-      { to: V(-1.8, 1.62, 0.4), look: V(0.6, 1.4, 1.2), dur: 0.45, ease: easeLin,
-        onEnd: function () { applyPlace('hall', true); } },
+      { to: V(-1.8, 1.62, 0.4), look: V(0.6, 1.4, 1.2), dur: 0.45 },
       { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.7, ease: easeOut }
     ];
   }
@@ -2113,8 +2120,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       { to: V(-1.8, 1.62, -1.5), look: V(-1.8, 1.45, -4.2), dur: 0.75 },
       { to: V(-1.8, 1.62, -3.5), look: V(-1.8, 1.4, -5.6), dur: 0.5,
         onStart: function () { setLeaf(hd, true); } },
-      { to: V(-1.8, 1.6, -3.9), look: V(-1.8, 1.35, -6.5), dur: 0.4, ease: easeLin,
-        onEnd: function () { applyPlace('study', true); } },
+      { to: V(-1.8, 1.6, -3.9), look: V(-1.8, 1.35, -6.5), dur: 0.4 },
       { to: V(-3.0, 1.6, -5.0), look: V(-0.6, 1.35, -9.0), fov: IN_FOV(), dur: 0.7, ease: easeOut }
     ];
   }
@@ -2126,9 +2132,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       { to: V(-2.7, 1.6, -4.7), look: V(-1.8, 1.5, -3.3), fov: IN_FOV(), dur: 0.7 },
       { to: V(-1.8, 1.6, -3.5), look: V(-1.8, 1.5, -2.0), dur: 0.5,
         onStart: function () { setLeaf(sd, true); } },
-      { to: V(-1.8, 1.62, -2.4), look: V(-1.0, 1.45, -0.5), dur: 0.45, ease: easeLin,
-        onStart: function () { setLeaf(hd, true); },
-        onEnd: function () { applyPlace('hall', true); } },
+      { to: V(-1.8, 1.62, -2.4), look: V(-1.0, 1.45, -0.5), dur: 0.45,
+        onStart: function () { setLeaf(hd, true); } },
       { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.8, ease: easeOut }
     ];
   }
@@ -2140,8 +2145,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       { to: V(2.4, 1.62, -1.5), look: V(2.4, 1.45, -4.2), dur: 0.75 },
       { to: V(2.4, 1.62, -3.5), look: V(2.4, 1.4, -5.6), dur: 0.5,
         onStart: function () { setLeaf(hd, true); } },
-      { to: V(2.4, 1.58, -3.9), look: V(2.4, 1.3, -6.5), dur: 0.4, ease: easeLin,
-        onEnd: function () { applyPlace('bedroom', true); } },
+      { to: V(2.4, 1.58, -3.9), look: V(2.4, 1.3, -6.5), dur: 0.4 },
       { to: V(2.4, 1.58, -5.0), look: V(3.8, 1.15, -9.0), fov: IN_FOV(), dur: 0.7, ease: easeOut }
     ];
   }
@@ -2153,9 +2157,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       { to: V(2.4, 1.58, -4.7), look: V(2.4, 1.5, -3.3), fov: IN_FOV(), dur: 0.7 },
       { to: V(2.4, 1.6, -3.5), look: V(2.4, 1.5, -2.0), dur: 0.5,
         onStart: function () { setLeaf(bd, true); } },
-      { to: V(2.4, 1.62, -2.4), look: V(1.4, 1.45, -0.5), dur: 0.45, ease: easeLin,
-        onStart: function () { setLeaf(hd, true); },
-        onEnd: function () { applyPlace('hall', true); } },
+      { to: V(2.4, 1.62, -2.4), look: V(1.4, 1.45, -0.5), dur: 0.45,
+        onStart: function () { setLeaf(hd, true); } },
       { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.8, ease: easeOut }
     ];
   }
@@ -2179,8 +2182,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       });
     }
     list.push({ to: V(5.45, 23.35, 0.55), look: V(7.2, 23.0, 1.0), fov: 62, dur: 0.6 });
-    list.push({ to: V(7.05, 23.32, 1.75), look: V(4.55, 22.82, 0.35), fov: IN_FOV(), dur: 0.7, ease: easeOut,
-      onEnd: function () { applyPlace('lamp', true); } });
+    list.push({ to: V(7.05, 23.32, 1.75), look: V(4.55, 22.82, 0.35), fov: IN_FOV(), dur: 0.7, ease: easeOut });
     return list;
   }
 
@@ -2201,8 +2203,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         dur: i === 0 ? 0.3 : 0.22
       });
     }
-    list.push({ to: V(4.1, 1.68, 0.4), look: V(4.85, 1.6, 0.2), fov: 62, dur: 0.5, ease: easeLin,
-      onEnd: function () { applyPlace('hall', true); } });
+    list.push({ to: V(4.1, 1.68, 0.4), look: V(4.85, 1.6, 0.2), fov: 62, dur: 0.5 });
     list.push({ to: V(2.7, 1.62, 1.2), look: V(0.5, 1.5, 2.0), fov: IN_FOV(), dur: 0.7, ease: easeOut });
     list.push({ to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), dur: 0.6, ease: easeOut });
     return list;
@@ -2211,16 +2212,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function go(key, instant) {
     if (key === place || tour) return;
     if (instant || reduceMotion) { applyPlace(key); return; }
-    if (place === 'outside' && key === 'hall') return startTour(stepsEnterHouse());
-    if (place === 'hall' && key === 'outside') return startTour(stepsLeaveHouse());
-    if (place === 'hall' && key === 'lamp') return startTour(stepsClimb());
-    if (place === 'lamp' && key === 'hall') return startTour(stepsDescend());
+    if (place === 'outside' && key === 'hall') return startTour(stepsEnterHouse(), key);
+    if (place === 'hall' && key === 'outside') return startTour(stepsLeaveHouse(), key);
+    if (place === 'hall' && key === 'lamp') return startTour(stepsClimb(), key);
+    if (place === 'lamp' && key === 'hall') return startTour(stepsDescend(), key);
     if (place === 'hall' && (key === 'kitchen' || key === 'study' || key === 'bedroom')) {
-      startTour(key === 'kitchen' ? stepsHallToKitchen() : key === 'study' ? stepsHallToStudy() : stepsHallToBedroom());
+      startTour(key === 'kitchen' ? stepsHallToKitchen() : key === 'study' ? stepsHallToStudy() : stepsHallToBedroom(), key);
       return;
     }
     if (key === 'hall' && (place === 'kitchen' || place === 'study' || place === 'bedroom')) {
-      startTour(place === 'kitchen' ? stepsKitchenToHall() : place === 'study' ? stepsStudyToHall() : stepsBedroomToHall());
+      startTour(place === 'kitchen' ? stepsKitchenToHall() : place === 'study' ? stepsStudyToHall() : stepsBedroomToHall(), key);
       return;
     }
     applyPlace(key);
@@ -2517,6 +2518,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   ['hall', 'kitchen', 'study', 'bedroom', 'lamp'].forEach(ensureRoom);
   var validJump = jump && (jump === 'outside' || jump === 'hall' || jump === 'kitchen' || jump === 'study' || jump === 'bedroom' || jump === 'lamp');
   applyPlace(validJump ? jump : 'outside');
+  /* 预编译整座屋子的材质：镜头推进、房间第一次进入视野时不会因为编译着色器而卡一下 */
+  renderer.compile(outScene, camera);
   frame();
 
   if (isShot) {
