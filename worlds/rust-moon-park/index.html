@@ -364,9 +364,10 @@
   @media (max-width: 380px) {
     .eyebrow { display: none; }
     .hud h1 { margin-top: 0; font-size: 28px; }
-    .modes button { padding: 8px 10px; }
-    .modes button span { display: none; }
-    .modes button svg { display: block; width: 16px; height: 16px; }
+    .modes { gap: 2px; padding: 4px; }
+    .modes button { padding: 8px 7px; font-size: 10.5px; letter-spacing: 0.04em; }
+    .modes button span { display: inline; }
+    .modes button svg { display: none; }
   }
   @media (max-height: 540px) {
     .hud .tag, .hud .hint { display: none; }
@@ -404,7 +405,7 @@
     <h1>锈月乐园</h1>
     <p class="en">Rust Moon Park</p>
     <p class="tag">海边的旧乐园，在雪、花与霓虹之间，缓慢转动。</p>
-    <p class="hint">拖动环视 · 双指缩放 · 轻点设施启动</p>
+    <p class="hint">拖动环视 · 双指缩放 · 轻点设施启动 · 双击复位</p>
   </header>
 
   <p class="caption" id="caption">盛景 · 黄昏的最后一班摩天轮</p>
@@ -571,7 +572,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       flatShading: opts.smooth ? false : true,
       side: opts.side || THREE.FrontSide,
       transparent: !!opts.transparent,
-      opacity: opts.opacity !== undefined ? opts.opacity : 1
+      opacity: opts.opacity !== undefined ? opts.opacity : 1,
+      bumpMap: grainTex,
+      bumpScale: 0.3,
+      roughnessMap: grainTex
     });
     paints.push({ m: m, base: base, rust: rust, delay: nextStageDelay(), baseRough: m.roughness });
     return m;
@@ -662,6 +666,26 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     ctx.fillRect(0, 0, w, h);
   });
 
+  // vertical light streak used for fake puddle reflections of the lit rides
+  var streakTex = canvasTex(64, 256, function (ctx, w, h) {
+    var g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, 'rgba(255,214,150,0)');
+    g.addColorStop(0.45, 'rgba(255,214,150,0.85)');
+    g.addColorStop(0.62, 'rgba(255,196,120,0.5)');
+    g.addColorStop(1, 'rgba(255,180,100,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    // soften the horizontal edges so it reads as a shimmer, not a bar
+    var side = ctx.createLinearGradient(0, 0, w, 0);
+    side.addColorStop(0, 'rgba(0,0,0,1)');
+    side.addColorStop(0.5, 'rgba(0,0,0,0)');
+    side.addColorStop(1, 'rgba(0,0,0,1)');
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = side;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'source-over';
+  });
+
   var checkerTex = canvasTex(256, 256, function (ctx, w, h) {
     var n = 8, s = w / n;
     for (var y = 0; y < n; y++) {
@@ -717,6 +741,28 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   });
   woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping;
   woodTex.repeat.set(2, 4);
+
+  // fine surface grain: gives painted metal a rusty micro-texture (bump + roughness)
+  var grainTex = (function () {
+    var s = 128;
+    var c = document.createElement('canvas');
+    c.width = s; c.height = s;
+    var ctx = c.getContext('2d');
+    var img = ctx.createImageData(s, s);
+    for (var i = 0; i < s * s; i++) {
+      var v = 150 + Math.floor(rnd() * 105); // 0.59..1.0, keeps surfaces rough
+      img.data[i * 4] = v;
+      img.data[i * 4 + 1] = v;
+      img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    var tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.NoColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3, 3);
+    return tex;
+  })();
 
   var balloonTex = canvasTex(128, 256, function (ctx, w, h) {
     var cols = ['#e2574c', '#f4e5cc', '#2e8b8a', '#f2b544', '#e2574c', '#f4e5cc', '#2e8b8a'];
@@ -2338,6 +2384,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       depthWrite: false, toneMapped: false, fog: false, side: THREE.DoubleSide
     });
     m.userData.op = op === undefined ? 0.95 : op;
+    m.userData.strikeDelay = rand(0, 0.55);
+    m.userData.strikeDur = 0.45 + rand(0, 0.4);
     neonMats.push(m);
     return m;
   }
@@ -2536,6 +2584,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   })();
 
   var puddleU = { uTime: { value: 0 }, uSky: { value: new THREE.Color('#244a5e') }, uOpacity: { value: 0 } };
+  var puddleStreaks = [];
   (function () {
     var geo = new THREE.CircleGeometry(1, 26);
     var mat = new THREE.ShaderMaterial({
@@ -2571,6 +2620,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       p.scale.set(s[2], s[3], 1);
       p.renderOrder = 2;
       scene.add(p);
+
+      // fake reflection: a tall additive shimmer rising from the puddle
+      var sm = new THREE.SpriteMaterial({
+        map: streakTex, color: '#ffc778', transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false
+      });
+      var sp = new THREE.Sprite(sm);
+      var hgt = 2.6 + (i % 3) * 0.9;
+      sp.position.set(s[0] + s[2] * 0.18, hgt * 0.5 + 0.05, s[1] - s[3] * 0.1);
+      sp.scale.set(0.55 + (i % 2) * 0.2, hgt, 1);
+      sp.renderOrder = 3;
+      scene.add(sp);
+      puddleStreaks.push({ sp: sp, phase: i * 1.7, base: 0.5 + (i % 3) * 0.12 });
     });
   })();
 
@@ -3376,6 +3438,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var lastPinch = 0;
   var multiTouch = false;
   var downX = 0, downY = 0, downTime = 0, movedPx = 0;
+  var lastTapTime = 0, lastTapX = 0, lastTapY = 0;
 
   function markInteraction() { view.idle = 0; }
 
@@ -3430,7 +3493,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       view.dragging = false;
       canvas.style.cursor = 'grab';
       if (had && !multiTouch && movedPx < 8 && performance.now() - downTime < 700) {
-        tapAt(e.clientX, e.clientY);
+        var now = performance.now();
+        var near = Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 32;
+        if (now - lastTapTime < 320 && near) {
+          lastTapTime = 0;
+          resetView();
+        } else {
+          lastTapTime = now;
+          lastTapX = e.clientX;
+          lastTapY = e.clientY;
+          tapAt(e.clientX, e.clientY);
+        }
       }
       multiTouch = false;
     }
@@ -3439,6 +3512,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
+
+  // double-tap / double-click returns to the default framing
+  function resetView() {
+    var defTheta = Math.PI * 0.5 + 0.06;
+    var d = (defTheta - view.theta) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    view.tTheta = view.theta + d;
+    view.tPhi = 1.27;
+    view.target.set(-1, 9, -2);
+    view.userZoomed = false;
+    view.tRadius = isShot ? (window.innerWidth / window.innerHeight > 1.2 ? 68 : 84) : fitRadius();
+    markInteraction();
+  }
+  canvas.addEventListener('dblclick', function (e) { e.preventDefault(); resetView(); });
 
   canvas.addEventListener('wheel', function (e) {
     e.preventDefault();
@@ -3531,7 +3619,39 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }, 1700);
   }
 
+  // short mechanical voice per ride, only while ambience is on
+  function aRideTap(id) {
+    if (!aOn || !aCtx) return;
+    if (id === 'wheel') {
+      aToneShot(220, 180, 0.12, 0.03, -0.4, 'triangle');
+      aToneShot(66, 58, 0.7, 0.028, -0.4, 'sine');
+    } else if (id === 'carousel') {
+      aToneShot(880, 0, 0.3, 0.022, 0.4, 'sine');
+      aToneShot(1320, 0, 0.22, 0.012, 0.4, 'sine');
+      aNoiseShot(0.5, 0.014, 'bandpass', 900, 0.4);
+    } else if (id === 'coaster') {
+      aNoiseShot(0.9, 0.04, 'bandpass', 600, 0.1);
+      aToneShot(140, 60, 0.8, 0.02, 0.1, 'sawtooth');
+    } else if (id === 'ship') {
+      aToneShot(120, 70, 0.6, 0.026, -0.6, 'sawtooth');
+      aNoiseShot(0.7, 0.02, 'lowpass', 400, -0.6);
+    } else if (id === 'swing') {
+      aNoiseShot(0.6, 0.024, 'bandpass', 1200, 0.6);
+      aToneShot(300, 240, 0.4, 0.014, 0.6, 'triangle');
+    } else if (id === 'tea') {
+      aToneShot(1500, 1200, 0.08, 0.018, 0.0, 'sine');
+      aNoiseShot(0.45, 0.016, 'bandpass', 1600, 0.0);
+    } else if (id === 'bumper') {
+      aToneShot(90, 45, 0.16, 0.04, 0.5, 'square');
+      aNoiseShot(0.12, 0.03, 'lowpass', 700, 0.5);
+    } else if (id === 'drop') {
+      aToneShot(400, 380, 0.06, 0.026, -0.1, 'square');
+      aToneShot(70, 130, 0.9, 0.024, -0.1, 'sine');
+    }
+  }
+
   function triggerRide(id) {
+    aRideTap(id);
     if (id === 'wheel') {
       wheelBoost = 1;
       lightPulse = 1;
@@ -4254,6 +4374,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   var clock = new THREE.Clock();
   var elapsed = 0;
+  var neonAge = 0;
   var firstFrame = true;
   var rafId = 0;
   var lastRuin = -1;
@@ -4447,8 +4568,24 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     flutterU.uTime.value = amb;
     flutterU.uOpacity.value = wB;
 
+    // neon tubes strike on one-by-one, buzz, then settle to a steady glow
+    if (wN > 0.05) neonAge += dt; else neonAge = 0;
     for (var nm = 0; nm < neonMats.length; nm++) {
-      neonMats[nm].opacity = wN * neonMats[nm].userData.op * (0.88 + 0.12 * Math.sin(amb * 2.4 + nm));
+      var nd = neonMats[nm].userData;
+      var glow;
+      if (reduceMotion) {
+        glow = 1;
+      } else {
+        var local = neonAge - nd.strikeDelay;
+        if (local <= 0) glow = 0;
+        else if (local < nd.strikeDur) {
+          var buzz = Math.sin(local * 46 + nm * 7.3) + Math.sin(local * 23 + nm * 3.1);
+          glow = (buzz > -0.4 ? 1 : 0.12) * smoothstep(0, nd.strikeDur, local);
+        } else {
+          glow = 0.88 + 0.12 * Math.sin(amb * 2.4 + nm);
+        }
+      }
+      neonMats[nm].opacity = wN * nd.op * glow;
     }
     neonFloats.visible = wN > 0.012;
     for (var nfm = 0; nfm < neonFloatMeshes.length; nfm++) {
@@ -4653,6 +4790,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     puddleU.uTime.value = amb;
     mixColor(puddleU.uSky.value, 'skyBot');
     puddleU.uOpacity.value = wR * 0.95;
+    // puddle reflections brighten with the rain and the ride bulbs
+    var streakOn = wR * (0.35 + 0.65 * clamp(bulbI, 0, 1));
+    for (var ps = 0; ps < puddleStreaks.length; ps++) {
+      var stk = puddleStreaks[ps];
+      var shim = 0.8 + 0.2 * Math.sin(amb * 2.6 + stk.phase);
+      stk.sp.material.opacity = streakOn * stk.base * shim;
+      stk.sp.visible = streakOn > 0.015;
+    }
 
     // particles
     rainU.uTime.value = amb;
@@ -4725,6 +4870,116 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       animate();
     }
   });
+
+  /* ------------------------------------------------------------------ */
+  /* static geometry batching (draw-call reduction)                      */
+  /* ------------------------------------------------------------------ */
+
+  function mergeStaticGeos(items, needUv) {
+    var pos = [], norm = [], uv = [];
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var g = it.g.index ? it.g.toNonIndexed() : it.g.clone();
+      if (it.m) g.applyMatrix4(it.m);
+      var p = g.attributes.position.array;
+      var n = g.attributes.normal.array;
+      for (var a = 0; a < p.length; a++) pos.push(p[a]);
+      for (var b = 0; b < n.length; b++) norm.push(n[b]);
+      if (needUv) {
+        var u = g.attributes.uv.array;
+        for (var c = 0; c < u.length; c++) uv.push(u[c]);
+      }
+      if (g !== it.g) g.dispose();
+    }
+    var out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
+    if (needUv) out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    out.computeBoundingSphere();
+    return out;
+  }
+
+  function optimizeStaticScene() {
+    scene.updateMatrixWorld(true);
+
+    // roots whose descendants move, fade or sprout — never batch these
+    var dynamicRoots = [
+      wheelGroup, carousel, cart, teaGroup, ship, swing, drop, bumper,
+      cloudGroup, neonFloats, bloomGroup, balloonCart, fountain, airBalloon
+    ];
+    var dynamicSet = new Set();
+    dynamicRoots.forEach(function (r) {
+      if (r) r.traverse(function (o) { dynamicSet.add(o); });
+    });
+    birds.forEach(function (r) { r.traverse(function (o) { dynamicSet.add(o); }); });
+    rideObjects.forEach(function (r) { r.traverse(function (o) { dynamicSet.add(o); }); });
+    dynamicSet.add(islandTop); // ground raycast target
+
+    // collect candidate static meshes
+    var candidates = [];
+    scene.traverse(function (o) {
+      if (!o.isMesh || o.isInstancedMesh) return;
+      if (dynamicSet.has(o)) return;
+      var m = o.material;
+      if (!m || Array.isArray(m)) return;
+      if (m.transparent) return; // animated-opacity layers stay separate
+      if (o.userData && o.userData.ride) return;
+      candidates.push(o);
+    });
+
+    // trim shadow casting on small static props (keep large structures)
+    var ws = new THREE.Vector3();
+    candidates.forEach(function (o) {
+      if (!o.castShadow) return;
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      var r = o.geometry.boundingSphere ? o.geometry.boundingSphere.radius : 0;
+      ws.setFromMatrixScale(o.matrixWorld);
+      var worldR = r * Math.max(ws.x, ws.y, ws.z);
+      if (worldR < 2.2) o.castShadow = false;
+    });
+
+    // intern identical painted materials so same-colour props can batch
+    var paintSet = new Set();
+    paints.forEach(function (p) { paintSet.add(p.m); });
+    var sigMap = {};
+    candidates.forEach(function (o) {
+      var m = o.material;
+      if (!paintSet.has(m)) return;
+      var key = [
+        m.color.getHexString(), m.roughness, m.metalness,
+        m.flatShading ? 1 : 0, m.side, m.opacity
+      ].join('|');
+      if (!sigMap[key]) sigMap[key] = m;
+      else o.material = sigMap[key];
+    });
+
+    // group by material + shadow flags, merge groups of 2+
+    var groups = {};
+    candidates.forEach(function (o) {
+      var m = o.material;
+      var needUv = !!(m.map || m.bumpMap || m.roughnessMap);
+      if (needUv && !o.geometry.attributes.uv) return;
+      var key = m.uuid + '|' + (o.castShadow ? 1 : 0) + '|' + (o.receiveShadow ? 1 : 0) + '|' + (needUv ? 1 : 0);
+      (groups[key] = groups[key] || { mat: m, needUv: needUv, cast: o.castShadow, recv: o.receiveShadow, items: [] }).items.push(o);
+    });
+
+    Object.keys(groups).forEach(function (key) {
+      var gr = groups[key];
+      if (gr.items.length < 2) return;
+      var parts = gr.items.map(function (o) { return { g: o.geometry, m: o.matrixWorld }; });
+      var geo = mergeStaticGeos(parts, gr.needUv);
+      var mesh = new THREE.Mesh(geo, gr.mat);
+      mesh.castShadow = gr.cast;
+      mesh.receiveShadow = gr.recv;
+      mesh.matrixAutoUpdate = false;
+      scene.add(mesh);
+      gr.items.forEach(function (o) {
+        if (o.parent) o.parent.remove(o);
+      });
+    });
+  }
+
+  optimizeStaticScene();
 
   resize();
   animate();
