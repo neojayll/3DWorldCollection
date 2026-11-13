@@ -703,29 +703,38 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   chimney.castShadow = true;
   box(house, 1.15, 0.16, 1.15, std('#4f3c35', { rough: 0.9 }), -8.4, 7.3, -1.0);
 
-  // 窗
+  /* 真窗：墙体在 buildWalls() 里已按同一位置开洞，这里只补玻璃与内外窗框。
+     玻璃双面、几乎透明，站在屋里就能透过它看到真实的海面与灯塔。 */
   function windowAt(x, y, z, ry, w, h) {
     var g = group(house, x, y, z);
     g.rotation.y = ry || 0;
     var frame = std('#d9c3a3', { rough: 0.8 });
-    box(g, w, h, 0.1, std('#ffd9a0', { emissive: '#ff9f5e', ei: 0.85, rough: 0.6 }), 0, 0, 0);
-    box(g, w + 0.16, 0.1, 0.16, frame, 0, h / 2 + 0.03, 0.02);
-    box(g, w + 0.16, 0.1, 0.16, frame, 0, -h / 2 - 0.03, 0.02);
-    box(g, 0.1, h + 0.16, 0.16, frame, -w / 2 - 0.03, 0, 0.02);
-    box(g, 0.1, h + 0.16, 0.16, frame, w / 2 + 0.03, 0, 0.02);
-    box(g, 0.06, h, 0.1, frame, 0, 0, 0.06);
-    box(g, w, 0.06, 0.1, frame, 0, 0, 0.06);
+    var glass = plane(g, w, h, std('#cfe0e8', {
+      rough: 0.05, metal: 0.1, transparent: true, opacity: 0.14,
+      side: THREE.DoubleSide, depthWrite: false
+    }), 0, 0, 0);
+    glass.renderOrder = 2;
+    for (var s = -1; s <= 1; s += 2) {
+      var zz = s * 0.1;
+      box(g, w + 0.18, 0.1, 0.06, frame, 0, h / 2 + 0.05, zz);
+      box(g, w + 0.18, 0.1, 0.06, frame, 0, -h / 2 - 0.05, zz);
+      box(g, 0.1, h + 0.18, 0.06, frame, -w / 2 - 0.05, 0, zz);
+      box(g, 0.1, h + 0.18, 0.06, frame, w / 2 + 0.05, 0, zz);
+      box(g, 0.055, h, 0.05, frame, 0, 0, zz);
+      box(g, w, 0.055, 0.05, frame, 0, 0, zz);
+    }
+    box(g, w + 0.26, 0.07, 0.24, std('#b9a184', { rough: 0.85 }), 0, -h / 2 - 0.11, 0.06);
     return g;
   }
-  windowAt(-2.55, 1.85, 4.08, 0, 1.1, 1.1);
-  windowAt(2.55, 1.85, 4.08, 0, 1.1, 1.1);
-  windowAt(-10.68, 1.85, 0.9, -Math.PI / 2, 1.05, 1.05);
-  windowAt(-7.3, 1.85, -3.72, Math.PI, 1.05, 1.05);
-  windowAt(-4.08, 1.85, -7.0, -Math.PI / 2, 1.05, 1.05);
-  windowAt(6.88, 1.85, -7.0, Math.PI / 2, 1.05, 1.05);
-  windowAt(5.5, 1.85, -3.48, 0, 1.0, 1.0);
-  windowAt(-1.5, 1.85, -10.46, Math.PI, 1.1, 1.1);
-  windowAt(4.2, 1.85, -10.46, Math.PI, 1.1, 1.1);
+  windowAt(-2.55, 1.85, 4.0, 0, 1.1, 1.1);
+  windowAt(2.55, 1.85, 4.0, 0, 1.1, 1.1);
+  windowAt(-10.6, 1.85, 0.9, -Math.PI / 2, 1.05, 1.05);
+  windowAt(-7.3, 1.85, -3.6, Math.PI, 1.05, 1.05);
+  windowAt(-4.0, 1.85, -7.0, -Math.PI / 2, 1.05, 1.05);
+  windowAt(6.8, 1.85, -7.0, Math.PI / 2, 1.05, 1.05);
+  windowAt(5.5, 1.85, -3.6, 0, 1.0, 1.0);
+  windowAt(-0.3, 1.85, -10.4, Math.PI, 1.05, 1.05);
+  windowAt(1.7, 1.85, -10.4, Math.PI, 1.05, 1.05);
 
   // 门边壁灯
   var lampG = group(house, 1.5, 2.4, 3.95);
@@ -1076,39 +1085,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
   });
 
-  var texSeaView = canvasTex(256, 384, function (c, w, h) {
-    var sky = c.createLinearGradient(0, 0, 0, h * 0.62);
-    sky.addColorStop(0, '#3b2b4c'); sky.addColorStop(0.7, '#a05a5c'); sky.addColorStop(1, '#ffb078');
-    c.fillStyle = sky; c.fillRect(0, 0, w, h * 0.62);
-    var sea = c.createLinearGradient(0, h * 0.62, 0, h);
-    sea.addColorStop(0, '#c07a62'); sea.addColorStop(0.35, '#43516b'); sea.addColorStop(1, '#232c42');
-    c.fillStyle = sea; c.fillRect(0, h * 0.62, w, h * 0.38);
-    c.fillStyle = 'rgba(255,214,168,0.85)';
-    c.beginPath(); c.arc(w * 0.68, h * 0.55, 15, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(255,200,150,0.22)';
-    for (var i = 0; i < 20; i++) {
-      var y = h * 0.64 + i * (h * 0.34 / 20);
-      c.fillRect(w * 0.3 + Math.random() * w * 0.42, y, 18 + Math.random() * 40, 2);
-    }
-  });
-
-  var texMoonView = canvasTex(256, 384, function (c, w, h) {
-    var sky = c.createLinearGradient(0, 0, 0, h * 0.6);
-    sky.addColorStop(0, '#141a33'); sky.addColorStop(0.65, '#2c3358'); sky.addColorStop(1, '#7a6a86');
-    c.fillStyle = sky; c.fillRect(0, 0, w, h * 0.6);
-    c.fillStyle = '#e9e2cf';
-    c.beginPath(); c.arc(w * 0.32, h * 0.26, 22, 0, Math.PI * 2); c.fill();
-    c.fillStyle = 'rgba(233,226,207,0.16)';
-    c.beginPath(); c.arc(w * 0.32, h * 0.26, 40, 0, Math.PI * 2); c.fill();
-    var sea = c.createLinearGradient(0, h * 0.6, 0, h);
-    sea.addColorStop(0, '#5c6784'); sea.addColorStop(0.4, '#2c3550'); sea.addColorStop(1, '#161c2e');
-    c.fillStyle = sea; c.fillRect(0, h * 0.6, w, h * 0.4);
-    c.fillStyle = 'rgba(233,226,207,0.3)';
-    for (var i = 0; i < 14; i++) {
-      c.fillRect(w * 0.2 + Math.random() * w * 0.24, h * 0.62 + i * 9, 10 + Math.random() * 22, 2);
-    }
-  });
-
   function labelTex(text, sub) {
     return canvasTex(256, 96, function (c, w, h) {
       c.fillStyle = '#2b2018'; c.fillRect(0, 0, w, h);
@@ -1202,17 +1178,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       for (var i = 0; i < openings.length; i++) {
         var o = openings[i], a = o.c - o.w / 2, b = o.c + o.w / 2;
         seg(cur, a, 0, H);
-        seg(a, b, o.h, H);
+        if (o.b) seg(a, b, 0, o.b);      // 窗台以下
+        seg(a, b, o.h, H);               // 窗顶以上
         cur = b;
       }
       seg(cur, to, 0, H);
     }
-    // 南外墙（前门洞）
-    run('x', 4.0, -10.6, 4.2, [{ c: 0, w: 1.9, h: 2.35 }]);
-    // 南翼北墙：书房门、卧室门，然后接北翼卧室南墙
-    run('x', -3.6, -10.6, 6.8, [{ c: -1.8, w: 1.8, h: 2.15 }, { c: 2.4, w: 1.8, h: 2.15 }]);
-    // 厨房西外墙
-    run('z', -10.6, -3.6, 4.0, []);
+    // 南外墙（前门洞 + 门厅两扇窗）
+    run('x', 4.0, -10.6, 4.2, [
+      { c: 0, w: 1.9, h: 2.35 },
+      { c: -2.55, w: 1.16, b: 1.27, h: 2.43 },
+      { c: 2.55, w: 1.16, b: 1.27, h: 2.43 }
+    ]);
+    // 南翼北墙：书房门、卧室门、厨房窗、卧室南窗
+    run('x', -3.6, -10.6, 6.8, [
+      { c: -1.8, w: 1.8, h: 2.15 },
+      { c: 2.4, w: 1.8, h: 2.15 },
+      { c: -7.3, w: 1.11, b: 1.27, h: 2.43 },
+      { c: 5.5, w: 1.06, b: 1.27, h: 2.43 }
+    ]);
+    // 厨房西外墙（窗）
+    run('z', -10.6, -3.6, 4.0, [{ c: 0.9, w: 1.11, b: 1.27, h: 2.43 }]);
     // 门厅 / 厨房隔墙（厨房门洞）
     run('z', -4.0, -3.6, 4.0, [{ c: 0.4, w: 1.8, h: 2.15 }]);
     // 门厅东墙：塔门两侧的两小段
@@ -1220,10 +1206,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     run('z', 4.2, 2.03, 4.0, []);
     // 书房 / 卧室隔墙
     run('z', 0.4, -10.4, -3.6, []);
-    // 北翼西墙、东墙、北墙
-    run('z', -4.0, -10.4, -3.6, []);
-    run('z', 6.8, -10.4, -3.6, []);
-    run('x', -10.4, -4.0, 6.8, []);
+    // 北翼西墙（书房窗）、东墙（卧室窗）、北墙（书房窗、卧室窗）
+    run('z', -4.0, -10.4, -3.6, [{ c: -7.0, w: 1.11, b: 1.27, h: 2.43 }]);
+    run('z', 6.8, -10.4, -3.6, [{ c: -7.0, w: 1.11, b: 1.27, h: 2.43 }]);
+    run('x', -10.4, -4.0, 6.8, [
+      { c: -0.3, w: 1.11, b: 1.27, h: 2.43 },
+      { c: 1.7, w: 1.11, b: 1.27, h: 2.43 }
+    ]);
     // 前门门槛石：把室外砾石、门洞与室内木地板连成一条，不露出地面接缝
     var sillMat = std('#8a7a6e', { map: texStone, rough: 0.92 });
     var sillFront = box(house, 2.2, 0.05, 0.44, sillMat, 0, 0.025, 4.2);
@@ -1264,20 +1253,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     g.userData.leaf = leaf;
     panel.userData.go = go;
     pick.push(panel);
-    return g;
-  }
-
-  function addWindow(parent, x, y, z, ry, w, h, tex) {
-    var g = group(parent, x, y, z);
-    g.rotation.y = ry || 0;
-    var view = plane(g, w, h, basic('#ffffff', { map: tex, toneMapped: false }), 0, 0, 0.02);
-    view.material.toneMapped = false;
-    box(g, w + 0.16, 0.1, 0.14, inTrim, 0, h / 2 + 0.05, 0.04);
-    box(g, w + 0.16, 0.1, 0.14, inTrim, 0, -h / 2 - 0.05, 0.04);
-    box(g, 0.1, h + 0.16, 0.14, inTrim, -w / 2 - 0.05, 0, 0.04);
-    box(g, 0.1, h + 0.16, 0.14, inTrim, w / 2 + 0.05, 0, 0.04);
-    box(g, 0.06, h, 0.1, inTrim, 0, 0, 0.07);
-    box(g, w, 0.06, 0.1, inTrim, 0, 0, 0.07);
     return g;
   }
 
@@ -1365,7 +1340,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     function frameArt(x, y, z, ry, w, h, kind) {
       var fg = group(g, x, y, z);
       fg.rotation.y = ry || 0;
-      plane(fg, w, h, std('#ffffff', { map: paintingTex(kind) }), 0, 0, 0.01);
+      plane(fg, w, h, basic('#ffffff', { map: paintingTex(kind), side: THREE.DoubleSide }), 0, 0, 0.01);
       box(fg, w + 0.12, 0.07, 0.06, inTrim, 0, h / 2 + 0.04, 0);
       box(fg, w + 0.12, 0.07, 0.06, inTrim, 0, -h / 2 - 0.04, 0);
       box(fg, 0.07, h + 0.1, 0.06, inTrim, -w / 2 - 0.04, 0, 0);
@@ -1375,11 +1350,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     frameArt(-3.62, 2.05, 3.68, Math.PI, 0.85, 0.7, 0);
     frameArt(-3.95, 2.0, -2.1, Math.PI / 2, 0.95, 0.7, 1);
     frameArt(3.55, 2.12, -3.68, 0, 0.78, 0.9, 2);
-    frameArt(4.04, 2.1, 3.0, -Math.PI / 2, 0.8, 0.62, 1);
+    frameArt(3.88, 2.1, 3.0, -Math.PI / 2, 0.8, 0.62, 1);
 
-    // 南墙的内侧窗，让门厅有海面的余光
-    addWindow(g, -2.55, 1.95, 3.66, Math.PI, 1.05, 1.05, texSeaView);
-    addWindow(g, 2.55, 1.95, 3.66, Math.PI, 1.05, 1.05, texSeaView);
+    // 南墙的窗洞由 buildWalls() 直接开穿，室内外共用同一扇窗
 
     // 挂钟
     var clock = group(g, -3.98, 2.2, 1.9);
@@ -1401,10 +1374,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }), toneMapped: false }), 0, 0, 0.06);
 
     // 塔门：门厅东侧的圆形塔身直接开口，走进去就是螺旋梯
-    var towerSign = plane(g, 1.1, 0.34, std('#ffffff', { map: labelTex('灯室', 'TOWER STAIRS') }), 3.35, 2.8, 0.2, 0, -Math.PI / 2);
+    var towerSign = plane(g, 1.1, 0.34, std('#ffffff', { map: labelTex('灯室', 'TOWER STAIRS') }), 3.35, 2.05, 0.2, 0, -Math.PI / 2);
     towerSign.material.toneMapped = true;
     towerSign.userData.go = 'lamp';
     pick.push(towerSign);
+    // 塔门本身也整块可点，避免只靠小标牌
+    var towerHit = plane(g, 1.4, 2.2, basic('#ffffff', { transparent: true, opacity: 0, depthWrite: false }), 4.02, 1.15, 0.04, 0, -Math.PI / 2);
+    towerHit.userData.go = 'lamp';
+    pick.push(towerHit);
 
     // 前门内侧：点门即出屋，门外仍是同一个场景
     var outHit = plane(g, 1.9, 2.4, basic('#ffffff', { transparent: true, opacity: 0, depthWrite: false }), 0, 1.2, 3.62, 0, Math.PI);
@@ -1463,8 +1440,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var spout = cyl(g, 0.028, 0.028, 0.32, 8, brass, 0.6, 1.3, -3.55);
     spout.rotation.z = Math.PI / 2;
 
-    // 窗户
-    addWindow(g, -0.9, 1.94, -3.64, 0, 1.9, 1.15, texSeaView);
+    // 北墙窗洞由 buildWalls() 直接开穿
 
     // 灶台
     var stove = group(g, -2.05, 0, -3.3);
@@ -1584,8 +1560,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       bc.add(inst);
       return bc;
     }
-    bookcase(-0.6, -3.16, 0, 3.0, 2.45);
-    bookcase(-1.99, -1.0, Math.PI / 2, 2.5, 2.45);
+    bookcase(-0.7, -3.16, 0, 3.0, 2.45);
+    bookcase(-1.99, -1.9, Math.PI / 2, 1.6, 2.45);
 
     // 书桌
     var desk = addTable(g, 0.55, 0, 0.5, 1.8, 0.95, 0.8, inWood);
@@ -1644,9 +1620,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     box(chair, 0.14, 0.34, 0.9, std('#6b474b', { rough: 0.95 }), 0.44, 0.5, 0);
     box(chair, 0.78, 0.14, 0.74, std('#7b5357', { rough: 0.95 }), 0, 0.45, 0.04);
 
-    // 窗户、画与门
-    addWindow(g, 1.35, 1.98, -3.28, 0, 1.5, 1.05, texSeaView);
-    addWindow(g, -2.08, 1.9, 1.55, Math.PI / 2, 1.35, 1.0, texMoonView);
+    // 画与门（窗洞由 buildWalls() 直接开穿）
     plane(g, 1.1, 0.8, std('#ffffff', { map: paintingTex(1) }), 2.09, 2.06, 0.5, 0, -Math.PI / 2);
     var doorHall = addDoor(g, 0, 0, 3.4, Math.PI, '门厅', 'HALL', 'hall', pick, 1.8, 2.15, true);
     // 书桌上的船模
@@ -1757,9 +1731,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     tail.position.set(-0.24, 0.1, 0.06);
     cat.add(tail);
 
-    // 窗、画与门
-    addWindow(g, 3.08, 1.9, -0.6, -Math.PI / 2, 1.5, 1.05, texMoonView);
-    addWindow(g, 2.0, 1.9, 3.28, Math.PI, 1.4, 1.0, texMoonView);
+    // 画与门（窗洞由 buildWalls() 直接开穿）
     var doorHall = addDoor(g, -1.2, 0, 3.4, Math.PI, '门厅', 'HALL', 'hall', pick, 1.8, 2.15, true);
     plane(g, 0.9, 0.7, std('#ffffff', { map: paintingTex(0) }), 0.9, 2.0, -3.28);
     box(g, 1.0, 0.06, 0.05, inTrim, 0.9, 2.38, -3.26);
@@ -1902,14 +1874,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var place = 'outside';
   var tour = null;
   var tourFromPos = new THREE.Vector3();
-  var tourFromLook = new THREE.Vector3();
+  var tourFromQ = new THREE.Quaternion();
   var tourFromFov = 48;
-  var tourFromDir = new THREE.Vector3();
-  var tourToDir = new THREE.Vector3();
-  var tourQa = new THREE.Quaternion();
   var tourQb = new THREE.Quaternion();
-  var TOUR_FWD = new THREE.Vector3(0, 0, -1);
-  var tourDir = new THREE.Vector3();
+  var tourM = new THREE.Matrix4();
+  var TOUR_UP = new THREE.Vector3(0, 1, 0);
 
   function easeIn(t) { return t * t; }
   function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
@@ -1995,10 +1964,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* -------------------------------------------------------------- 运镜 */
   function startTour(steps, dest) {
     if (tour) return;
-    camera.getWorldDirection(tourFromDir);
     tour = { steps: steps, i: 0, t: 0, dest: dest || null };
     tourFromPos.copy(camera.position);
-    tourFromLook.copy(camera.position).addScaledVector(tourFromDir, 10);
+    tourFromQ.copy(camera.quaternion);
     tourFromFov = camera.fov;
     lastInteract = performance.now();
     if (steps[0] && steps[0].onStart) steps[0].onStart();
@@ -2018,13 +1986,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var py = lerp(tourFromPos.y, s.to.y, e);
     var pz = lerp(tourFromPos.z, s.to.z, e);
     camera.position.set(px, py, pz);
-    tourFromDir.copy(tourFromLook).sub(tourFromPos).normalize();
-    tourToDir.copy(s.look).sub(s.to).normalize();
-    tourQa.setFromUnitVectors(TOUR_FWD, tourFromDir);
-    tourQb.setFromUnitVectors(TOUR_FWD, tourToDir);
-    tourQa.slerp(tourQb, e);
-    tourDir.copy(TOUR_FWD).applyQuaternion(tourQa);
-    camera.lookAt(px + tourDir.x, py + tourDir.y, pz + tourDir.z);
+    /* 用“标准 lookAt 姿态”做 slerp：起点和终点都以世界 +Y 为上方向，
+       转向时不会像逐段 setFromUnitVectors 那样发生滚转/翻转。 */
+    tourM.lookAt(s.to, s.look, TOUR_UP);
+    tourQb.setFromRotationMatrix(tourM);
+    camera.quaternion.copy(tourFromQ).slerp(tourQb, e);
     var f = lerp(tourFromFov, s.fov !== undefined ? s.fov : tourFromFov, e);
     if (Math.abs(camera.fov - f) > 0.001) {
       camera.fov = f;
@@ -2037,8 +2003,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var ns = tour.steps[tour.i];
     tour.t = 0;
     tourFromPos.copy(camera.position);
-    camera.getWorldDirection(tourFromDir);
-    tourFromLook.copy(camera.position).addScaledVector(tourFromDir, 10);
+    tourFromQ.copy(camera.quaternion);
     tourFromFov = camera.fov;
     if (ns.onStart) ns.onStart();
   }
@@ -2066,6 +2031,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     };
   }
 
+  /* 退出 = 进入的反向播放：位置和视线沿原路退回，最后落到出发时的机位。
+     不再单独维护一套“出门”运镜，也就不会出现两种运镜方向不一致的问题。 */
+  function reverseSteps(steps, endTo, endLook, endFov, onStart) {
+    function fovAt(i) {
+      for (var k = i; k >= 0; k--) if (steps[k].fov !== undefined) return steps[k].fov;
+      return endFov;
+    }
+    var out = [];
+    for (var j = steps.length - 1; j >= 1; j--) {
+      out.push({ to: steps[j - 1].to, look: steps[j - 1].look, fov: fovAt(j - 1), dur: steps[j].dur });
+    }
+    out.push({ to: endTo, look: endLook, fov: endFov, dur: 0.65, ease: easeOut });
+    if (onStart) out[0].onStart = onStart;
+    return out;
+  }
+
   function stepsEnterHouse() {
     return [
       { to: V(10.5, 4.4, 19.0), look: V(1.5, 3.2, 4.0), fov: 52, dur: 1.6 },
@@ -2079,13 +2060,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function stepsLeaveHouse() {
-    return [
-      { to: V(0.2, 1.62, 3.55), look: V(0.2, 1.5, 6.0), fov: IN_FOV(), dur: 0.45,
-        onStart: function () { doorLeaf.userData.open = true; } },
-      { to: V(0.2, 1.66, 4.9), look: V(0.2, 1.6, 9.0), fov: 60, dur: 0.6 },
-      { to: V(2.0, 2.3, 9.5), look: V(0, 2.6, 2.0), fov: 56, dur: 1.0 },
-      { to: exteriorCamPos(), look: extTarget, fov: OUT_FOV(), dur: 1.5 }
-    ];
+    return reverseSteps(stepsEnterHouse(), exteriorCamPos(), extTarget, OUT_FOV(), function () {
+      doorLeaf.userData.open = true;
+    });
   }
 
   function stepsHallToKitchen() {
@@ -2103,14 +2080,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function stepsKitchenToHall() {
     var kd = rooms.kitchen.doors.hall;
     var hd = rooms.hall.doors.kitchen;
-    return [
-      { to: V(-5.9, 1.62, 2.4), look: V(-3.9, 1.5, 0.4), fov: IN_FOV(), dur: 0.7 },
-      { to: V(-4.9, 1.62, 0.4), look: V(-2.0, 1.45, 0.4), dur: 0.6 },
-      { to: V(-3.4, 1.62, 0.4), look: V(-1.0, 1.45, 0.4), dur: 0.45,
-        onStart: function () { setLeaf(kd, true); setLeaf(hd, true); } },
-      { to: V(-1.8, 1.62, 0.4), look: V(0.6, 1.4, 1.2), dur: 0.45 },
-      { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.7, ease: easeOut }
-    ];
+    return reverseSteps(stepsHallToKitchen(), rooms.kitchen.camPos, rooms.kitchen.camLook, IN_FOV(), function () {
+      setLeaf(kd, true); setLeaf(hd, true);
+    });
   }
 
   function stepsHallToStudy() {
@@ -2128,14 +2100,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function stepsStudyToHall() {
     var sd = rooms.study.doors.hall;
     var hd = rooms.hall.doors.study;
-    return [
-      { to: V(-2.7, 1.6, -4.7), look: V(-1.8, 1.5, -3.3), fov: IN_FOV(), dur: 0.7 },
-      { to: V(-1.8, 1.6, -3.5), look: V(-1.8, 1.5, -2.0), dur: 0.5,
-        onStart: function () { setLeaf(sd, true); } },
-      { to: V(-1.8, 1.62, -2.4), look: V(-1.0, 1.45, -0.5), dur: 0.45,
-        onStart: function () { setLeaf(hd, true); } },
-      { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.8, ease: easeOut }
-    ];
+    return reverseSteps(stepsHallToStudy(), rooms.study.camPos, rooms.study.camLook, IN_FOV(), function () {
+      setLeaf(sd, true); setLeaf(hd, true);
+    });
   }
 
   function stepsHallToBedroom() {
@@ -2153,14 +2120,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function stepsBedroomToHall() {
     var bd = rooms.bedroom.doors.hall;
     var hd = rooms.hall.doors.bedroom;
-    return [
-      { to: V(2.4, 1.58, -4.7), look: V(2.4, 1.5, -3.3), fov: IN_FOV(), dur: 0.7 },
-      { to: V(2.4, 1.6, -3.5), look: V(2.4, 1.5, -2.0), dur: 0.5,
-        onStart: function () { setLeaf(bd, true); } },
-      { to: V(2.4, 1.62, -2.4), look: V(1.4, 1.45, -0.5), dur: 0.45,
-        onStart: function () { setLeaf(hd, true); } },
-      { to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), fov: IN_FOV(), dur: 0.8, ease: easeOut }
-    ];
+    return reverseSteps(stepsHallToBedroom(), rooms.bedroom.camPos, rooms.bedroom.camLook, IN_FOV(), function () {
+      setLeaf(bd, true); setLeaf(hd, true);
+    });
   }
 
   function stepsClimb() {
@@ -2187,26 +2149,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function stepsDescend() {
-    var list = [
-      { to: V(7.05, 23.32, 1.75), look: V(4.55, 22.82, 0.35), fov: IN_FOV(), dur: 0.5 },
-      { to: V(5.45, 23.35, 0.55), look: V(4.95, 23.3, 0.2), fov: 62, dur: 0.55 }
-    ];
-    var N = 44;
-    for (var i = 0; i <= N; i++) {
-      var f = 1 - i / N;
-      var p = stairAt(f);
-      var q = stairAt(f - 0.45 / (Math.PI * 14));
-      list.push({
-        to: V(p.x, p.y, p.z),
-        look: i === N ? V(4.2, 1.6, 0.4) : V(q.x, q.y - 0.25, q.z),
-        fov: 66,
-        dur: i === 0 ? 0.3 : 0.22
-      });
-    }
-    list.push({ to: V(4.1, 1.68, 0.4), look: V(4.85, 1.6, 0.2), fov: 62, dur: 0.5 });
-    list.push({ to: V(2.7, 1.62, 1.2), look: V(0.5, 1.5, 2.0), fov: IN_FOV(), dur: 0.7, ease: easeOut });
-    list.push({ to: V(0.2, 1.62, 3.0), look: V(0.2, 1.4, -2.2), dur: 0.6, ease: easeOut });
-    return list;
+    return reverseSteps(stepsClimb(), rooms.hall.camPos, rooms.hall.camLook, IN_FOV());
   }
 
   function go(key, instant) {
@@ -2371,7 +2314,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       extThetaGoal -= dx * 0.005;
       extPhiGoal = clamp(extPhiGoal - dy * 0.004, 1.08, 1.56);
     } else {
-      inYaw = clamp(inYaw - dx * 0.0026, -1.35, 1.35);
+      inYaw = clamp(inYaw - dx * 0.0026, -Math.PI, Math.PI);
       inPitch = clamp(inPitch - dy * 0.0022, -0.42, 0.42);
     }
   });
