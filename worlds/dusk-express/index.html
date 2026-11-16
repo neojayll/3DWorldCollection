@@ -699,7 +699,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var SPEED = 8;
   var SEG = 16, NSEG = 22;
   var RAIL_TOP = 0.5;
-  var scroll = { viaduct: 0, sleepers: 0, lamps: 0 };
+  var scroll = { viaduct: 0, sleepers: 0, lamps: 0, side: 0, signal: 0, halt: 0 };
 
   var viaductGroup = new THREE.Group();
   scene.add(viaductGroup);
@@ -748,7 +748,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   })();
 
   var viaduct = new THREE.InstancedMesh(segGeo, stoneMat, NSEG);
-  viaduct.castShadow = true;
   viaduct.receiveShadow = true;
   (function () {
     var m = new THREE.Matrix4();
@@ -809,6 +808,102 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   lampGroup.add(lampPosts);
   lampGroup.add(lampBulbs);
 
+  // telegraph poles with sagging wires along the far parapet
+  var sideGroup = new THREE.Group();
+  scene.add(sideGroup);
+  var telegraphGeo = (function () {
+    var parts = [];
+    function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
+    add(cylY(0.06, 0.1, 3.4, 0, 2.2, 0, 6), '#2a2032', '#3a2c44');
+    add(box(0.09, 0.09, 1.9, 0, 3.72, 0), '#2a2032', '#3a2c44');
+    add(box(0.07, 0.07, 1.5, 0, 3.3, 0), '#2a2032', '#3a2c44');
+    [-0.7, 0.7].forEach(function (z) {
+      add(cylY(0.05, 0.06, 0.16, 0, 3.85, z, 5), '#3a4a44', '#4a5a54');
+    });
+    [-0.6, 0.6].forEach(function (z) {
+      var curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 3.86, z),
+        new THREE.Vector3(12, 3.5, z),
+        new THREE.Vector3(24, 3.86, z)
+      ]);
+      parts.push(facetColors(new THREE.TubeGeometry(curve, 10, 0.022, 4), '#1c1626', '#241c30', function () { return rnd(); }));
+    });
+    return mergeGeos(parts);
+  })();
+  var telegraph = new THREE.InstancedMesh(telegraphGeo, darkMat, 16);
+  (function () {
+    var m = new THREE.Matrix4();
+    for (var i = 0; i < 16; i++) { m.makeTranslation(i * 24 - 192, 0, -3.62); telegraph.setMatrixAt(i, m); }
+  })();
+  sideGroup.add(telegraph);
+
+  // semaphore signals between the lamps on the near parapet
+  var signalGroup = new THREE.Group();
+  scene.add(signalGroup);
+  var signalPostGeo = (function () {
+    var parts = [];
+    function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
+    add(cylY(0.05, 0.08, 2.7, 0, 1.85, 0, 6), '#241c30', '#322640');
+    add(box(0.34, 0.62, 0.14, 0, 3.3, 0), '#241c30', '#322640');
+    add(box(0.6, 0.09, 0.09, 0.3, 3.05, 0), '#3a2c44', '#4a3a54');
+    return mergeGeos(parts);
+  })();
+  var signalPosts = new THREE.InstancedMesh(signalPostGeo, darkMat, 4);
+  var sigRedMat = new THREE.MeshStandardMaterial({ color: '#2a0a0a', emissive: '#ff5a4a', emissiveIntensity: 2.0 });
+  var sigGreenMat = new THREE.MeshStandardMaterial({ color: '#0a2a14', emissive: '#5aff8a', emissiveIntensity: 1.6 });
+  var sigRed = new THREE.InstancedMesh(new THREE.CircleGeometry(0.09, 8), sigRedMat, 4);
+  var sigGreen = new THREE.InstancedMesh(new THREE.CircleGeometry(0.09, 8), sigGreenMat, 4);
+  (function () {
+    var m = new THREE.Matrix4();
+    for (var i = 0; i < 4; i++) {
+      var x = i * 96 - 160;
+      m.makeTranslation(x, 0, 3.62); signalPosts.setMatrixAt(i, m);
+      m.makeTranslation(x, 3.45, 3.7); sigRed.setMatrixAt(i, m);
+      m.makeTranslation(x, 3.16, 3.7); sigGreen.setMatrixAt(i, m);
+      addGlow(x, 3.45, 3.75, 1.1, 0.4, '#ff5a4a', signalGroup);
+      addGlow(x, 3.16, 3.75, 0.9, 0.3, '#5aff8a', signalGroup);
+    }
+  })();
+  signalGroup.add(signalPosts); signalGroup.add(sigRed); signalGroup.add(sigGreen);
+
+  // a lonely halt the train sweeps past: platform, lamp, sign, bench, waiting figures
+  var haltGroup = new THREE.Group();
+  scene.add(haltGroup);
+  (function () {
+    var parts = [];
+    function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
+    add(box(16, 0.5, 2.6, 0, 0.55, 5.4), '#3f3148', '#5c4a63');
+    add(box(16, 0.12, 2.7, 0, 0.84, 5.4), '#463852', '#63506c');
+    add(box(16, 0.1, 0.16, 0, 0.9, 4.15), '#d99a55', '#b07a42');
+    // lamp
+    add(cylY(0.05, 0.08, 2.4, -5, 2.0, 5.6, 6), '#241c30', '#322640');
+    add(box(0.4, 0.06, 0.06, -5.18, 3.16, 5.6), '#241c30', '#322640');
+    // sign board
+    add(box(0.08, 1.2, 0.08, 2.6, 1.5, 5.9), '#241c30', '#322640');
+    add(box(2.4, 0.7, 0.1, 2.6, 2.2, 5.9), '#3a2c44', '#4a3a54');
+    // bench
+    add(box(2.6, 0.12, 0.5, -1, 1.25, 5.9), '#4a3040', '#5a3c4c');
+    add(box(0.12, 0.4, 0.4, -2.1, 1.05, 5.9), '#241c30', '#322640');
+    add(box(0.12, 0.4, 0.4, 0.1, 1.05, 5.9), '#241c30', '#322640');
+    // waiting figures (silhouettes)
+    [[0.9, 5.5], [4.6, 5.7]].forEach(function (p) {
+      add(cylY(0.16, 0.22, 1.0, p[0], 1.4, p[1], 6), '#241a2e', '#322640');
+      var head = new THREE.SphereGeometry(0.16, 8, 6); head.translate(p[0], 2.05, p[1]);
+      add(head, '#3a2c44', '#4a3a54');
+    });
+    // crates
+    add(box(0.7, 0.7, 0.7, 6.2, 1.25, 5.6), '#4a3a2c', '#5a4a3c');
+    add(box(0.55, 0.55, 0.55, 6.9, 1.17, 5.9), '#3e3024', '#4e4034');
+    var mesh = new THREE.Mesh(mergeGeos(parts), stoneMat);
+    mesh.receiveShadow = true;
+    haltGroup.add(mesh);
+    var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), lampBulbMat);
+    bulb.position.set(-5.36, 3.12, 5.6); haltGroup.add(bulb);
+    addGlow(-5.36, 3.12, 5.6, 2.4, 0.5, '#ffb37a', haltGroup);
+    addGlow(2.6, 2.2, 5.98, 1.6, 0.22, '#ffe9d5', haltGroup);
+    haltGroup.position.x = -60;
+  })();
+
   /* ------------------------------------------------------------------ */
   /* valley: river, tiles, mountains                                     */
   /* ------------------------------------------------------------------ */
@@ -829,8 +924,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   moonPath.position.set(-11, -13.78, -26);
   scene.add(moonPath);
 
+  // warm reflection of the train's lit windows on the river below
+  var trainReflection = new THREE.Mesh(
+    new THREE.PlaneGeometry(46, 7),
+    new THREE.MeshBasicMaterial({
+      map: glowTex, color: '#ffb37a', transparent: true, opacity: 0.12,
+      depthWrite: false, blending: THREE.AdditiveBlending, fog: false
+    })
+  );
+  trainReflection.rotation.x = -Math.PI / 2;
+  trainReflection.position.set(0, -13.76, -26);
+  scene.add(trainReflection);
+
   var TILE = 48, NTILE = 8;
   var tiles = [];
+  var windmillRotors = [], chimneyWisps = [], boats = [], riverMists = [];
+  var skyLanterns = [], reflStreaks = [], tileGlows = [];
 
   // far bank rises into a hillside so the village lights sit above the deck line
   function farHill(z) { return 12 * clamp((-z - 40) / 18, 0, 1); }
@@ -863,7 +972,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function treeParts(parts, x, z) {
     var y = baseY(z);
     var s = rand(0.7, 1.5);
-    if (rnd() < 0.62) {
+    var kind = rnd();
+    if (kind < 0.5) {
       parts.push(facetColors(cylY(0.1 * s, 0.15 * s, 0.7 * s, x, y + 0.35 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
       var c1 = new THREE.ConeGeometry(1.05 * s, 2.1 * s, 6);
       c1.translate(x, y + 1.6 * s, z);
@@ -871,12 +981,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var c2 = new THREE.ConeGeometry(0.72 * s, 1.6 * s, 6);
       c2.translate(x, y + 2.7 * s, z);
       parts.push(facetColors(c2, '#20302a', '#2e4034', function () { return rnd(); }));
-    } else {
+    } else if (kind < 0.8) {
       parts.push(facetColors(cylY(0.12 * s, 0.16 * s, 0.9 * s, x, y + 0.45 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
       var blob = new THREE.IcosahedronGeometry(0.95 * s, 0);
       blob.scale(1, 0.85, 1);
       blob.translate(x, y + 1.5 * s, z);
       parts.push(facetColors(blob, '#22302a', '#2c3c32', function () { return rnd(); }));
+    } else {
+      // tall poplar
+      parts.push(facetColors(cylY(0.08 * s, 0.12 * s, 1.0 * s, x, y + 0.5 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
+      var pop = new THREE.ConeGeometry(0.5 * s, 3.4 * s, 6);
+      pop.translate(x, y + 2.4 * s, z);
+      parts.push(facetColors(pop, '#1e2c26', '#2a3a30', function () { return rnd(); }));
     }
   }
 
@@ -937,7 +1053,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         if (!ok) continue;
         var w = houseParts(parts, winParts, hx, hz, rand(0.8, 1.25), '#3e3050', '#4e3c5c', face);
         spots.push({ x: hx, z: hz });
-        glows.push(addGlow(w.x, w.y, w.z, 3.4, 0.4, '#ffb37a', group));
+        var hg = addGlow(w.x, w.y, w.z, 3.4, 0.4, '#ffb37a', group);
+        glows.push(hg);
+        tileGlows.push({ sprite: hg, phase: rnd() * 6.28 });
+        // vertical light reflection on the river opposite the house
+        var rs = addGlow(hx, -13.5, -31, 1, 0.12, '#ffb37a', group);
+        rs.scale.set(1.4, 7, 1);
+        reflStreaks.push({ sprite: rs, phase: rnd() * 6.28 });
+        // chimney wisp
+        if (rnd() < 0.6) {
+          var ws = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#cbb8c4', transparent: true, opacity: 0, depthWrite: false, fog: true }));
+          ws.position.set(hx + 0.8, baseY(hz) + 3.4, hz);
+          group.add(ws);
+          chimneyWisps.push({ sprite: ws, x: hx + 0.8, y0: baseY(hz) + 3.4, phase: rnd() });
+        }
       }
     }
     if (variant === 0) cluster(3, -66, -48, 1);
@@ -953,10 +1082,152 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var clock = new THREE.CircleGeometry(0.5, 12);
       clock.translate(cx, by + 4.8, cz + 1.13);
       winParts.push(clock);
-      glows.push(addGlow(cx, by + 4.8, cz + 1.2, 2.6, 0.35, '#ffe9d5', group));
+      var cg = addGlow(cx, by + 4.8, cz + 1.2, 2.6, 0.35, '#ffe9d5', group);
+      glows.push(cg);
+      tileGlows.push({ sprite: cg, phase: rnd() * 6.28 });
     }
     else if (variant === 2) { cluster(2, -58, -46, 1); cluster(1, 20, 28, -1); }
     else cluster(3, -70, -50, 1);
+
+    // conforming ground height for props
+    function gH(x, z) {
+      var h = 0.5 * Math.sin(x * 0.2618) * Math.cos(z * 0.09 + variant) + 0.1 * Math.sin(z * 0.5 + variant);
+      var flat = clamp((Math.abs(z) - 11) / 9, 0, 1);
+      var dip = Math.abs(z + 26) < 7 ? -0.45 : 0;
+      return -14 + h * flat + dip + farHill(z);
+    }
+    function field(fx, fz, w, d, ca, cb) {
+      var fg = new THREE.PlaneGeometry(w, d, 3, 3);
+      fg.rotateX(-Math.PI / 2);
+      var fp = fg.attributes.position;
+      for (var i = 0; i < fp.count; i++) {
+        fp.setY(i, gH(fx + fp.getX(i), fz + fp.getZ(i)) + 0.06);
+      }
+      fg.translate(fx, 0, fz);
+      parts.push(facetColors(fg, ca, cb, function () { return rnd(); }));
+    }
+
+    // crop fields + haystacks on the near bank
+    field(rand(-16, -4), rand(18, 30), rand(7, 11), rand(5, 8), '#3a3226', '#4a4030');
+    field(rand(4, 16), rand(20, 34), rand(6, 10), rand(5, 8), '#2a3226', '#36402c');
+    for (var hs = 0; hs < 2; hs++) {
+      var hx2 = rand(-20, 20), hz2 = rand(14, 36);
+      var hay = new THREE.ConeGeometry(0.7, 1.1, 6);
+      hay.translate(hx2, gH(hx2, hz2) + 0.5, hz2);
+      parts.push(facetColors(hay, '#4a3c28', '#5a4c34', function () { return rnd(); }));
+    }
+    // fence line
+    if (variant === 0 || variant === 2) {
+      var fz0 = rand(15, 24), fx0 = rand(-18, -6);
+      for (var fp2 = 0; fp2 < 8; fp2++) {
+        var px = fx0 + fp2 * 1.3;
+        parts.push(facetColors(box(0.08, 0.7, 0.08, px, gH(px, fz0) + 0.35, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
+      }
+      parts.push(facetColors(box(9.2, 0.06, 0.05, fx0 + 4.5, gH(fx0 + 4.5, fz0) + 0.55, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
+      parts.push(facetColors(box(9.2, 0.06, 0.05, fx0 + 4.5, gH(fx0 + 4.5, fz0) + 0.3, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
+    }
+    // grazing sheep on the far hillside
+    if (variant === 0 || variant === 3) {
+      for (var sh = 0; sh < 4; sh++) {
+        var sx = rand(-18, 18), sz = rand(-58, -42);
+        var body2 = new THREE.IcosahedronGeometry(0.34, 0);
+        body2.scale(1.25, 0.85, 0.85);
+        body2.translate(sx, gH(sx, sz) + 0.32, sz);
+        parts.push(facetColors(body2, '#cfc4d4', '#e0d6e4', function () { return rnd(); }));
+        parts.push(facetColors(box(0.16, 0.16, 0.16, sx + 0.4, gH(sx, sz) + 0.4, sz), '#3a2c34', '#4a3c44', function () { return rnd(); }));
+      }
+    }
+    // orchard rows
+    if (variant === 2) {
+      for (var ox = 0; ox < 3; ox++) {
+        for (var oz = 0; oz < 2; oz++) {
+          var oxx = 6 + ox * 3.4, ozz = 18 + oz * 4.2;
+          parts.push(facetColors(cylY(0.08, 0.11, 0.6, oxx, gH(oxx, ozz) + 0.3, ozz, 5), '#241a28', '#2e2234', function () { return rnd(); }));
+          var ob = new THREE.IcosahedronGeometry(0.7, 0);
+          ob.scale(1, 0.8, 1);
+          ob.translate(oxx, gH(oxx, ozz) + 1.0, ozz);
+          parts.push(facetColors(ob, '#22302a', '#2c3c32', function () { return rnd(); }));
+        }
+      }
+    }
+    // reeds at the river banks
+    for (var rd2 = 0; rd2 < 12; rd2++) {
+      var rx2 = rand(-22, 22);
+      var rz2 = rnd() < 0.5 ? -19.5 + rand(-0.6, 0.6) : -32.5 + rand(-0.6, 0.6);
+      var reed = new THREE.ConeGeometry(0.06, rand(0.7, 1.2), 4);
+      reed.translate(rx2, gH(rx2, rz2) + 0.4, rz2);
+      parts.push(facetColors(reed, '#2a3226', '#36402c', function () { return rnd(); }));
+    }
+
+    // windmill on the far hill
+    if (variant === 1 || variant === 3) {
+      var wx = rand(-16, 16), wz = rand(-70, -56), wy = gH(wx, wz);
+      parts.push(facetColors(cylY(1.0, 1.6, 5.0, wx, wy + 2.5, wz, 8), '#463650', '#564262', function () { return rnd(); }));
+      var cap = new THREE.ConeGeometry(1.25, 1.3, 6);
+      cap.translate(wx, wy + 5.6, wz);
+      parts.push(facetColors(cap, '#33203a', '#42284a', function () { return rnd(); }));
+      var rotor = new THREE.Group();
+      rotor.position.set(wx, wy + 5.0, wz + 1.35);
+      var blades = [];
+      for (var b = 0; b < 4; b++) {
+        var bl = new THREE.BoxGeometry(0.3, 3.4, 0.06);
+        bl.translate(0, 1.8, 0);
+        bl.rotateZ(b * Math.PI / 2);
+        blades.push(facetColors(bl, '#3a2c44', '#4a3a54', function () { return rnd(); }));
+      }
+      var hub = new THREE.SphereGeometry(0.22, 8, 6);
+      blades.push(facetColors(hub, '#241c30', '#322640', function () { return rnd(); }));
+      rotor.add(new THREE.Mesh(mergeGeos(blades), stoneMat));
+      group.add(rotor);
+      windmillRotors.push(rotor);
+      var wg2 = addGlow(wx, wy + 2.2, wz + 1.6, 2.2, 0.32, '#ffb37a', group);
+      tileGlows.push({ sprite: wg2, phase: rnd() * 6.28 });
+    }
+
+    // footbridge over the river + dock + moored boat
+    if (variant === 0 || variant === 2) {
+      var bx = rand(-14, 14);
+      parts.push(facetColors(box(1.6, 0.2, 15, bx, -12.6, -26), '#3f3148', '#5c4a63', function () { return rnd(); }));
+      var bArch = new THREE.TorusGeometry(6.2, 0.22, 5, 12, Math.PI);
+      bArch.rotateY(Math.PI / 2);
+      bArch.translate(bx, -13.4, -26);
+      parts.push(facetColors(bArch, '#544260', '#6a5670', function () { return rnd(); }));
+      [-0.8, 0.8].forEach(function (ox2) {
+        parts.push(facetColors(box(0.08, 0.5, 15, bx + ox2, -12.2, -26), '#463852', '#63506c', function () { return rnd(); }));
+      });
+      parts.push(facetColors(box(3, 0.2, 2.4, bx + 4, -13.3, -19.5), '#3a2c24', '#4a3c34', function () { return rnd(); }));
+      [[bx + 2.8, -18.6], [bx + 5.2, -18.6], [bx + 2.8, -20.4], [bx + 5.2, -20.4]].forEach(function (p) {
+        parts.push(facetColors(cylY(0.08, 0.1, 1.2, p[0], -13.8, p[1], 5), '#241c30', '#322640', function () { return rnd(); }));
+      });
+      var boat = new THREE.Group();
+      boat.position.set(bx - 4, -13.7, -27);
+      var hull = [];
+      hull.push(facetColors(box(2.6, 0.5, 1.0, 0, 0.25, 0), '#3a2c24', '#4a3c34', function () { return rnd(); }));
+      var prow = new THREE.ConeGeometry(0.5, 0.9, 4);
+      prow.rotateZ(-Math.PI / 2);
+      prow.translate(1.7, 0.3, 0);
+      hull.push(facetColors(prow, '#3a2c24', '#4a3c34', function () { return rnd(); }));
+      boat.add(new THREE.Mesh(mergeGeos(hull), stoneMat));
+      var bl2 = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), lampBulbMat);
+      bl2.position.set(0, 0.95, 0); boat.add(bl2);
+      addGlow(0, 0.95, 0, 1.4, 0.5, '#ffb37a', boat);
+      group.add(boat);
+      boats.push({ group: boat, phase: rnd() * 6.28, baseY: -13.7 });
+    }
+
+    // low mist drifting over the river
+    for (var rm = 0; rm < 1; rm++) {
+      var ms = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#8a7a9a', transparent: true, opacity: 0.1, depthWrite: false, fog: true }));
+      ms.position.set(rand(-20, 20), -13.2, -26 + rand(-4, 4));
+      ms.scale.set(14, 4, 1);
+      group.add(ms);
+      riverMists.push({ sprite: ms, phase: rnd() * 6.28 });
+    }
+    // a sky lantern rising from the valley
+    if (variant !== 2) {
+      var sl = addGlow(rand(-18, 18), 0, rand(-64, -44), 2.0, 0.5, '#ffb37a', group);
+      skyLanterns.push({ sprite: sl, x: sl.position.x, z: sl.position.z, phase: rnd() });
+    }
 
     var merged = new THREE.Mesh(mergeGeos(parts), stoneMat);
     merged.receiveShadow = true;
@@ -1018,6 +1289,49 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   makeRidge(-215, 46, '#221838', 0.025, 4.1);
   makeRidge(155, 26, '#2a1e40', 0.05, 2.6);
   makeRidge(220, 42, '#221838', 0.025, 5.7);
+
+  // drifting night cloud bands
+  var clouds = [];
+  for (var ci2 = 0; ci2 < 3; ci2++) {
+    var ca = rand(0, Math.PI * 2);
+    var cr = rand(280, 360);
+    var cs = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: mistTex, color: '#4a3a5e', transparent: true, opacity: 0.15,
+      depthWrite: false, fog: false
+    }));
+    cs.position.set(Math.cos(ca) * cr, rand(70, 130), Math.sin(ca) * cr);
+    cs.scale.set(rand(90, 130), rand(26, 36), 1);
+    scene.add(cs);
+    clouds.push({ sprite: cs, speed: rand(1.2, 2.6), baseY: cs.position.y, phase: rnd() * 6.28 });
+  }
+
+  // occasional shooting star
+  var meteor = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, color: '#ffe9d8', transparent: true, opacity: 0,
+    depthWrite: false, blending: THREE.AdditiveBlending, fog: false
+  }));
+  meteor.scale.set(16, 0.6, 1);
+  meteor.material.rotation = -0.45;
+  meteor.visible = false;
+  scene.add(meteor);
+  var meteorState = { timer: rand(6, 14), age: 0, life: 1.1, from: new THREE.Vector3(), dir: new THREE.Vector3() };
+
+  // a flock of birds crossing the sky
+  var birdGeo = (function () {
+    var parts = [];
+    var w1 = new THREE.BoxGeometry(0.9, 0.05, 0.22); w1.rotateZ(0.35); w1.translate(-0.45, 0.1, 0);
+    var w2 = new THREE.BoxGeometry(0.9, 0.05, 0.22); w2.rotateZ(-0.35); w2.translate(0.45, 0.1, 0);
+    parts.push(facetColors(w1, '#20182c', '#2c2238', function () { return rnd(); }));
+    parts.push(facetColors(w2, '#20182c', '#2c2238', function () { return rnd(); }));
+    return mergeGeos(parts);
+  })();
+  var birds = new THREE.InstancedMesh(birdGeo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: true }), 7);
+  birds.visible = false;
+  scene.add(birds);
+  var birdOffsets = [];
+  for (var bo = 0; bo < 7; bo++) birdOffsets.push(new THREE.Vector3(rand(-6, 6), rand(-2.5, 2.5), rand(-3, 3)));
+  var birdState = { timer: rand(10, 20), age: 0, life: 9, from: new THREE.Vector3(), dir: new THREE.Vector3() };
+  var birdMat4 = new THREE.Matrix4(), birdQuat = new THREE.Quaternion(), birdScale = new THREE.Vector3(), birdPos = new THREE.Vector3();
 
   /* ------------------------------------------------------------------ */
   /* train                                                               */
@@ -1704,6 +2018,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (scroll.lamps <= -32) scroll.lamps += 32;
     lampGroup.position.x = scroll.lamps;
 
+    scroll.side -= SPEED * dt;
+    if (scroll.side <= -24) scroll.side += 24;
+    sideGroup.position.x = scroll.side;
+
+    scroll.signal -= SPEED * dt;
+    if (scroll.signal <= -96) scroll.signal += 96;
+    signalGroup.position.x = scroll.signal;
+
+    scroll.halt -= SPEED * dt;
+    if (scroll.halt <= -384) scroll.halt += 384;
+    haltGroup.position.x = -60 + scroll.halt;
+
     for (var i = 0; i < tiles.length; i++) {
       tiles[i].position.x -= SPEED * dt;
       if (tiles[i].position.x < -192) tiles[i].position.x += NTILE * TILE;
@@ -1715,6 +2041,100 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       rd.mesh.position.x = rd.offset;
     }
     riverTex.offset.x -= dt * 0.018;
+
+    // valley life: windmill, boat, chimney wisps, mist, lanterns, reflections
+    for (var wm = 0; wm < windmillRotors.length; wm++) windmillRotors[wm].rotation.z -= dt * 0.7 * sway;
+    for (var bt = 0; bt < boats.length; bt++) {
+      var b = boats[bt];
+      b.group.position.y = b.baseY + Math.sin(t * 1.1 + b.phase) * 0.06 * sway;
+      b.group.rotation.z = Math.sin(t * 0.9 + b.phase) * 0.03 * sway;
+    }
+    for (var cw = 0; cw < chimneyWisps.length; cw++) {
+      var wisp = chimneyWisps[cw];
+      var k = (t * 0.22 + wisp.phase) % 1;
+      wisp.sprite.position.y = wisp.y0 + k * 3.2;
+      wisp.sprite.position.x = wisp.x - k * 1.0;
+      var wsc = 0.5 + k * 1.7;
+      wisp.sprite.scale.set(wsc, wsc, 1);
+      wisp.sprite.material.opacity = 0.2 * (1 - k) * Math.min(1, k * 5);
+    }
+    for (var rmi = 0; rmi < riverMists.length; rmi++) {
+      var mm = riverMists[rmi];
+      mm.sprite.material.opacity = 0.09 + 0.05 * (0.5 + 0.5 * Math.sin(t * 0.5 + mm.phase));
+      mm.sprite.position.x += Math.sin(t * 0.2 + mm.phase) * dt * 0.3;
+    }
+    for (var sl2 = 0; sl2 < skyLanterns.length; sl2++) {
+      var L = skyLanterns[sl2];
+      var lk = (t * 0.045 + L.phase) % 1;
+      L.sprite.position.y = -2 + lk * 72;
+      L.sprite.position.x = L.x + Math.sin(t * 0.4 + L.phase * 6) * 1.6;
+      L.sprite.material.opacity = 0.55 * Math.sin(Math.PI * lk);
+    }
+    for (var rs2 = 0; rs2 < reflStreaks.length; rs2++) {
+      reflStreaks[rs2].sprite.material.opacity = 0.10 + 0.06 * (0.5 + 0.5 * Math.sin(t * 2 + reflStreaks[rs2].phase));
+    }
+    for (var tg = 0; tg < tileGlows.length; tg++) {
+      tileGlows[tg].sprite.material.opacity = 0.38 * (1 + 0.14 * Math.sin(t * 3 + tileGlows[tg].phase) * sway);
+    }
+    trainReflection.material.opacity = 0.12 * (1 + 0.2 * Math.sin(t * 2.3) * sway);
+
+    // drifting clouds
+    for (var cl = 0; cl < clouds.length; cl++) {
+      var c = clouds[cl];
+      c.sprite.position.x -= c.speed * dt * sway;
+      if (c.sprite.position.x < -420) c.sprite.position.x += 840;
+      c.sprite.position.y = c.baseY + Math.sin(t * 0.1 + c.phase) * 2 * sway;
+    }
+
+    // shooting star
+    if (!reduceMotion) {
+      if (!meteor.visible) {
+        meteorState.timer -= dt;
+        if (meteorState.timer <= 0) {
+          meteor.visible = true; meteorState.age = 0;
+          meteorState.from.set(rand(-150, 150), rand(120, 200), rand(-260, -160));
+          meteorState.dir.set(rand(-0.7, -0.3), rand(-0.5, -0.25), rand(-0.1, 0.1)).normalize();
+        }
+      } else {
+        meteorState.age += dt;
+        var mk = meteorState.age / meteorState.life;
+        if (mk >= 1) { meteor.visible = false; meteor.material.opacity = 0; meteorState.timer = rand(14, 30); }
+        else {
+          meteor.position.copy(camera.position).add(meteorState.from).addScaledVector(meteorState.dir, mk * 160);
+          meteor.material.opacity = 0.8 * Math.sin(Math.PI * mk);
+        }
+      }
+    }
+
+    // bird flock
+    if (!reduceMotion) {
+      if (!birds.visible) {
+        birdState.timer -= dt;
+        if (birdState.timer <= 0) {
+          birds.visible = true; birdState.age = 0;
+          birdState.from.set(rand(-120, -60), rand(50, 90), rand(-140, -80));
+          birdState.dir.set(1, rand(-0.05, 0.05), rand(-0.15, 0.15)).normalize();
+        }
+      } else {
+        birdState.age += dt;
+        var bk = birdState.age / birdState.life;
+        if (bk >= 1) { birds.visible = false; birdState.timer = rand(18, 34); }
+        else {
+          for (var bi2 = 0; bi2 < 7; bi2++) {
+            birdPos.copy(birdState.from).addScaledVector(birdState.dir, birdState.age * 14).add(birdOffsets[bi2]);
+            birdPos.y += Math.sin(t * 2 + bi2) * 0.6;
+            var flap = 0.5 + 0.5 * Math.abs(Math.sin(t * 9 + bi2 * 0.7));
+            birdScale.set(1, flap, 1);
+            birdMat4.compose(birdPos, birdQuat, birdScale);
+            birds.setMatrixAt(bi2, birdMat4);
+          }
+          birds.instanceMatrix.needsUpdate = true;
+        }
+      }
+    }
+
+    // moon halo breathe
+    moonHalo.material.opacity = 0.16 + 0.03 * Math.sin(t * 0.6) * sway;
 
     // wheels & rods
     wheelAngle -= (SPEED / 0.85) * dt;
