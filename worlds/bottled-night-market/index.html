@@ -1792,7 +1792,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var dx = e.clientX - view.lastX;
       var dy = e.clientY - view.lastY;
       movedPx += Math.abs(dx) + Math.abs(dy);
-      view.tTheta += dx * 0.0052;
+      view.tTheta -= dx * 0.0052;
       view.tPhi = clamp(view.tPhi - dy * 0.0042, mode === 'inside' ? 1.05 : 0.9, 1.5);
       if (mode === 'inside') view.tTheta = clamp(view.tTheta, -0.95, 0.95);
       view.lastX = e.clientX;
