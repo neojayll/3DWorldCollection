@@ -206,6 +206,106 @@
   .exit-inside:hover { color: #fff6ec; border-color: rgba(255, 190, 150, 0.55); background: rgba(54, 30, 44, 0.62); }
   .exit-inside:focus-visible { outline: 2px solid rgba(255, 179, 122, 0.8); outline-offset: 3px; }
 
+  .sound {
+    position: fixed;
+    top: calc(clamp(20px, 4.5vw, 46px) + 44px + env(safe-area-inset-top, 0px));
+    right: calc(clamp(20px, 4.5vw, 50px) + env(safe-area-inset-right, 0px));
+    z-index: 8;
+    display: none;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 13px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: rgba(255, 233, 213, 0.72);
+    border: 1px solid rgba(255, 190, 150, 0.2);
+    border-radius: 999px;
+    background: rgba(24, 14, 28, 0.46);
+    -webkit-backdrop-filter: blur(9px);
+    backdrop-filter: blur(9px);
+    cursor: pointer;
+    transition: opacity .25s ease, border-color .25s ease, color .25s ease;
+  }
+  body.inside .sound { display: inline-flex; }
+  .sound.off { opacity: 0.5; }
+  .sound:hover { color: #fff6ec; border-color: rgba(255, 190, 150, 0.5); }
+  .sound:focus-visible { outline: 2px solid rgba(255, 179, 122, 0.8); outline-offset: 3px; }
+  .sound[hidden] { display: none !important; }
+
+  .open-banner {
+    position: fixed;
+    left: 50%;
+    top: 30%;
+    z-index: 9;
+    transform: translate(-50%, 10px);
+    opacity: 0;
+    pointer-events: none;
+    font-family: Georgia, "Songti SC", "STSong", "SimSun", serif;
+    font-size: clamp(18px, 2.4vw, 27px);
+    letter-spacing: 0.32em;
+    color: #ffe6c2;
+    text-shadow: 0 2px 24px rgba(255, 140, 70, 0.42), 0 0 50px rgba(255, 170, 100, 0.22);
+    transition: opacity .45s ease, transform .45s cubic-bezier(.22, .61, .36, 1);
+    white-space: nowrap;
+  }
+  .open-banner.show { opacity: 1; transform: translate(-50%, 0); }
+
+  .paper-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(8, 5, 12, 0.62);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    animation: fadeIn .25s ease both;
+  }
+  .paper-modal[hidden] { display: none; }
+  .paper-card {
+    position: relative;
+    width: min(430px, 100%);
+    max-height: 74vh;
+    overflow: auto;
+    padding: 30px 30px 26px;
+    color: #3c2c23;
+    background: #e3d4b6;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(120, 90, 60, 0.08));
+    border-radius: 3px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), inset 0 0 40px rgba(120, 90, 60, 0.18);
+    transform: rotate(-0.7deg);
+    font-family: Georgia, "Songti SC", "STSong", "SimSun", serif;
+  }
+  .paper-kicker { font-size: 9px; letter-spacing: 0.3em; color: rgba(70, 50, 40, 0.62); }
+  .paper-card h2 { margin: 10px 0 14px; font-size: 24px; font-weight: 400; letter-spacing: 0.18em; }
+  .paper-card ul { list-style: none; padding: 0; margin: 0; }
+  .paper-card li { padding: 9px 0; font-size: 13px; line-height: 1.8; letter-spacing: 0.06em; border-top: 1px solid rgba(80, 58, 44, 0.22); }
+  .paper-card li span { display: block; font-size: 10px; color: rgba(70, 50, 40, 0.55); letter-spacing: 0.12em; }
+  .paper-foot { margin-top: 16px; font-size: 9px; letter-spacing: 0.16em; color: rgba(70, 50, 40, 0.52); }
+  .paper-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(70, 50, 40, 0.1);
+    color: #4a372c;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .paper-close:hover { background: rgba(70, 50, 40, 0.2); }
+  .paper-close:focus-visible { outline: 2px solid rgba(70, 50, 40, 0.6); outline-offset: 2px; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   #boot {
     position: fixed;
     inset: 0;
@@ -301,7 +401,7 @@
     border: 0;
   }
 
-  .shot .hud, .shot .hint, .shot .exit-inside, .shot .back, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
+  .shot .hud, .shot .hint, .shot .exit-inside, .shot .sound, .shot .open-banner, .shot .paper-modal, .shot .back, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
   .shot #scene { opacity: 1 !important; transition: none !important; }
 
   body.inside .vignette {
@@ -329,6 +429,11 @@
     .back { font-size: 10px; padding: 7px 13px; }
     .hint { font-size: 10px; letter-spacing: 0.08em; padding: 8px 14px; gap: 7px; }
     .hint .desk-only { display: none; }
+    .sound { top: calc(54px + env(safe-area-inset-top, 0px)); font-size: 9px; padding: 6px 11px; }
+    .open-banner { font-size: 18px; letter-spacing: 0.22em; }
+    .paper-card { padding: 24px 22px 20px; }
+    .paper-card h2 { font-size: 20px; }
+    .paper-card li { font-size: 12px; }
   }
   @media (max-width: 380px) {
     .eyebrow { display: none; }
@@ -342,6 +447,8 @@
   @media (prefers-reduced-motion: reduce) {
     .hud, .hint, #boot .inner { animation: none !important; }
     #scene { transition-duration: 0.01ms; }
+    .open-banner { transition: none; }
+    .paper-modal { animation: none; }
   }
 </style>
 </head>
@@ -352,6 +459,7 @@
   <div class="grain"></div>
 
   <a class="back" href="../../index.html" title="返回世界入口">← 世界入口</a>
+  <button class="sound off" id="soundBtn" type="button" aria-pressed="false" aria-label="开启夜市环境音">♪ 环境音</button>
 
   <header class="hud">
     <p class="eyebrow"><i></i>Bottled · Night · Market</p>
@@ -362,11 +470,27 @@
   </header>
 
   <div class="hint"><i></i>
-    <span class="hint-out">拖拽环视 · <span class="desk-only">滚轮 / </span>双指缩放 · 轻点瓶子进入</span>
-    <span class="hint-in">轻点任意灯泡开关 · 拖拽环视</span>
+    <span class="hint-out"><span class="desk-only">拖拽环视 · 滚轮 / 双指缩放 · </span>点瓶身进入 · 点木塞摇一摇</span>
+    <span class="hint-in" id="hintIn">轻点任意灯泡开关 · 拖拽环视</span>
   </div>
   <button class="exit-inside" id="exitBtn" type="button" hidden>← 退出瓶中</button>
+  <div class="open-banner" id="openBanner" role="status"></div>
   <p id="status" class="sr-only" aria-live="polite"></p>
+
+  <div class="paper-modal" id="paperModal" hidden>
+    <div class="paper-card" role="dialog" aria-modal="true" aria-labelledby="paperTitle">
+      <button class="paper-close" id="paperClose" type="button" aria-label="关闭报纸">×</button>
+      <p class="paper-kicker">黄昏日报 · 第七期</p>
+      <h2 id="paperTitle">窗台上的头条</h2>
+      <ul>
+        <li>暮色浮岛的悬浮高度再创新高<span>本岛居民表示：已经习惯了</span></li>
+        <li>霜月圣殿今夜极光达到七级<span>冰湖观测站提醒游客注意保暖</span></li>
+        <li>锈月乐园过山车完成年度检修<span>工作人员称：这次真的不会脱轨</span></li>
+        <li>灯河渡口一夜放出三千盏河灯<span>下游村民捡到两盏，尚未归还</span></li>
+      </ul>
+      <p class="paper-foot">本报由瓶中夜市代销 · 一盏灯换一份</p>
+    </div>
+  </div>
 
   <div id="boot">
     <div class="inner">
@@ -403,6 +527,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var bootText = document.getElementById('boot-text');
   var statusEl = document.getElementById('status');
   var exitBtn = document.getElementById('exitBtn');
+  var soundBtn = document.getElementById('soundBtn');
+  var hintIn = document.getElementById('hintIn');
+  var bannerEl = document.getElementById('openBanner');
+  var paperModal = document.getElementById('paperModal');
+  var paperClose = document.getElementById('paperClose');
   var params = new URLSearchParams(location.search);
   var isShot = params.get('shot') === '1';
   if (isShot) document.body.classList.add('shot');
@@ -739,6 +868,37 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
   }
 
+  function bubbleTexture(text) {
+    return makeTexture(256, 128, function (ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      var x = 10, y = 8, bw = w - 20, bh = 82, r = 22;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + bw, y, x + bw, y + bh, r);
+      ctx.arcTo(x + bw, y + bh, x, y + bh, r);
+      ctx.arcTo(x, y + bh, x, y, r);
+      ctx.arcTo(x, y, x + bw, y, r);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(26, 14, 20, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 198, 148, 0.55)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - 13, y + bh - 1);
+      ctx.lineTo(w / 2 + 2, y + bh + 28);
+      ctx.lineTo(w / 2 + 15, y + bh - 1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffe6c8';
+      ctx.font = '500 32px Georgia, "Songti SC", "STSong", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, w / 2, y + bh / 2 + 2);
+    });
+  }
+
   var gateTex = makeTexture(512, 192, function (ctx, w, h) {
     ctx.fillStyle = '#341a1a';
     ctx.fillRect(0, 0, w, h);
@@ -823,7 +983,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       offGlow: cfg.offGlow !== undefined ? cfg.offGlow : 0.015,
       onGlow: cfg.onGlow !== undefined ? cfg.onGlow : 0.5,
       lightPower: cfg.lightPower || 0,
-      phase: cfg.phase || 0
+      phase: cfg.phase || 0,
+      note: bulbs.length % 5
     };
     bulbs.push(b);
     return b;
@@ -840,6 +1001,152 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     for (var i = 0; i < bulbs.length; i++) if (bulbs[i].lit) n++;
     return n;
   }
+
+  /* ------------------------------------------------------------------ */
+  /* procedural audio: no external files                                 */
+  /* ------------------------------------------------------------------ */
+
+  var audio = (function () {
+    var ctx = null, master = null, ambient = null, ambientOn = false, failed = false;
+
+    function ensure() {
+      if (failed) return null;
+      if (ctx) {
+        if (ctx.state === 'suspended') ctx.resume();
+        return ctx;
+      }
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) { failed = true; return null; }
+      try {
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.65;
+        master.connect(ctx.destination);
+      } catch (e) {
+        failed = true;
+        return null;
+      }
+      return ctx;
+    }
+
+    function noise(seconds) {
+      var len = Math.floor(ctx.sampleRate * seconds);
+      var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      var d = buf.getChannelData(0);
+      var last = 0;
+      for (var i = 0; i < len; i++) {
+        var w = Math.random() * 2 - 1;
+        last = (last + 0.02 * w) / 1.02;
+        d[i] = last * 3.2;
+      }
+      return buf;
+    }
+
+    function chime(freq) {
+      if (!ensure()) return;
+      var t = ctx.currentTime;
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.075, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.72);
+      o.connect(g);
+      g.connect(master);
+      o.start(t);
+      o.stop(t + 0.76);
+    }
+
+    function thump() {
+      if (!ensure()) return;
+      var t = ctx.currentTime;
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(120, t);
+      o.frequency.exponentialRampToValueAtTime(46, t + 0.5);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+      o.connect(g);
+      g.connect(master);
+      o.start(t);
+      o.stop(t + 0.7);
+    }
+
+    function rattle() {
+      if (!ensure()) return;
+      var t = ctx.currentTime;
+      var src = ctx.createBufferSource();
+      src.buffer = noise(0.5);
+      var f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 1400;
+      f.Q.value = 1.2;
+      var g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.08, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      src.connect(f);
+      f.connect(g);
+      g.connect(master);
+      src.start(t);
+      src.stop(t + 0.5);
+    }
+
+    function meow() {
+      if (!ensure()) return;
+      var t = ctx.currentTime;
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(520, t);
+      o.frequency.linearRampToValueAtTime(760, t + 0.14);
+      o.frequency.linearRampToValueAtTime(470, t + 0.42);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.055, t + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.46);
+      o.connect(g);
+      g.connect(master);
+      o.start(t);
+      o.stop(t + 0.5);
+    }
+
+    function setAmbient(on) {
+      if (!on && !ambient) { ambientOn = false; return true; }
+      if (on && !ensure()) return false;
+      ambientOn = on;
+      if (!ambient) {
+        if (!ctx) return false;
+        var src = ctx.createBufferSource();
+        src.buffer = noise(3.2);
+        src.loop = true;
+        var f = ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = 420;
+        ambient = ctx.createGain();
+        ambient.gain.value = 0;
+        src.connect(f);
+        f.connect(ambient);
+        ambient.connect(master);
+        src.start();
+      }
+      var t = ctx.currentTime;
+      ambient.gain.cancelScheduledValues(t);
+      ambient.gain.setValueAtTime(ambient.gain.value, t);
+      ambient.gain.linearRampToValueAtTime(on ? 0.055 : 0.0001, t + 0.6);
+      return true;
+    }
+
+    return {
+      ensure: ensure,
+      chime: chime,
+      thump: thump,
+      rattle: rattle,
+      meow: meow,
+      setAmbient: setAmbient,
+      ambientOn: function () { return ambientOn; },
+      failed: function () { return failed; }
+    };
+  })();
 
   function box(parent, w, h, d, mat, x, y, z, rx, ry, rz) {
     var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -966,7 +1273,63 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   });
   var paperMat = new THREE.MeshStandardMaterial({ map: newsTex, roughness: 0.96 });
   var paper = box(scene, 1.5, 0.06, 1.0, paperMat, -4.4, 0.03, -2.6, 0, 0.3, 0);
-  box(scene, 1.5, 0.045, 1.0, paperMat, -4.28, 0.075, -2.65, 0, 0.38, 0);
+  var paper2 = box(scene, 1.5, 0.045, 1.0, paperMat, -4.28, 0.075, -2.65, 0, 0.38, 0);
+
+  /* 窗台猫 */
+  var catGroup = new THREE.Group();
+  catGroup.position.set(2.55, 0.02, -2.75);
+  catGroup.rotation.y = -0.62;
+  scene.add(catGroup);
+  var catMat = new THREE.MeshStandardMaterial({ color: '#5d4a3f', roughness: 0.92 });
+  var catDark = new THREE.MeshStandardMaterial({ color: '#2a211d', roughness: 0.95 });
+  var catBody = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 12), catMat);
+  catBody.scale.set(1.15, 0.9, 0.95);
+  catBody.position.y = 0.24;
+  catGroup.add(catBody);
+  var catHead = new THREE.Mesh(new THREE.SphereGeometry(0.135, 14, 12), catMat);
+  catHead.position.set(0.03, 0.43, 0.1);
+  catGroup.add(catHead);
+  var catEarGeo = new THREE.ConeGeometry(0.045, 0.09, 4);
+  var catEarL = new THREE.Mesh(catEarGeo, catMat);
+  catEarL.position.set(-0.06, 0.55, 0.08);
+  catGroup.add(catEarL);
+  var catEarR = catEarL.clone();
+  catEarR.position.x = 0.12;
+  catGroup.add(catEarR);
+  var catEyeMat = new THREE.MeshBasicMaterial({ color: '#f0c879', toneMapped: false });
+  [-0.03, 0.09].forEach(function (ex) {
+    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), catEyeMat);
+    eye.position.set(ex, 0.45, 0.215);
+    catGroup.add(eye);
+  });
+  var catNose = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), catDark);
+  catNose.position.set(0.03, 0.41, 0.225);
+  catGroup.add(catNose);
+  var catTailPivot = new THREE.Group();
+  catTailPivot.position.set(-0.22, 0.2, -0.05);
+  catGroup.add(catTailPivot);
+  cylinder(catTailPivot, 0.024, 0.036, 0.38, 6, catMat, 0, 0.16, 0, 0, 0, -0.5);
+  cylinder(catGroup, 0.028, 0.03, 0.14, 6, catMat, -0.12, 0.08, 0.1);
+  cylinder(catGroup, 0.028, 0.03, 0.14, 6, catMat, 0.14, 0.08, 0.1);
+  var catShadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.72, 0.6),
+    new THREE.MeshBasicMaterial({
+      map: shadowTex, transparent: true, opacity: 0.5, depthWrite: false, color: '#000000'
+    })
+  );
+  catShadow.rotation.x = -Math.PI / 2;
+  catShadow.position.set(0, 0.002, 0.04);
+  catGroup.add(catShadow);
+  catGroup.scale.setScalar(1.2);
+  catGroup.userData.cat = true;
+
+  /* 吹灭蜡烛后的烟 */
+  var smoke = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, color: '#9b8f86', transparent: true, opacity: 0, depthWrite: false
+  }));
+  smoke.scale.set(0.3, 0.3, 1);
+  smoke.position.set(0, 1.14, 0);
+  candleGroup.add(smoke);
 
   /* ------------------------------------------------------------------ */
   /* lighting                                                             */
@@ -1171,7 +1534,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       onGlow: 0.4
     });
     addBulbPick(lamp, gateBulb);
-    addBulbPick(gl, gateBulb);
     gateLanterns.push({ group: lg, phase: rand(0, Math.PI * 2), mat: lm, glow: gl.material, bulb: gateBulb });
   });
 
@@ -1191,6 +1553,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var stalls = [];
   var stallsRoot = new THREE.Group();
   market.add(stallsRoot);
+  var stallPickables = [];
+  var pickMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
 
   var palette = [
     ['#a33f2c', '#e2c69a'],
@@ -1334,7 +1698,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       lightPower: 1.6
     });
     addBulbPick(lamp, stallBulb);
-    addBulbPick(lampGlow, stallBulb);
 
     addGoods(g, def.ch);
 
@@ -1398,15 +1761,104 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       steamMat: steamMat,
       steamData: steamData,
       def: def,
-      bulb: stallBulb
+      bulb: stallBulb,
+      poke: 0,
+      steamBoost: 0
     };
     stallBulb.stall = stall;
     g.userData.stall = stall;
+    var pickBox = box(g, 1.02, 1.55, 0.8, pickMat, 0, 0.82, 0.05);
+    pickBox.userData.stall = stall;
+    stallPickables.push(pickBox);
     stalls.push(stall);
     return stall;
   }
 
   stallDefs.forEach(function (def, i) { buildStall(i, def); });
+
+  /* 摇瓶三次后出现的喵月摊 */
+  var secretCart = new THREE.Group();
+  secretCart.position.set(0, 0.1, -0.3);
+  secretCart.visible = false;
+  secretCart.scale.setScalar(0.001);
+  market.add(secretCart);
+  var cartStripe = new THREE.MeshStandardMaterial({
+    map: stripeTexture('#7a3f52', '#e0cda6'), roughness: 0.94, side: THREE.DoubleSide
+  });
+  box(secretCart, 0.46, 0.16, 0.3, darkWoodMat, 0, 0.2, 0);
+  box(secretCart, 0.5, 0.035, 0.34, lightWoodMat, 0, 0.29, 0);
+  [-0.17, 0.17].forEach(function (wx) {
+    [-0.1, 0.1].forEach(function (wz) {
+      cylinder(secretCart, 0.055, 0.055, 0.035, 10, ironMat, wx, 0.08, wz, Math.PI / 2, 0, 0);
+    });
+  });
+  box(secretCart, 0.02, 0.62, 0.02, brassMat, -0.18, 0.6, -0.1);
+  box(secretCart, 0.02, 0.62, 0.02, brassMat, 0.18, 0.6, -0.1);
+  box(secretCart, 0.52, 0.035, 0.38, cartStripe, 0, 0.92, -0.02, -0.12, 0, 0);
+  var cartSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.28, 0.13),
+    new THREE.MeshBasicMaterial({ map: signTexture('月'), side: THREE.DoubleSide, toneMapped: false })
+  );
+  cartSign.position.set(0, 0.7, 0.02);
+  secretCart.add(cartSign);
+  var cartLampMat = new THREE.MeshStandardMaterial({
+    color: '#8a3d2c', emissive: '#ffb15e', emissiveIntensity: 1.3, roughness: 0.6
+  });
+  var cartLamp = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), cartLampMat);
+  cartLamp.scale.set(0.9, 1.2, 0.9);
+  cartLamp.position.set(0.19, 0.58, 0.12);
+  secretCart.add(cartLamp);
+  var cartGlow = glowSprite('#ffb15e', 0.4, 0.4);
+  cartGlow.position.copy(cartLamp.position);
+  secretCart.add(cartGlow);
+  for (var mc = 0; mc < 3; mc++) {
+    cylinder(secretCart, 0.055, 0.05, 0.035, 12,
+      new THREE.MeshStandardMaterial({ color: '#d9b06a', roughness: 0.8 }),
+      -0.12 + mc * 0.12, 0.33, 0.02);
+  }
+  secretCart.userData.secret = true;
+
+  /* 摊位气泡 */
+  var bubbleUnlitTex = bubbleTexture('还没开张');
+  var bubbleTexts = {
+    '面': '面好喽', '酒': '来一碗？', '茶': '茶刚沏好',
+    '糖': '转个糖画', '鱼': '鱼还跳呢', '灯': '挑一盏？'
+  };
+  var activeBubble = null;
+
+  function makeBubbleSprite(text, parent, x, y, z, sx, sy) {
+    var tex = bubbleTexture(text);
+    var mat = new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: 0, depthWrite: false, toneMapped: false
+    });
+    var sp = new THREE.Sprite(mat);
+    sp.scale.set(sx || 0.66, sy || 0.33, 1);
+    sp.position.set(x || 0, y || 0, z || 0);
+    sp.visible = false;
+    parent.add(sp);
+    return { sprite: sp, mat: mat, tex: tex, baseW: sx || 0.66, baseH: sy || 0.33, t: 0, showing: false };
+  }
+
+  function activateBubble(bubble, unlit) {
+    if (!bubble) return;
+    if (activeBubble && activeBubble !== bubble) {
+      activeBubble.showing = false;
+      activeBubble.sprite.visible = false;
+      activeBubble.mat.opacity = 0;
+    }
+    bubble.mat.map = unlit ? bubbleUnlitTex : bubble.tex;
+    bubble.mat.needsUpdate = true;
+    bubble.sprite.visible = true;
+    bubble.t = 0;
+    bubble.showing = true;
+    activeBubble = bubble;
+  }
+
+  stalls.forEach(function (s) {
+    s.bubble = makeBubbleSprite(bubbleTexts[s.def.ch] || '来坐坐', s.group, 0, 1.72, 0.18);
+  });
+  var cartBubble = makeBubbleSprite('只卖月亮', secretCart, 0, 1.35, 0.12, 0.62, 0.31);
+  var catBubble = makeBubbleSprite('喵', catGroup, 0.02, 0.9, 0.1, 0.5, 0.25);
 
   /* 小人 */
   var people = [];
@@ -1583,7 +2035,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var tagFadeTarget = 1;
   var corkAnim = -1;
   var celebration = 0;
-  var wasFull = false;
+  var wasAllLit = false;
+  var marketOpen = false;
+  var candleOn = true;
+  var candleAmt = 1;
+  var smokeT = -1;
+  var shakeT = 0;
+  var shakeCount = 0;
+  var cartRevealed = false;
+  var cartPop = 0;
+  var catPoke = 0;
+  var hintHoldUntil = 0;
+  var ambientOn = false;
+  var paperLastFocus = null;
   var flashLight = new THREE.PointLight('#ffd39a', 0, 7, 2);
   flashLight.position.set(0, 2.9, BOTTLE_Z);
   scene.add(flashLight);
@@ -1628,16 +2092,53 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return litBulbCount();
   }
 
+  function litStallCount() {
+    var n = 0;
+    for (var i = 0; i < stalls.length; i++) if (stalls[i].lit) n++;
+    return n;
+  }
+
+  function showBanner(text, ms) {
+    if (!bannerEl) return;
+    bannerEl.textContent = text;
+    bannerEl.classList.add('show');
+    clearTimeout(showBanner.timer);
+    showBanner.timer = setTimeout(function () { bannerEl.classList.remove('show'); }, ms || 2400);
+  }
+
+  function holdHint(text, ms) {
+    if (!hintIn) return;
+    hintIn.textContent = text;
+    hintHoldUntil = performance.now() + ms;
+    setTimeout(function () {
+      if (performance.now() >= hintHoldUntil) updateStatus();
+    }, ms + 40);
+  }
+
   function updateStatus() {
     if (!statusEl) return;
     if (mode !== 'inside') {
       statusEl.textContent = '';
       return;
     }
+    var st = litStallCount();
     var n = litCount();
-    statusEl.textContent = n === bulbs.length
-      ? '所有灯泡都亮了，瓶中放起了烟花。'
-      : '已点亮 ' + n + ' / ' + bulbs.length + ' 盏灯。轻点任意灯泡开关，也可以点下方按钮退出瓶中。';
+    if (hintIn && performance.now() >= hintHoldUntil) {
+      hintIn.textContent = '摊位 ' + st + '/6 · 灯 ' + n + '/' + bulbs.length;
+    }
+    statusEl.textContent = marketOpen
+      ? '夜市已经开市。' + n + ' / ' + bulbs.length + ' 盏灯亮着，点摊位可以听摊主说话。'
+      : '已点亮 ' + st + ' / 6 个摊位，' + n + ' / ' + bulbs.length + ' 盏灯。点亮六个摊位灯笼即可开市。';
+  }
+
+  function openMarket() {
+    marketOpen = true;
+    wasAllLit = litCount() === bulbs.length;
+    celebrate();
+    audio.thump();
+    showBanner('夜市开市', 2400);
+    holdHint('夜市开市 · 六个摊位都亮了', 3200);
+    updateStatus();
   }
 
   function applyFov() {
@@ -1677,6 +2178,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     applyFov();
     updateStatus();
+    holdHint('轻点灯泡开关 · 点摊位听摊主说话', 3800);
+    if (ambientOn) audio.setAmbient(true);
+    if (soundBtn && audio.failed()) soundBtn.hidden = true;
     if (exitBtn) exitBtn.hidden = false;
     canvas.setAttribute('aria-label', '玻璃瓶内的微缩夜市街道，轻点任意灯泡可以开灯或关灯，点下方按钮退出 3D 场景');
     view.idle = 0;
@@ -1703,6 +2207,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     applyFov();
     updateStatus();
+    if (ambientOn) audio.setAmbient(false);
     if (exitBtn) exitBtn.hidden = true;
     canvas.setAttribute('aria-label', '黄昏窗台上的一只玻璃瓶，瓶中是一条亮着灯笼的微缩夜市街道 3D 场景');
     view.idle = 0;
@@ -1720,33 +2225,51 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var downX = 0, downY = 0, downTime = 0, movedPx = 0;
 
   var pickVec = new THREE.Vector3();
+  var NOTES = [523.25, 587.33, 659.25, 783.99, 880];
 
-  function pickAt(clientX, clientY) {
+  function setRay(clientX, clientY) {
     var rect = canvas.getBoundingClientRect();
     ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);
+    return rect;
+  }
+
+  function pickAt(clientX, clientY) {
+    var rect = setRay(clientX, clientY);
     if (mode === 'outside') {
-      return { bottle: raycaster.intersectObject(glassMesh, false).length > 0, bulb: null };
+      if (cork.visible && raycaster.intersectObject(cork, true).length) return { cork: true };
+      if (raycaster.intersectObject(candleGroup, true).length) return { candle: true };
+      if (raycaster.intersectObject(paper, false).length || raycaster.intersectObject(paper2, false).length) return { paper: true };
+      if (raycaster.intersectObject(catGroup, true).length) return { cat: true };
+      return { bottle: raycaster.intersectObject(glassMesh, false).length > 0 };
     }
     var hits = raycaster.intersectObjects(bulbPickables, false);
-    if (!hits.length) return { bottle: false, bulb: null };
-    // 前后排灯泡可能落在同一条视线里：取屏幕位置离点击点最近的一颗
-    var best = null;
-    var bestDist = Infinity;
-    var checked = [];
-    for (var i = 0; i < hits.length; i++) {
-      var b = hits[i].object.userData.bulb;
-      if (!b || checked.indexOf(b) >= 0) continue;
-      checked.push(b);
-      b.pick.getWorldPosition(pickVec);
-      pickVec.project(camera);
-      var dx = (pickVec.x + 1) / 2 * rect.width + rect.left - clientX;
-      var dy = (1 - pickVec.y) / 2 * rect.height + rect.top - clientY;
-      var dist = dx * dx + dy * dy;
-      if (dist < bestDist) { bestDist = dist; best = b; }
+    if (hits.length) {
+      // 前后排灯泡可能落在同一条视线里：取屏幕位置离点击点最近的一颗
+      var best = null;
+      var bestDist = Infinity;
+      var checked = [];
+      for (var i = 0; i < hits.length; i++) {
+        var b = hits[i].object.userData.bulb;
+        if (!b || checked.indexOf(b) >= 0) continue;
+        checked.push(b);
+        b.pick.getWorldPosition(pickVec);
+        pickVec.project(camera);
+        var dx = (pickVec.x + 1) / 2 * rect.width + rect.left - clientX;
+        var dy = (1 - pickVec.y) / 2 * rect.height + rect.top - clientY;
+        var dist = dx * dx + dy * dy;
+        if (dist < bestDist) { bestDist = dist; best = b; }
+      }
+      if (best) {
+        // 只接受点击点附近的灯泡，避免误触远处/被遮挡的灯
+        if (bestDist <= 30 * 30) return { bulb: best };
+      }
     }
-    return { bottle: false, bulb: best };
+    if (cartRevealed && raycaster.intersectObject(secretCart, true).length) return { secret: true };
+    var sh = raycaster.intersectObjects(stallPickables, false);
+    if (sh.length) return { stall: sh[0].object.userData.stall };
+    return {};
   }
 
   // 触屏容错：没精确命中时，取点击点附近最近的一颗灯泡
@@ -1769,17 +2292,107 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return best;
   }
 
+  function toggleCandle() {
+    candleOn = !candleOn;
+    smokeT = candleOn ? -1 : 0;
+    if (candleOn) smoke.material.opacity = 0;
+    audio.chime(candleOn ? 783.99 : 392);
+  }
+
+  function shakeBottle() {
+    if (mode !== 'outside') return;
+    shakeCount++;
+    audio.rattle();
+    if (!reduceMotion) shakeT = 0.9;
+    if (shakeCount >= 3 && !cartRevealed) {
+      cartRevealed = true;
+      secretCart.visible = true;
+      cartPop = 0;
+      showBanner('瓶里多了一个小摊', 2600);
+      audio.chime(880);
+    }
+  }
+
+  function pokeStall(stall) {
+    if (!stall) return;
+    stall.poke = 1;
+    if (stall.lit) stall.steamBoost = 1.8;
+    activateBubble(stall.bubble, !stall.lit);
+    audio.chime(stall.lit ? NOTES[stall.index % NOTES.length] : 329.63);
+  }
+
+  function pokeCart() {
+    activateBubble(cartBubble, false);
+    audio.chime(698.46);
+  }
+
+  function pokeCat() {
+    catPoke = 1;
+    audio.meow();
+    activateBubble(catBubble, false);
+  }
+
+  function showPaper() {
+    if (!paperModal) return;
+    paperLastFocus = document.activeElement;
+    paperModal.hidden = false;
+    if (paperClose) paperClose.focus();
+  }
+
+  function hidePaper() {
+    if (!paperModal || paperModal.hidden) return;
+    paperModal.hidden = true;
+    if (paperLastFocus && paperLastFocus.focus) paperLastFocus.focus();
+  }
+
   function tapAt(clientX, clientY) {
     var hit = pickAt(clientX, clientY);
+    audio.ensure();
     if (mode === 'outside') {
-      if (hit.bottle) enterBottle();
+      if (hit.cork) shakeBottle();
+      else if (hit.candle) toggleCandle();
+      else if (hit.paper) showPaper();
+      else if (hit.cat) pokeCat();
+      else if (hit.bottle) enterBottle();
       return;
     }
-    var bulb = hit.bulb || nearestBulb(clientX, clientY, 26);
+    var bulb = hit.bulb;
+    if (!bulb && !hit.secret && !hit.stall) bulb = nearestBulb(clientX, clientY, 26);
     if (bulb) {
       setBulb(bulb, !bulb.lit);
+      audio.chime(NOTES[bulb.note]);
       updateStatus();
+      return;
     }
+    if (hit.secret) { pokeCart(); return; }
+    if (hit.stall) pokeStall(hit.stall);
+  }
+
+  function syncSoundBtn() {
+    if (!soundBtn) return;
+    soundBtn.setAttribute('aria-pressed', ambientOn ? 'true' : 'false');
+    soundBtn.setAttribute('aria-label', ambientOn ? '关闭夜市环境音' : '开启夜市环境音');
+    soundBtn.classList.toggle('off', !ambientOn);
+  }
+
+  if (soundBtn) {
+    soundBtn.addEventListener('click', function () {
+      ambientOn = !ambientOn;
+      var ok = audio.setAmbient(ambientOn && mode === 'inside');
+      if (ambientOn && !ok) {
+        ambientOn = false;
+        soundBtn.hidden = true;
+      }
+      syncSoundBtn();
+    });
+    syncSoundBtn();
+  }
+
+  if (paperClose) paperClose.addEventListener('click', hidePaper);
+  if (paperModal) {
+    paperModal.addEventListener('click', function (e) {
+      if (e.target === paperModal) hidePaper();
+    });
   }
 
   function markInteraction() { view.idle = 0; }
@@ -1834,7 +2447,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   canvas.addEventListener('pointermove', function (e) {
     if (view.dragging) return;
     var hit = pickAt(e.clientX, e.clientY);
-    canvas.style.cursor = (hit.bottle || hit.bulb) ? 'pointer' : 'grab';
+    var active = hit.bottle || hit.bulb || hit.cork || hit.candle || hit.paper || hit.cat || hit.secret || hit.stall;
+    canvas.style.cursor = active ? 'pointer' : 'grab';
   });
 
   function endPointer(e) {
@@ -1867,7 +2481,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') exitBottle();
+    if (e.key !== 'Escape') return;
+    if (paperModal && !paperModal.hidden) {
+      hidePaper();
+      return;
+    }
+    exitBottle();
   });
 
   if (exitBtn) exitBtn.addEventListener('click', function () { exitBottle(); });
@@ -1944,7 +2563,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function celebrate() {
     celebration = 1;
     if (!reduceMotion) {
-      corkAnim = 0;
+      if (mode === 'outside') corkAnim = 0;
       spawnFirework();
     }
     flashLight.intensity = reduceMotion ? 8 : 18;
@@ -1965,9 +2584,39 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     // 蜡烛
     var flicker = reduceMotion ? 1 : (0.86 + 0.1 * Math.sin(elapsed * 11.3) + 0.06 * Math.sin(elapsed * 23.1));
-    candleLight.intensity = 4.3 * flicker;
-    flame.scale.set(0.85 + flicker * 0.25, flicker, 0.85 + flicker * 0.25);
-    flameGlow.material.opacity = 0.32 + flicker * 0.28;
+    candleAmt += ((candleOn ? 1 : 0) - candleAmt) * (1 - Math.exp(-dt * 4.5));
+    candleLight.intensity = 4.3 * flicker * candleAmt;
+    flame.visible = candleAmt > 0.05;
+    flame.scale.set(
+      (0.85 + flicker * 0.25) * candleAmt,
+      Math.max(0.001, flicker * candleAmt),
+      (0.85 + flicker * 0.25) * candleAmt
+    );
+    flameGlow.material.opacity = (0.32 + flicker * 0.28) * candleAmt;
+    moonLight.intensity = 1.15 + (1 - candleAmt) * 0.35;
+    if (smokeT >= 0) {
+      smokeT += dt;
+      smoke.position.y = 1.14 + smokeT * 0.42;
+      smoke.scale.setScalar(0.28 + smokeT * 0.2);
+      smoke.material.opacity = Math.max(0, 0.24 * (1 - smokeT / 1.8));
+      if (smokeT > 1.8) { smokeT = -1; smoke.material.opacity = 0; }
+    }
+
+    // 摇瓶
+    var shakeAmp = 0;
+    if (shakeT > 0) {
+      shakeT = Math.max(0, shakeT - dt);
+      var sk = 1 - shakeT / 0.9;
+      shakeAmp = Math.sin(sk * Math.PI) * 0.04;
+      bottleGroup.rotation.z = Math.sin(elapsed * 36) * shakeAmp;
+      bottleGroup.position.x = Math.sin(elapsed * 29) * shakeAmp * 0.7;
+    } else if (bottleGroup.rotation.z !== 0 || bottleGroup.position.x !== 0) {
+      var relax = Math.max(0, 1 - dt * 9);
+      bottleGroup.rotation.z *= relax;
+      bottleGroup.position.x *= relax;
+      if (Math.abs(bottleGroup.rotation.z) < 0.0003) bottleGroup.rotation.z = 0;
+      if (Math.abs(bottleGroup.position.x) < 0.0003) bottleGroup.position.x = 0;
+    }
 
     // 玻璃
     glassFade += (glassFadeTarget - glassFade) * (1 - Math.exp(-dt * 3.2));
@@ -1985,9 +2634,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var a = b.amt;
       if (b.mat) {
         var flick = reduceMotion ? 0 : Math.sin(amb * 1.9 + b.phase) * 0.05;
-        b.mat.emissiveIntensity = b.offEmissive + a * (b.onEmissive - b.offEmissive) + flick * a + celebration * 0.42;
+        b.mat.emissiveIntensity = b.offEmissive + a * (b.onEmissive - b.offEmissive) + flick * a + celebration * 0.42 + shakeAmp * 5;
       }
-      if (b.glow) b.glow.opacity = b.offGlow + a * (b.onGlow - b.offGlow) + celebration * 0.12;
+      if (b.glow) b.glow.opacity = b.offGlow + a * (b.onGlow - b.offGlow) + celebration * 0.12 + shakeAmp * 1.5;
       if (b.light) b.light.intensity = a * b.lightPower * (1 + celebration * 0.6);
       if (b.stall) b.stall.amt = a;
     }
@@ -1995,14 +2644,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // 摊位的蒸汽与地面暖光
     for (var si = 0; si < stalls.length; si++) {
       var s = stalls[si];
+      if (s.poke > 0) {
+        s.poke = Math.max(0, s.poke - dt * 2.4);
+        s.lampMat.emissiveIntensity += s.poke * 0.9;
+        s.lampGlow.opacity += s.poke * 0.18;
+        s.group.rotation.z = Math.sin(amb * 22) * 0.012 * s.poke;
+      } else if (s.group.rotation.z !== 0) {
+        s.group.rotation.z = 0;
+      }
+      if (s.steamBoost > 0) s.steamBoost = Math.max(0, s.steamBoost - dt);
       s.puddleMat.opacity = s.amt * 0.22;
-      s.steamMat.opacity = s.amt * 0.3;
+      s.steamMat.opacity = s.amt * 0.3 + s.steamBoost * 0.14;
 
-      if (s.amt > 0.01 && !reduceMotion) {
+      if ((s.amt > 0.01 || s.steamBoost > 0) && !reduceMotion) {
         var arr = s.steamGeo.attributes.position.array;
         for (var j = 0; j < s.steamData.length; j++) {
           var d = s.steamData[j];
-          d.age += dt * d.speed;
+          d.age += dt * d.speed * (1 + s.steamBoost * 0.7);
           if (d.age > 1) d.age -= 1;
           var k = d.age;
           arr[j * 3] = d.x + Math.sin(k * 5 + d.phase) * 0.05 * k;
@@ -2014,11 +2672,50 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
 
     var ratio = lit / bulbs.length;
-    marketLight.intensity = 0.9 + ratio * 7.5 + celebration * 7;
+    marketLight.intensity = 0.9 + ratio * 7.5 + celebration * 7 + shakeAmp * 10;
     innerGlow.material.opacity = 0.07 + ratio * 0.12 + celebration * 0.13;
 
-    if (!isShot && lit === bulbs.length && !wasFull) celebrate();
-    wasFull = lit === bulbs.length;
+    var openStalls = 0;
+    for (var oi = 0; oi < stalls.length; oi++) if (stalls[oi].lit) openStalls++;
+    if (!isShot && openStalls === stalls.length && !marketOpen) openMarket();
+
+    if (!isShot && marketOpen && lit === bulbs.length && !wasAllLit) {
+      celebrate();
+      holdHint('整条街的灯都亮了', 2600);
+    }
+    wasAllLit = lit === bulbs.length;
+
+    // 喵月摊出现
+    if (secretCart.visible && cartPop < 1) {
+      cartPop = Math.min(1, cartPop + dt / 0.7);
+      secretCart.scale.setScalar(reduceMotion ? 1 : 0.001 + easeOut(cartPop) * 0.999);
+    }
+
+    // 窗台猫
+    catPoke = Math.max(0, catPoke - dt * 1.2);
+    var catHop = reduceMotion ? 0 : Math.sin((1 - catPoke) * Math.PI) * 0.05 * catPoke;
+    catGroup.position.y = 0.02 + catHop;
+    catTailPivot.rotation.z = reduceMotion ? 0 : Math.sin(amb * 2.1) * 0.28 + Math.sin(amb * 7.5) * 0.12 * catPoke;
+    catGroup.rotation.z = reduceMotion ? 0 : Math.sin(amb * 1.2) * 0.012;
+
+    // 摊主气泡
+    if (activeBubble) {
+      var bb = activeBubble;
+      if (bb.showing) {
+        bb.t += dt;
+        var popIn = reduceMotion ? 1 : Math.min(1, bb.t / 0.18);
+        var bsc = 0.9 + 0.1 * easeOut(popIn);
+        bb.sprite.scale.set(bb.baseW * bsc, bb.baseH * bsc, 1);
+        bb.mat.opacity = Math.min(1, bb.t / 0.12);
+        if (bb.t > 1.8) bb.mat.opacity = Math.max(0, 1 - (bb.t - 1.8) / 0.35);
+        if (bb.t > 2.2) {
+          bb.showing = false;
+          bb.sprite.visible = false;
+          bb.mat.opacity = 0;
+          activeBubble = null;
+        }
+      }
+    }
 
     if (celebration > 0) {
       celebration = Math.max(0, celebration - dt * 0.45);
