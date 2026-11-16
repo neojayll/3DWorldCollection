@@ -165,7 +165,7 @@
     -webkit-backdrop-filter: blur(9px);
     backdrop-filter: blur(9px);
     pointer-events: none;
-    animation: rise 1.5s .8s var(--ease) both;
+    animation: hintRise 1.5s .8s var(--ease) both;
   }
   .hint i {
     width: 4px;
@@ -312,6 +312,10 @@
   @keyframes rise {
     from { opacity: 0; transform: translateY(14px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes hintRise {
+    from { opacity: 0; transform: translate(-50%, 14px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
   }
   @keyframes breathe {
     0%, 100% { opacity: 0.72; }
@@ -1658,6 +1662,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     glassFadeTarget = 0.12;
     tagFadeTarget = 0.08;
     tagGroup.visible = false;
+    cork.visible = false;
     view.tTheta = 0.30;
     view.tPhi = 1.38;
     view.tRadius = camera.aspect < 0.85 ? 6.0 : 5.2;
@@ -1684,6 +1689,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     glassFadeTarget = 1;
     tagFadeTarget = 1;
     tagGroup.visible = true;
+    cork.visible = true;
     view.tPhi = 1.22;
     view.tRadius = outsideRadius();
     view.tTargetY = 2.95;
@@ -1713,6 +1719,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var multiTouch = false;
   var downX = 0, downY = 0, downTime = 0, movedPx = 0;
 
+  var pickVec = new THREE.Vector3();
+
   function pickAt(clientX, clientY) {
     var rect = canvas.getBoundingClientRect();
     ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
@@ -1731,23 +1739,45 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var b = hits[i].object.userData.bulb;
       if (!b || checked.indexOf(b) >= 0) continue;
       checked.push(b);
-      var p = new THREE.Vector3();
-      b.pick.getWorldPosition(p);
-      p.project(camera);
-      var dx = (p.x + 1) / 2 * rect.width + rect.left - clientX;
-      var dy = (1 - p.y) / 2 * rect.height + rect.top - clientY;
+      b.pick.getWorldPosition(pickVec);
+      pickVec.project(camera);
+      var dx = (pickVec.x + 1) / 2 * rect.width + rect.left - clientX;
+      var dy = (1 - pickVec.y) / 2 * rect.height + rect.top - clientY;
       var dist = dx * dx + dy * dy;
       if (dist < bestDist) { bestDist = dist; best = b; }
     }
     return { bottle: false, bulb: best };
   }
 
+  // 触屏容错：没精确命中时，取点击点附近最近的一颗灯泡
+  function nearestBulb(clientX, clientY, maxPx) {
+    var rect = canvas.getBoundingClientRect();
+    var best = null;
+    var bestDist = maxPx * maxPx;
+    for (var i = 0; i < bulbs.length; i++) {
+      var b = bulbs[i];
+      b.pick.getWorldPosition(pickVec);
+      pickVec.project(camera);
+      if (pickVec.z < -1 || pickVec.z > 1) continue;
+      var sx = (pickVec.x + 1) / 2 * rect.width + rect.left;
+      var sy = (1 - pickVec.y) / 2 * rect.height + rect.top;
+      var dx = sx - clientX;
+      var dy = sy - clientY;
+      var dist = dx * dx + dy * dy;
+      if (dist < bestDist) { bestDist = dist; best = b; }
+    }
+    return best;
+  }
+
   function tapAt(clientX, clientY) {
     var hit = pickAt(clientX, clientY);
     if (mode === 'outside') {
       if (hit.bottle) enterBottle();
-    } else if (hit.bulb) {
-      setBulb(hit.bulb, !hit.bulb.lit);
+      return;
+    }
+    var bulb = hit.bulb || nearestBulb(clientX, clientY, 26);
+    if (bulb) {
+      setBulb(bulb, !bulb.lit);
       updateStatus();
     }
   }
@@ -1814,7 +1844,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       view.dragging = false;
       canvas.style.cursor = 'grab';
       if (had) {
-        var quick = !multiTouch && movedPx < 8 && performance.now() - downTime < 650;
+        var quick = !multiTouch && movedPx < 10 && performance.now() - downTime < 650;
         if (quick) tapAt(e.clientX, e.clientY);
       }
       multiTouch = false;
