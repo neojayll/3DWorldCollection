@@ -206,6 +206,39 @@
   .exit-inside:hover { color: #fff6ec; border-color: rgba(255, 190, 150, 0.55); background: rgba(54, 30, 44, 0.62); }
   .exit-inside:focus-visible { outline: 2px solid rgba(255, 179, 122, 0.8); outline-offset: 3px; }
 
+  .views {
+    position: fixed;
+    left: 50%;
+    bottom: calc(122px + env(safe-area-inset-bottom, 0px));
+    z-index: 8;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid rgba(255, 190, 150, 0.16);
+    border-radius: 999px;
+    background: rgba(20, 12, 24, 0.46);
+    -webkit-backdrop-filter: blur(9px);
+    backdrop-filter: blur(9px);
+  }
+  body.inside .views { display: flex; }
+  .view-chip {
+    padding: 5px 11px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: rgba(255, 233, 213, 0.62);
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+    transition: color .2s ease, background .2s ease;
+  }
+  .view-chip:hover { color: #fff6ec; }
+  .view-chip.active { color: #ffe6c2; background: rgba(255, 179, 122, 0.18); }
+  .view-chip:focus-visible { outline: 2px solid rgba(255, 179, 122, 0.75); outline-offset: 1px; }
+
   .sound {
     position: fixed;
     top: calc(clamp(20px, 4.5vw, 46px) + 44px + env(safe-area-inset-top, 0px));
@@ -401,7 +434,7 @@
     border: 0;
   }
 
-  .shot .hud, .shot .hint, .shot .exit-inside, .shot .sound, .shot .open-banner, .shot .paper-modal, .shot .back, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
+  .shot .hud, .shot .hint, .shot .exit-inside, .shot .views, .shot .sound, .shot .open-banner, .shot .paper-modal, .shot .back, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
   .shot #scene { opacity: 1 !important; transition: none !important; }
 
   body.inside .vignette {
@@ -430,6 +463,8 @@
     .hint { font-size: 10px; letter-spacing: 0.08em; padding: 8px 14px; gap: 7px; }
     .hint .desk-only { display: none; }
     .sound { top: calc(54px + env(safe-area-inset-top, 0px)); font-size: 9px; padding: 6px 11px; }
+    .views { bottom: calc(120px + env(safe-area-inset-bottom, 0px)); gap: 2px; padding: 3px; }
+    .view-chip { font-size: 9px; padding: 5px 9px; letter-spacing: 0.08em; }
     .open-banner { font-size: 18px; letter-spacing: 0.22em; }
     .paper-card { padding: 24px 22px 20px; }
     .paper-card h2 { font-size: 20px; }
@@ -474,6 +509,12 @@
     <span class="hint-in" id="hintIn">轻点任意灯泡开关 · 拖拽环视</span>
   </div>
   <button class="exit-inside" id="exitBtn" type="button" hidden>← 退出瓶中</button>
+  <div class="views" role="group" aria-label="切换视角">
+    <button class="view-chip active" type="button" data-view="0" aria-pressed="true">全景</button>
+    <button class="view-chip" type="button" data-view="1" aria-pressed="false">门楼</button>
+    <button class="view-chip" type="button" data-view="2" aria-pressed="false">街心</button>
+    <button class="view-chip" type="button" data-view="3" aria-pressed="false">俯瞰</button>
+  </div>
   <div class="open-banner" id="openBanner" role="status"></div>
   <p id="status" class="sr-only" aria-live="polite"></p>
 
@@ -532,6 +573,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var bannerEl = document.getElementById('openBanner');
   var paperModal = document.getElementById('paperModal');
   var paperClose = document.getElementById('paperClose');
+  var viewTabs = document.querySelectorAll('.view-chip');
   var params = new URLSearchParams(location.search);
   var isShot = params.get('shot') === '1';
   if (isShot) document.body.classList.add('shot');
@@ -926,6 +968,79 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
   }
 
+  function bannerTexture(text, bg, fg) {
+    return makeTexture(128, 256, function (ctx, w, h) {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(242,202,150,0.48)';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(7, 7, w - 14, h - 14);
+      ctx.fillStyle = fg;
+      ctx.font = '600 54px Georgia, "Songti SC", "STSong", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (var i = 0; i < text.length; i++) ctx.fillText(text.charAt(i), w / 2, 58 + i * 68);
+      ctx.strokeStyle = 'rgba(242,202,150,0.42)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(w / 2, h - 20);
+      ctx.lineTo(w / 2, h - 2);
+      ctx.stroke();
+    });
+  }
+
+  function menuTexture(text) {
+    return makeTexture(128, 96, function (ctx, w, h) {
+      ctx.fillStyle = '#3b241c';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(215,164,94,0.62)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(5, 5, w - 10, h - 10);
+      ctx.fillStyle = '#ffd79a';
+      ctx.font = '600 36px Georgia, "Songti SC", "STSong", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, w / 2, h / 2 + 1);
+    });
+  }
+
+  function posterTexture(title, sub) {
+    return makeTexture(256, 192, function (ctx, w, h) {
+      ctx.fillStyle = '#c9b28a';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#8f2f28';
+      ctx.fillRect(8, 8, w - 16, 62);
+      ctx.fillStyle = '#ffe1b0';
+      ctx.font = '600 34px Georgia, "Songti SC", "STSong", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(title, w / 2, 41);
+      ctx.fillStyle = '#4a3226';
+      ctx.font = '500 18px Georgia, "Songti SC", "STSong", serif';
+      ctx.fillText(sub, w / 2, 96);
+      ctx.fillStyle = 'rgba(74,50,38,0.4)';
+      for (var i = 0; i < 5; i++) ctx.fillRect(30, 118 + i * 12, 196 - i * 18, 2);
+      ctx.strokeStyle = 'rgba(90,62,44,0.35)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(12, 12, w - 24, h - 24);
+    });
+  }
+
+  function coupletTexture(text) {
+    return makeTexture(64, 256, function (ctx, w, h) {
+      ctx.fillStyle = '#9e2c24';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(255,208,140,0.6)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(4, 4, w - 8, h - 8);
+      ctx.fillStyle = '#ffd79a';
+      ctx.font = '600 34px Georgia, "Songti SC", "STSong", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (var i = 0; i < text.length; i++) ctx.fillText(text.charAt(i), w / 2, 44 + i * 50);
+    });
+  }
+
   var corkTex = makeTexture(128, 128, function (ctx, w, h) {
     ctx.fillStyle = '#b98954';
     ctx.fillRect(0, 0, w, h);
@@ -950,6 +1065,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var brassMat = new THREE.MeshStandardMaterial({ color: '#b8863e', roughness: 0.34, metalness: 0.82 });
   var ironMat = new THREE.MeshStandardMaterial({ color: '#2a252a', roughness: 0.72, metalness: 0.3 });
   var redWoodMat = new THREE.MeshStandardMaterial({ color: '#6e2a26', roughness: 0.86 });
+  var bambooMat = new THREE.MeshStandardMaterial({ color: '#c8a566', roughness: 0.82 });
+  var clayMat = new THREE.MeshStandardMaterial({ color: '#8a4f37', roughness: 0.9 });
+  var waterMat = new THREE.MeshStandardMaterial({
+    color: '#4a7c7a', roughness: 0.18, metalness: 0.25, transparent: true, opacity: 0.78
+  });
+  var redSilkMat = new THREE.MeshStandardMaterial({ color: '#a12f2b', roughness: 0.7, side: THREE.DoubleSide });
+  var paperWarmMat = new THREE.MeshStandardMaterial({ color: '#e8cfa3', roughness: 0.9, side: THREE.DoubleSide });
+  var stoneMat = new THREE.MeshStandardMaterial({ color: '#4a4548', roughness: 0.95 });
 
   function glowSprite(color, size, opacity) {
     var mat = new THREE.SpriteMaterial({
@@ -1168,6 +1291,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return m;
   }
 
+  function sphere(parent, r, seg, mat, x, y, z) {
+    var m = new THREE.Mesh(new THREE.SphereGeometry(r, seg || 12, Math.max(6, (seg || 12) - 2)), mat);
+    m.position.set(x || 0, y || 0, z || 0);
+    parent.add(m);
+    return m;
+  }
+
+  function plane(parent, w, h, mat, x, y, z, rx, ry, rz) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    m.position.set(x || 0, y || 0, z || 0);
+    if (rx) m.rotation.x = rx;
+    if (ry) m.rotation.y = ry;
+    if (rz) m.rotation.z = rz;
+    parent.add(m);
+    return m;
+  }
+
   /* ------------------------------------------------------------------ */
   /* room: window, wall, sill and props                                  */
   /* ------------------------------------------------------------------ */
@@ -1185,6 +1325,50 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   );
   windowMesh.position.set(0, 5.6, -6.02);
   scene.add(windowMesh);
+
+  /* 窗外楼顶细节 */
+  var rooftopMat = new THREE.MeshStandardMaterial({ color: '#1c1420', roughness: 1 });
+  var rooftopGroup = new THREE.Group();
+  rooftopGroup.position.set(0, 0, -5.98);
+  scene.add(rooftopGroup);
+  var tank = new THREE.Group();
+  tank.position.set(-8.2, 8.7, 0);
+  rooftopGroup.add(tank);
+  cylinder(tank, 0.45, 0.5, 1.0, 12, rooftopMat, 0, 0.5, 0);
+  cylinder(tank, 0.48, 0.48, 0.08, 12, rooftopMat, 0, 1.02, 0);
+  [-0.3, 0.3].forEach(function (tx) {
+    [-0.3, 0.3].forEach(function (tz) {
+      box(tank, 0.06, 1.0, 0.06, rooftopMat, tx, -0.5, tz);
+    });
+  });
+  var antenna = new THREE.Group();
+  antenna.position.set(-4.6, 10.2, 0);
+  rooftopGroup.add(antenna);
+  cylinder(antenna, 0.03, 0.03, 2.4, 6, rooftopMat, 0, 0, 0);
+  box(antenna, 0.5, 0.03, 0.03, rooftopMat, 0, 0.6, 0);
+  box(antenna, 0.36, 0.03, 0.03, rooftopMat, 0, 1.0, 0);
+  sphere(antenna, 0.035, 6,
+    new THREE.MeshBasicMaterial({ color: '#ff5a4a', toneMapped: false }), 0, 1.22, 0);
+  var clothLineMat = new THREE.LineBasicMaterial({ color: '#241a20', transparent: true, opacity: 0.9 });
+  rooftopGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(4.8, 8.7, 0), new THREE.Vector3(8.6, 8.5, 0)
+  ]), clothLineMat));
+  var clothCols = ['#6b4a4a', '#4a5a66', '#7a6a4a', '#5a4a6b'];
+  for (var rc = 0; rc < 4; rc++) {
+    var cloth = plane(rooftopGroup, 0.42, 0.55,
+      new THREE.MeshBasicMaterial({ color: clothCols[rc], side: THREE.DoubleSide }),
+      5.3 + rc * 0.85, 8.45, 0.02);
+    cloth.rotation.z = rand(-0.05, 0.05);
+  }
+  var neon = new THREE.Group();
+  neon.position.set(10.3, 8.8, 0.02);
+  rooftopGroup.add(neon);
+  box(neon, 1.2, 0.5, 0.04, new THREE.MeshBasicMaterial({ color: '#241720' }), 0, 0, 0);
+  box(neon, 0.85, 0.06, 0.05, new THREE.MeshBasicMaterial({ color: '#ff6f5a', toneMapped: false }), 0, 0.1, 0.03);
+  box(neon, 0.55, 0.06, 0.05, new THREE.MeshBasicMaterial({ color: '#ffd27a', toneMapped: false }), -0.1, -0.1, 0.03);
+  [-1.5, 2.2, 9.0].forEach(function (rx) {
+    box(rooftopGroup, rand(0.7, 1.2), rand(0.4, 0.7), 0.6, rooftopMat, rx, 8.6 + rand(-0.2, 0.2), 0);
+  });
 
   // 窗框
   box(scene, 29.2, 0.5, 0.42, frameMat, 0, 12.7, -5.86);
@@ -1297,14 +1481,41 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   catEarR.position.x = 0.12;
   catGroup.add(catEarR);
   var catEyeMat = new THREE.MeshBasicMaterial({ color: '#f0c879', toneMapped: false });
+  var catEyes = [];
   [-0.03, 0.09].forEach(function (ex) {
     var eye = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), catEyeMat);
     eye.position.set(ex, 0.45, 0.215);
     catGroup.add(eye);
+    catEyes.push(eye);
   });
   var catNose = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), catDark);
   catNose.position.set(0.03, 0.41, 0.225);
   catGroup.add(catNose);
+  var catInnerEarMat = new THREE.MeshStandardMaterial({ color: '#a8736a', roughness: 0.85 });
+  var catInnerL = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.06, 4), catInnerEarMat);
+  catInnerL.position.set(-0.06, 0.55, 0.107);
+  catGroup.add(catInnerL);
+  var catInnerR = catInnerL.clone();
+  catInnerR.position.x = 0.12;
+  catGroup.add(catInnerR);
+  var catCollar = new THREE.Mesh(
+    new THREE.TorusGeometry(0.085, 0.012, 6, 16),
+    new THREE.MeshStandardMaterial({ color: '#8f3a32', roughness: 0.7 })
+  );
+  catCollar.rotation.x = Math.PI / 2;
+  catCollar.position.set(0.02, 0.345, 0.08);
+  catGroup.add(catCollar);
+  var catBell = sphere(catGroup, 0.022, 8, brassMat, 0.02, 0.305, 0.162);
+  var whiskerGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0.03, 0.415, 0.225), new THREE.Vector3(-0.1, 0.43, 0.26),
+    new THREE.Vector3(0.03, 0.405, 0.225), new THREE.Vector3(-0.09, 0.395, 0.26),
+    new THREE.Vector3(0.05, 0.415, 0.225), new THREE.Vector3(0.18, 0.43, 0.26),
+    new THREE.Vector3(0.05, 0.405, 0.225), new THREE.Vector3(0.17, 0.395, 0.26)
+  ]);
+  catGroup.add(new THREE.LineSegments(whiskerGeo,
+    new THREE.LineBasicMaterial({ color: '#d9c8b0', transparent: true, opacity: 0.45 })));
+  sphere(catGroup, 0.036, 8, catMat, -0.08, 0.045, 0.15);
+  sphere(catGroup, 0.036, 8, catMat, 0.12, 0.045, 0.15);
   var catTailPivot = new THREE.Group();
   catTailPivot.position.set(-0.22, 0.2, -0.05);
   catGroup.add(catTailPivot);
@@ -1322,6 +1533,31 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   catGroup.add(catShadow);
   catGroup.scale.setScalar(1.2);
   catGroup.userData.cat = true;
+
+  /* 窗台小物 */
+  cylinder(scene, 0.09, 0.09, 0.012, 16, brassMat, -4.95, 0.02, -1.95);
+  cylinder(scene, 0.07, 0.07, 0.014, 16,
+    new THREE.MeshStandardMaterial({ color: '#c9a34e', roughness: 0.4, metalness: 0.7 }),
+    -4.93, 0.028, -1.93);
+  var key = new THREE.Group();
+  key.position.set(-4.2, 0.03, -1.85);
+  key.rotation.y = 0.7;
+  scene.add(key);
+  var keyRing = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 6, 14), brassMat);
+  keyRing.rotation.x = Math.PI / 2;
+  key.add(keyRing);
+  box(key, 0.12, 0.015, 0.015, brassMat, 0.07, 0, 0);
+  box(key, 0.03, 0.015, 0.05, brassMat, 0.12, 0, 0.02);
+  sphere(scene, 0.06, 12,
+    new THREE.MeshStandardMaterial({ color: '#7fb6c9', roughness: 0.12, metalness: 0.35 }),
+    -3.55, 0.06, -2.15);
+  box(scene, 0.18, 0.006, 0.22,
+    new THREE.MeshStandardMaterial({ color: '#d9c7a6', roughness: 0.9 }),
+    -4.65, 0.02, -2.95, 0, 0.25, 0);
+  box(scene, 0.14, 0.007, 0.18,
+    new THREE.MeshStandardMaterial({ color: '#8f3a32', roughness: 0.85 }),
+    -4.65, 0.025, -2.95, 0, 0.25, 0);
+  cylinder(scene, 0.006, 0.006, 0.2, 5, catDark, -2.9, 0.015, -1.75, 0, 0, 1.2);
 
   /* 吹灭蜡烛后的烟 */
   var smoke = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -1549,12 +1785,61 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     box(gate, 0.28, 0.04, 0.04, brassMat, side * 0.97, 2.01, 0.03);
   });
 
+  /* 牌坊细节 */
+  for (var gt = 0; gt < 9; gt++) {
+    box(gate, 0.18, 0.035, 0.34, ironMat, -0.88 + gt * 0.22, 2.66, 0.06, -0.08, 0, 0);
+  }
+  [-0.82, 0.82].forEach(function (gx) {
+    box(gate, 0.1, 0.1, 0.12, redWoodMat, gx, 2.34, 0.06);
+    box(gate, 0.16, 0.06, 0.14, redWoodMat, gx, 2.28, 0.06);
+  });
+  plane(gate, 0.15, 0.86, new THREE.MeshBasicMaterial({
+    map: coupletTexture('烟火人间'), side: THREE.DoubleSide, toneMapped: false
+  }), -0.82, 1.55, 0.086);
+  plane(gate, 0.15, 0.86, new THREE.MeshBasicMaterial({
+    map: coupletTexture('瓶中日月'), side: THREE.DoubleSide, toneMapped: false
+  }), 0.82, 1.55, 0.086);
+  box(gate, 1.5, 0.09, 0.04, redSilkMat, 0, 2.31, 0.15, 0, 0, -0.015);
+  cylinder(gate, 0.018, 0.03, 0.26, 6, redSilkMat, -0.72, 2.17, 0.15);
+  cylinder(gate, 0.018, 0.03, 0.26, 6, redSilkMat, 0.72, 2.17, 0.15);
+  var gateChime = new THREE.Group();
+  gateChime.position.set(0, 2.28, 0.2);
+  gate.add(gateChime);
+  box(gateChime, 0.5, 0.025, 0.025, brassMat, 0, 0, 0);
+  for (var gc = 0; gc < 3; gc++) {
+    var cx = -0.18 + gc * 0.18;
+    var drop = 0.22 + gc * 0.04;
+    gateChime.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(cx, 0, 0), new THREE.Vector3(cx, -drop, 0)
+    ]), new THREE.LineBasicMaterial({ color: '#b9a17c', transparent: true, opacity: 0.7 })));
+    cylinder(gateChime, 0.028, 0.034, 0.09, 8, brassMat, cx, -drop - 0.04, 0);
+  }
+  [-0.46, 0.46].forEach(function (sx) {
+    var lion = new THREE.Group();
+    lion.position.set(sx, 0.12, 0.44);
+    gate.add(lion);
+    box(lion, 0.24, 0.18, 0.28, stoneMat, 0, 0.09, 0);
+    sphere(lion, 0.12, 10, stoneMat, 0, 0.25, 0.01);
+    sphere(lion, 0.08, 10, stoneMat, 0, 0.37, 0.05);
+    sphere(lion, 0.03, 8, stoneMat, -0.055, 0.42, 0.04);
+    sphere(lion, 0.03, 8, stoneMat, 0.055, 0.42, 0.04);
+    sphere(lion, 0.012, 6, new THREE.MeshBasicMaterial({ color: '#e8b96a' }), -0.03, 0.38, 0.12);
+    sphere(lion, 0.012, 6, new THREE.MeshBasicMaterial({ color: '#e8b96a' }), 0.03, 0.38, 0.12);
+  });
+  plane(market, 0.34, 0.28, new THREE.MeshBasicMaterial({
+    map: posterTexture('夜市', '今夜开市'), side: THREE.DoubleSide, toneMapped: false
+  }), -0.42, 1.55, -1.325);
+  plane(market, 0.3, 0.24, new THREE.MeshBasicMaterial({
+    map: posterTexture('灯会', '猜谜换灯'), side: THREE.DoubleSide, toneMapped: false
+  }), 0.44, 1.22, -1.325);
+
   /* 摊位 */
   var stalls = [];
   var stallsRoot = new THREE.Group();
   market.add(stallsRoot);
   var stallPickables = [];
   var pickMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  var swayBanners = [];
 
   var palette = [
     ['#a33f2c', '#e2c69a'],
@@ -1639,6 +1924,106 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
   }
 
+  function addStallExtras(g, ch) {
+    if (ch === '面') {
+      cylinder(g, 0.13, 0.13, 0.07, 14, bambooMat, 0.26, 0.56, -0.04);
+      cylinder(g, 0.13, 0.13, 0.07, 14, bambooMat, 0.26, 0.64, -0.04);
+      cylinder(g, 0.135, 0.135, 0.012, 14, bambooMat, 0.26, 0.69, -0.04);
+      sphere(g, 0.025, 8, bambooMat, 0.26, 0.71, -0.04);
+      for (var bw = 0; bw < 3; bw++) {
+        cylinder(g, 0.055, 0.045, 0.025, 10, paperWarmMat, -0.08 + bw * 0.01, 0.54 + bw * 0.02, 0.14);
+      }
+      box(g, 0.14, 0.012, 0.05, ironMat, -0.26, 0.535, 0.16, 0, 0.3, 0);
+      cylinder(g, 0.006, 0.006, 0.2, 5, brassMat, 0.44, 0.92, 0.4, 0.2, 0, 0.15);
+      sphere(g, 0.035, 8, brassMat, 0.41, 0.82, 0.42).scale.set(1, 0.55, 1);
+    } else if (ch === '酒') {
+      [-0.52, -0.36].forEach(function (jx, ji) {
+        sphere(g, 0.11, 12, clayMat, jx, 0.2 + ji * 0.01, 0.36 + ji * 0.12).scale.set(1, 1.1, 1);
+        cylinder(g, 0.045, 0.05, 0.05, 10, clayMat, jx, 0.33 + ji * 0.01, 0.36 + ji * 0.12);
+        cylinder(g, 0.06, 0.06, 0.014, 10, redSilkMat, jx, 0.36 + ji * 0.01, 0.36 + ji * 0.12);
+      });
+      cylinder(g, 0.032, 0.026, 0.035, 10, paperWarmMat, 0.12, 0.56, 0.12);
+      cylinder(g, 0.026, 0.022, 0.03, 10, paperWarmMat, 0.2, 0.56, 0.1);
+    } else if (ch === '茶') {
+      var kettle = sphere(g, 0.09, 14, brassMat, 0.16, 0.64, 0.04);
+      kettle.scale.set(1, 0.78, 1);
+      cylinder(g, 0.045, 0.05, 0.018, 10, brassMat, 0.16, 0.71, 0.04);
+      sphere(g, 0.018, 8, brassMat, 0.16, 0.73, 0.04);
+      cylinder(g, 0.012, 0.02, 0.12, 8, brassMat, 0.25, 0.66, 0.04, 0, 0, -0.95);
+      var handle = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.008, 6, 12), brassMat);
+      handle.position.set(0.07, 0.68, 0.04);
+      handle.rotation.y = Math.PI / 2;
+      g.add(handle);
+      box(g, 0.3, 0.015, 0.2, darkWoodMat, -0.12, 0.53, 0.14);
+      cylinder(g, 0.03, 0.026, 0.035, 10, paperWarmMat, -0.2, 0.56, 0.14);
+      cylinder(g, 0.03, 0.026, 0.035, 10, paperWarmMat, -0.1, 0.56, 0.18);
+      cylinder(g, 0.03, 0.026, 0.035, 10, paperWarmMat, 0.0, 0.56, 0.12);
+    } else if (ch === '糖') {
+      box(g, 0.03, 0.42, 0.03, darkWoodMat, 0.34, 0.74, 0.02);
+      plane(g, 0.3, 0.34, new THREE.MeshBasicMaterial({
+        map: menuTexture('糖画'), side: THREE.DoubleSide, toneMapped: false
+      }), 0.34, 0.94, 0.04, 0, -0.12, 0);
+      cylinder(g, 0.09, 0.09, 0.018, 16, brassMat, -0.12, 0.545, 0.12);
+      box(g, 0.12, 0.006, 0.02, new THREE.MeshBasicMaterial({ color: '#e8d5b4' }), -0.12, 0.558, 0.12, 0, 0.6, 0);
+      cylinder(g, 0.045, 0.04, 0.08, 10, clayMat, -0.3, 0.58, 0.08);
+      for (var sc = 0; sc < 3; sc++) {
+        cylinder(g, 0.005, 0.005, 0.16, 5, paperWarmMat, -0.32 + sc * 0.02, 0.68, 0.08 + sc * 0.015, 0, 0, sc * 0.1);
+        sphere(g, 0.025, 8, new THREE.MeshStandardMaterial({
+          color: ['#e8879b', '#f0c768', '#77b9ac'][sc], roughness: 0.4
+        }), -0.32 + sc * 0.02, 0.77, 0.08 + sc * 0.015);
+      }
+    } else if (ch === '鱼') {
+      cylinder(g, 0.2, 0.2, 0.1, 18, clayMat, -0.16, 0.56, 0.06);
+      cylinder(g, 0.18, 0.18, 0.012, 18, waterMat, -0.16, 0.615, 0.06);
+      box(g, 0.08, 0.05, 0.08, new THREE.MeshStandardMaterial({
+        color: '#bcd8d6', roughness: 0.2, transparent: true, opacity: 0.8
+      }), 0.14, 0.55, 0.12, 0.2, 0.4, 0);
+      box(g, 0.06, 0.04, 0.07, new THREE.MeshStandardMaterial({
+        color: '#cfe6e2', roughness: 0.25, transparent: true, opacity: 0.75
+      }), 0.22, 0.54, 0.08, 0, 0.8, 0);
+      var net = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.006, 5, 12), bambooMat);
+      net.position.set(0.34, 0.72, 0.14);
+      net.rotation.y = 0.4;
+      g.add(net);
+      cylinder(g, 0.01, 0.01, 0.24, 6, bambooMat, 0.38, 0.6, 0.14, 0, 0, 0.5);
+    } else {
+      var rabbit = new THREE.Group();
+      rabbit.position.set(0.24, 1.08, 0.44);
+      g.add(rabbit);
+      sphere(rabbit, 0.06, 10, new THREE.MeshStandardMaterial({
+        color: '#f0dfc0', emissive: '#ffb15e', emissiveIntensity: 0.5, roughness: 0.7
+      }), 0, 0, 0).scale.set(1, 1.15, 0.9);
+      var earMat = new THREE.MeshStandardMaterial({
+        color: '#f0dfc0', emissive: '#ffb15e', emissiveIntensity: 0.35, roughness: 0.7
+      });
+      cylinder(rabbit, 0.012, 0.02, 0.09, 6, earMat, -0.03, 0.1, 0, 0, 0, 0.12);
+      cylinder(rabbit, 0.012, 0.02, 0.09, 6, earMat, 0.03, 0.1, 0, 0, 0, -0.12);
+      rabbit.add(glowSprite('#ffd9a0', 0.32, 0.4));
+      var lotus = new THREE.Group();
+      lotus.position.set(0.0, 1.0, 0.5);
+      g.add(lotus);
+      sphere(lotus, 0.045, 8, new THREE.MeshStandardMaterial({
+        color: '#f2b9ad', emissive: '#ff9a6a', emissiveIntensity: 0.4, roughness: 0.7
+      }), 0, 0, 0);
+      for (var lp = 0; lp < 6; lp++) {
+        var petal = plane(lotus, 0.09, 0.045, new THREE.MeshStandardMaterial({
+          color: '#f4c9c0', roughness: 0.7, side: THREE.DoubleSide
+        }), Math.sin(lp / 6 * Math.PI * 2) * 0.06, 0, Math.cos(lp / 6 * Math.PI * 2) * 0.06);
+        petal.rotation.y = lp / 6 * Math.PI * 2;
+        petal.rotation.x = 0.5;
+      }
+      lotus.add(glowSprite('#ffc0a0', 0.28, 0.32));
+      cylinder(g, 0.045, 0.045, 0.1, 10, new THREE.MeshStandardMaterial({
+        color: '#c94a38', emissive: '#ff6a3d', emissiveIntensity: 0.8, roughness: 0.6
+      }), -0.26, 1.0, 0.48);
+      var redGlow = glowSprite('#ffb15e', 0.26, 0.3);
+      redGlow.position.set(-0.26, 1.0, 0.48);
+      g.add(redGlow);
+      cylinder(g, 0.03, 0.03, 0.12, 8, paperWarmMat, -0.2, 0.58, 0.06);
+      sphere(g, 0.02, 6, new THREE.MeshBasicMaterial({ color: '#ffd28a', toneMapped: false }), -0.2, 0.66, 0.06);
+    }
+  }
+
   function buildStall(index, def) {
     var g = new THREE.Group();
     g.position.set(def.side * 0.92, 0, def.z);
@@ -1667,6 +2052,24 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     sign.position.set(0, 1.12, 0.34);
     sign.rotation.x = -0.08;
     g.add(sign);
+
+    var bannerNames = { '面': '汤面', '酒': '老酒', '茶': '清茶', '糖': '糖画', '鱼': '河鱼', '灯': '花灯' };
+    var bannerBg = { '面': '#8d3a2f', '酒': '#4a5a6b', '茶': '#3f5a4a', '糖': '#a05a3a', '鱼': '#35605e', '灯': '#7a3f52' };
+    var ban = plane(g, 0.18, 0.58, new THREE.MeshBasicMaterial({
+      map: bannerTexture(bannerNames[def.ch] || def.ch, bannerBg[def.ch] || '#7a3f52', '#ffe1b0'),
+      side: THREE.DoubleSide,
+      toneMapped: false
+    }), 0.48, 1.08, 0.52);
+    ban.rotation.y = -0.06;
+    cylinder(g, 0.01, 0.01, 0.24, 6, brassMat, 0.48, 1.39, 0.52, 0, 0, Math.PI / 2);
+    swayBanners.push({ mesh: ban, phase: rand(0, Math.PI * 2) });
+
+    var menuText = { '面': '面 3文', '酒': '酒 5文', '茶': '茶 2文', '糖': '糖 4文', '鱼': '鱼 6文', '灯': '灯 8文' };
+    plane(g, 0.26, 0.2, new THREE.MeshBasicMaterial({
+      map: menuTexture(menuText[def.ch] || '营业中'),
+      side: THREE.DoubleSide,
+      toneMapped: false
+    }), -0.28, 0.83, 0.36, -0.06, 0, 0);
 
     // 灯笼
     var lampMat = new THREE.MeshStandardMaterial({
@@ -1700,6 +2103,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     addBulbPick(lamp, stallBulb);
 
     addGoods(g, def.ch);
+    addStallExtras(g, def.ch);
 
     // 凳子
     cylinder(g, 0.07, 0.08, 0.14, 10, darkWoodMat, -0.24, 0.07, 0.56);
@@ -1863,12 +2267,34 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* 小人 */
   var people = [];
 
+  function dressVendor(p, ch) {
+    plane(p, 0.14, 0.22, new THREE.MeshStandardMaterial({
+      color: ch === '面' ? '#e8dcc2' : (ch === '茶' ? '#4a5f52' : '#6b4a3a'),
+      roughness: 0.9
+    }), 0, 0.34, 0.062);
+    if (ch === '面') {
+      cylinder(p, 0.085, 0.075, 0.09, 12,
+        new THREE.MeshStandardMaterial({ color: '#efe6d2', roughness: 0.9 }), 0, 0.62, 0);
+      sphere(p, 0.075, 10,
+        new THREE.MeshStandardMaterial({ color: '#efe6d2', roughness: 0.9 }), 0, 0.67, 0);
+    } else if (ch === '茶') {
+      var hat = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.08, 12), bambooMat);
+      hat.position.y = 0.62;
+      p.add(hat);
+    } else if (ch === '鱼') {
+      box(p, 0.14, 0.035, 0.14,
+        new THREE.MeshStandardMaterial({ color: '#3f5a58', roughness: 0.9 }), 0, 0.6, 0);
+    }
+    p.userData.gesture = ch;
+  }
+
   // 摊主
   stallDefs.forEach(function (def, i) {
     if (!def.vendor) return;
     var vendor = makePerson(def.side === -1 ? '#5b4a6c' : '#4c5f5b', 'vendor');
     vendor.position.set(0, 0.1, -0.42);
     vendor.userData.baseY = 0.1;
+    dressVendor(vendor, def.ch);
     stalls[i].group.add(vendor);
   });
 
@@ -1894,8 +2320,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     hair.position.y = 0.565;
     p.add(hair);
     // 手臂
-    cylinder(p, 0.018, 0.02, 0.19, 6, cloth, -0.075, 0.37, 0, 0, 0, 0.16);
-    cylinder(p, 0.018, 0.02, 0.19, 6, cloth, 0.075, 0.37, 0, 0, 0, -0.16);
+    var armL = cylinder(p, 0.018, 0.02, 0.19, 6, cloth, -0.075, 0.37, 0, 0, 0, 0.16);
+    var armR = cylinder(p, 0.018, 0.02, 0.19, 6, cloth, 0.075, 0.37, 0, 0, 0, -0.16);
+    p.userData.armL = armL;
+    p.userData.armR = armR;
     p.userData.baseY = 0.1;
     p.userData.phase = rand(0, Math.PI * 2);
     p.userData.kind = kind;
@@ -1916,6 +2344,33 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     p.rotation.y = d.ry;
     market.add(p);
   });
+
+  // 提灯的小孩 + 拄杖的老人
+  var kid = makePerson('#7a6a4a', 'customer');
+  kid.scale.setScalar(0.68);
+  kid.position.set(0.45, 0.1, 0.62);
+  kid.rotation.y = -0.9;
+  kid.userData.baseY = 0.1;
+  market.add(kid);
+  var kidLantern = new THREE.Group();
+  kidLantern.position.set(0.58, 0.5, 0.52);
+  market.add(kidLantern);
+  sphere(kidLantern, 0.05, 8, new THREE.MeshStandardMaterial({
+    color: '#c94a38', emissive: '#ff8a4a', emissiveIntensity: 1.2, roughness: 0.6
+  }), 0, 0, 0).scale.set(1, 1.2, 1);
+  kidLantern.add(glowSprite('#ffb15e', 0.28, 0.35));
+  var elder = makePerson('#5a4a58', 'customer');
+  elder.position.set(-0.55, 0.1, 1.15);
+  elder.rotation.y = 0.9;
+  elder.rotation.x = 0.05;
+  elder.userData.baseY = 0.1;
+  market.add(elder);
+  cylinder(market, 0.012, 0.012, 0.5, 6, darkWoodMat, -0.66, 0.35, 1.22, 0, 0, 0.12);
+  cylinder(market, 0.09, 0.08, 0.12, 10, bambooMat, -0.44, 0.16, 1.02);
+  var basketHandle = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.008, 5, 10), bambooMat);
+  basketHandle.position.set(-0.44, 0.24, 1.02);
+  basketHandle.rotation.x = Math.PI / 2;
+  market.add(basketHandle);
 
   /* 串灯：每一颗灯泡都能单独开关 */
   var bulbSpots = [];
@@ -1959,11 +2414,94 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     addBulbPick(halo, b);
   });
 
+  /* 串灯上的许愿签 */
+  var wishTex = makeTexture(64, 96, function (ctx, w, h) {
+    ctx.fillStyle = '#e8d9b8';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(150,60,40,0.7)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(4, 4, w - 8, h - 8);
+    ctx.fillStyle = '#8f3a32';
+    ctx.fillRect(w / 2 - 9, 10, 18, 18);
+    ctx.fillStyle = '#e8d9b8';
+    ctx.font = '600 12px Georgia, "Songti SC", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('愿', w / 2, 20);
+    ctx.fillStyle = 'rgba(70,50,40,0.5)';
+    for (var wi = 0; wi < 3; wi++) ctx.fillRect(14, 44 + wi * 12, 36, 2);
+  });
+  var wishMat = new THREE.MeshBasicMaterial({ map: wishTex, side: THREE.DoubleSide, toneMapped: false });
+  var swayTags = [];
+  [[-0.6, -0.9], [0.5, -0.9], [-0.35, 0], [0.6, 0], [-0.55, 0.9], [0.4, 0.9]].forEach(function (wp) {
+    var wx = wp[0], wz = wp[1];
+    var wy = 2.46 - Math.sin(((wx + 0.93) / 1.86) * Math.PI) * 0.2;
+    var tag = plane(market, 0.1, 0.15, wishMat, wx, wy - 0.2, wz + 0.01, 0, rand(-0.2, 0.2), 0);
+    market.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(wx, wy, wz), new THREE.Vector3(wx, wy - 0.12, wz)
+    ]), new THREE.LineBasicMaterial({ color: '#a33f2c', transparent: true, opacity: 0.8 })));
+    swayTags.push({ mesh: tag, phase: rand(0, Math.PI * 2) });
+  });
+
   /* 街角杂物 */
   cylinder(market, 0.12, 0.14, 0.28, 12, darkWoodMat, -0.72, 0.14, 1.18);
   cylinder(market, 0.12, 0.14, 0.28, 12, darkWoodMat, 0.74, 0.14, -1.1);
   box(market, 0.34, 0.26, 0.34, lightWoodMat, 0.76, 0.13, 1.15, 0, 0.4, 0);
   box(market, 0.3, 0.22, 0.3, lightWoodMat, -0.74, 0.11, 1.16, 0, -0.3, 0);
+
+  /* 街面杂物 */
+  cylinder(market, 0.19, 0.19, 0.016, 16, ironMat, 0.06, 0.116, 0.42);
+  for (var mg = 0; mg < 3; mg++) {
+    box(market, 0.28, 0.01, 0.02, streetMat, 0.06, 0.126, 0.34 + mg * 0.08);
+  }
+  box(market, 0.06, 0.02, 1.8, ironMat, -0.6, 0.116, 0.1);
+  for (var dg = 0; dg < 8; dg++) {
+    box(market, 0.05, 0.012, 0.02, streetMat, -0.6, 0.13, -0.7 + dg * 0.22);
+  }
+  var leafMats = [
+    new THREE.MeshBasicMaterial({ color: '#8a5a32', side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: '#a06a3a', side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: '#6b4a2a', side: THREE.DoubleSide })
+  ];
+  for (var lv = 0; lv < 14; lv++) {
+    plane(market, rand(0.04, 0.07), rand(0.025, 0.045), leafMats[lv % 3],
+      rand(-0.55, 0.55), 0.117, rand(-1.1, 1.1), -Math.PI / 2, rand(0, Math.PI), 0);
+  }
+  for (var ps = 0; ps < 5; ps++) {
+    plane(market, rand(0.03, 0.05), rand(0.035, 0.05), paperWarmMat,
+      rand(-0.5, 0.5), 0.118, rand(-1.0, 1.0), -Math.PI / 2, rand(0, Math.PI), 0);
+  }
+  var broom = new THREE.Group();
+  broom.position.set(0.58, 0.1, -1.02);
+  broom.rotation.z = 0.18;
+  market.add(broom);
+  cylinder(broom, 0.012, 0.012, 1.1, 6, bambooMat, 0, 0.55, 0);
+  box(broom, 0.09, 0.18, 0.05,
+    new THREE.MeshStandardMaterial({ color: '#8a6a3a', roughness: 0.95 }), 0, 0.04, 0);
+  cylinder(market, 0.1, 0.12, 0.28, 12, ironMat, -0.58, 0.24, -0.32);
+  cylinder(market, 0.115, 0.115, 0.03, 12, brassMat, -0.58, 0.385, -0.32);
+  box(market, 0.3, 0.22, 0.3, lightWoodMat, 0.72, 0.23, 1.2, 0, 0.5, 0);
+  box(market, 0.24, 0.18, 0.24, lightWoodMat, -0.7, 0.2, 1.18, 0, -0.4, 0);
+
+  /* 街边纸灯笼 */
+  var streetLanterns = [];
+  [-0.92, 0.92].forEach(function (sx) {
+    var post = new THREE.Group();
+    post.position.set(sx, 0.1, 1.32);
+    market.add(post);
+    cylinder(post, 0.02, 0.025, 1.1, 8, ironMat, 0, 0.55, 0);
+    cylinder(post, 0.12, 0.14, 0.06, 10, stoneMat, 0, 0.03, 0);
+    box(post, 0.18, 0.02, 0.02, ironMat, sx > 0 ? -0.08 : 0.08, 1.1, 0);
+    var lm = new THREE.MeshStandardMaterial({
+      color: '#b84a3a', emissive: '#ff7a3d', emissiveIntensity: 0.9,
+      roughness: 0.7, transparent: true, opacity: 0.95
+    });
+    cylinder(post, 0.09, 0.07, 0.2, 8, lm, sx > 0 ? -0.17 : 0.17, 0.98, 0);
+    var glow = glowSprite('#ffb15e', 0.45, 0.3);
+    glow.position.set(sx > 0 ? -0.17 : 0.17, 0.98, 0);
+    post.add(glow);
+    streetLanterns.push({ glow: glow.material, phase: rand(0, Math.PI * 2), mat: lm });
+  });
 
   /* 瓶内浮尘 */
   var dustUniforms = { uTime: { value: 0 } };
@@ -2025,6 +2563,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     bottleGroup.add(dust);
   })();
 
+  /* 瓶内萤火虫 */
+  var fireflies = [];
+  for (var ff = 0; ff < 10; ff++) {
+    var fs = glowSprite(ff % 2 ? '#d9ff9a' : '#ffe6a0', 0.11, 0.4);
+    var fx = rand(-0.7, 0.7), fy = rand(0.9, 2.1), fz = rand(-1.05, 1.05);
+    fs.position.set(fx, fy, fz);
+    market.add(fs);
+    fireflies.push({
+      sprite: fs, bx: fx, by: fy, bz: fz,
+      phase: rand(0, Math.PI * 2), speed: rand(0.3, 0.8)
+    });
+  }
+
   /* ------------------------------------------------------------------ */
   /* state and interaction                                               */
   /* ------------------------------------------------------------------ */
@@ -2067,6 +2618,51 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     lastX: 0,
     lastY: 0
   };
+
+  /* 瓶内预设视角 */
+  var viewPresets = [
+    { theta: 0.30, phi: 1.38, radius: 5.2, targetY: 2.25 },
+    { theta: 0.18, phi: 1.30, radius: 3.55, targetY: 2.30 },
+    { theta: 0.00, phi: 1.50, radius: 3.40, targetY: 1.05 },
+    { theta: 0.30, phi: 1.00, radius: 4.80, targetY: 1.40 }
+  ];
+
+  function setActiveView(index) {
+    if (!viewTabs) return;
+    for (var i = 0; i < viewTabs.length; i++) {
+      var on = i === index;
+      viewTabs[i].classList.toggle('active', on);
+      viewTabs[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  function clearActiveView() {
+    if (!viewTabs) return;
+    for (var i = 0; i < viewTabs.length; i++) {
+      viewTabs[i].classList.remove('active');
+      viewTabs[i].setAttribute('aria-pressed', 'false');
+    }
+  }
+
+  function applyViewPreset(index, silent) {
+    var p = viewPresets[index];
+    if (!p) return;
+    var scale = camera.aspect < 0.85 ? 1.15 : 1;
+    view.tTheta = p.theta;
+    view.tPhi = p.phi;
+    view.tRadius = p.radius * scale;
+    view.tTargetY = p.targetY;
+    view.userZoomed = true;
+    view.idle = 0;
+    if (reduceMotion) {
+      view.theta = view.tTheta;
+      view.phi = view.tPhi;
+      view.radius = view.tRadius;
+      view.targetY = view.tTargetY;
+    }
+    setActiveView(index);
+    if (!silent) audio.chime(659.25);
+  }
 
   function setStall(stall, on) {
     stall.lit = on;
@@ -2168,6 +2764,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     view.tPhi = 1.38;
     view.tRadius = camera.aspect < 0.85 ? 6.0 : 5.2;
     view.tTargetY = 2.25;
+    applyViewPreset(0, true);
     view.userZoomed = false;
     if (isShot || reduceMotion) {
       glassFade = glassFadeTarget;
@@ -2395,6 +2992,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
   }
 
+  if (viewTabs && viewTabs.length) {
+    for (var vi = 0; vi < viewTabs.length; vi++) {
+      viewTabs[vi].addEventListener('click', function () {
+        applyViewPreset(parseInt(this.getAttribute('data-view'), 10));
+      });
+    }
+  }
+
   function markInteraction() { view.idle = 0; }
 
   canvas.addEventListener('pointerdown', function (e) {
@@ -2424,10 +3029,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (ids.length === 2 && lastPinch > 0) {
       var d = Math.hypot(pointers[ids[0]].x - pointers[ids[1]].x, pointers[ids[0]].y - pointers[ids[1]].y);
       if (d > 0 && lastPinch > 0) {
-        var minR = mode === 'inside' ? 3.15 : 8;
-        var maxR = mode === 'inside' ? 6.4 : 22;
+        var minR = mode === 'inside' ? 2.7 : 8;
+        var maxR = mode === 'inside' ? 6.8 : 22;
         view.tRadius = clamp(view.tRadius * (lastPinch / d), minR, maxR);
         view.userZoomed = true;
+        clearActiveView();
       }
       lastPinch = d;
       view.dragging = false;
@@ -2436,8 +3042,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var dy = e.clientY - view.lastY;
       movedPx += Math.abs(dx) + Math.abs(dy);
       view.tTheta -= dx * 0.0052;
-      view.tPhi = clamp(view.tPhi - dy * 0.0042, mode === 'inside' ? 1.05 : 0.9, 1.5);
+      view.tPhi = clamp(view.tPhi - dy * 0.0042, mode === 'inside' ? 0.88 : 0.9, mode === 'inside' ? 1.62 : 1.5);
       if (mode === 'inside') view.tTheta = clamp(view.tTheta, -0.95, 0.95);
+      clearActiveView();
       view.lastX = e.clientX;
       view.lastY = e.clientY;
     }
@@ -2471,10 +3078,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   canvas.addEventListener('wheel', function (e) {
     e.preventDefault();
-    var minR = mode === 'inside' ? 3.15 : 8;
-    var maxR = mode === 'inside' ? 6.4 : 22;
+    var minR = mode === 'inside' ? 2.7 : 8;
+    var maxR = mode === 'inside' ? 6.8 : 22;
     view.tRadius = clamp(view.tRadius * (1 + e.deltaY * 0.0011), minR, maxR);
     view.userZoomed = true;
+    clearActiveView();
     markInteraction();
   }, { passive: false });
 
@@ -2749,6 +3357,59 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var person = people[p];
       person.position.y = person.userData.baseY + Math.sin(amb * 1.15 + person.userData.phase) * 0.007;
       person.rotation.z = Math.sin(amb * 0.7 + person.userData.phase) * 0.012;
+      var gest = person.userData.gesture;
+      if (gest) {
+        var ph = person.userData.phase;
+        if (gest === '面' && person.userData.armR) {
+          person.userData.armR.rotation.z = -0.16 + Math.sin(amb * 3 + ph) * 0.22;
+        } else if (gest === '茶' && person.userData.armR) {
+          person.userData.armR.rotation.x = Math.sin(amb * 1.8 + ph) * 0.18;
+        } else if (gest === '鱼' && person.userData.armL) {
+          person.userData.armL.rotation.z = 0.16 + Math.sin(amb * 2.2 + ph) * 0.12;
+        }
+      }
+    }
+
+    // 布幌 / 许愿签 / 风铃
+    for (var sb = 0; sb < swayBanners.length; sb++) {
+      var bn = swayBanners[sb];
+      bn.mesh.rotation.z = Math.sin(amb * 1.15 + bn.phase) * 0.04;
+      bn.mesh.rotation.x = Math.sin(amb * 0.8 + bn.phase) * 0.02;
+    }
+    for (var wt = 0; wt < swayTags.length; wt++) {
+      var tg = swayTags[wt];
+      tg.mesh.rotation.z = Math.sin(amb * 1.4 + tg.phase) * 0.08;
+      tg.mesh.rotation.x = Math.sin(amb * 1.1 + tg.phase) * 0.04;
+    }
+    gateChime.rotation.z = Math.sin(amb * 1.5) * 0.07;
+    gateChime.rotation.x = Math.sin(amb * 1.1 + 1.2) * 0.04;
+
+    // 街灯呼吸
+    for (var sl = 0; sl < streetLanterns.length; sl++) {
+      var stl = streetLanterns[sl];
+      var breathe = reduceMotion ? 1 : 0.86 + 0.14 * Math.sin(amb * 1.6 + stl.phase);
+      stl.glow.opacity = 0.24 * breathe;
+      stl.mat.emissiveIntensity = 0.9 * breathe;
+    }
+
+    // 猫眨眼 / 耳朵
+    var blink = reduceMotion ? 1 : (Math.sin(amb * 0.7 + 1.3) > 0.975 ? 0.12 : 1);
+    for (var ce = 0; ce < catEyes.length; ce++) catEyes[ce].scale.y = blink;
+    var earTwitch = reduceMotion ? 0 : Math.sin(amb * 0.6 + 2.1);
+    catEarL.rotation.z = reduceMotion ? 0 : (earTwitch > 0.9 ? 0.18 : 0);
+    catEarR.rotation.z = reduceMotion ? 0 : (earTwitch < -0.9 ? -0.18 : 0);
+
+    // 瓶内萤火虫
+    for (var fi = 0; fi < fireflies.length; fi++) {
+      var fl = fireflies[fi];
+      if (reduceMotion) {
+        fl.sprite.material.opacity = 0.42;
+      } else {
+        fl.sprite.position.x = fl.bx + Math.sin(amb * 0.55 * fl.speed + fl.phase) * 0.22;
+        fl.sprite.position.y = fl.by + Math.sin(amb * 0.85 * fl.speed + fl.phase * 1.3) * 0.14;
+        fl.sprite.position.z = fl.bz + Math.cos(amb * 0.48 * fl.speed + fl.phase) * 0.18;
+        fl.sprite.material.opacity = 0.18 + 0.5 * (0.5 + 0.5 * Math.sin(amb * 1.7 + fl.phase));
+      }
     }
 
     // 浮尘
