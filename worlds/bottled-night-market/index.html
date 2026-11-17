@@ -206,6 +206,39 @@
   .exit-inside:hover { color: #fff6ec; border-color: rgba(255, 190, 150, 0.55); background: rgba(54, 30, 44, 0.62); }
   .exit-inside:focus-visible { outline: 2px solid rgba(255, 179, 122, 0.8); outline-offset: 3px; }
 
+  .views {
+    position: fixed;
+    left: 50%;
+    bottom: calc(122px + env(safe-area-inset-bottom, 0px));
+    z-index: 8;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid rgba(255, 190, 150, 0.16);
+    border-radius: 999px;
+    background: rgba(20, 12, 24, 0.46);
+    -webkit-backdrop-filter: blur(9px);
+    backdrop-filter: blur(9px);
+  }
+  body.inside .views { display: flex; }
+  .view-chip {
+    padding: 5px 11px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: rgba(255, 233, 213, 0.62);
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+    transition: color .2s ease, background .2s ease;
+  }
+  .view-chip:hover { color: #fff6ec; }
+  .view-chip.active { color: #ffe6c2; background: rgba(255, 179, 122, 0.18); }
+  .view-chip:focus-visible { outline: 2px solid rgba(255, 179, 122, 0.75); outline-offset: 1px; }
+
   .sound {
     position: fixed;
     top: calc(clamp(20px, 4.5vw, 46px) + 44px + env(safe-area-inset-top, 0px));
@@ -401,7 +434,7 @@
     border: 0;
   }
 
-  .shot .hud, .shot .hint, .shot .exit-inside, .shot .sound, .shot .open-banner, .shot .paper-modal, .shot .back, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
+  .shot .hud, .shot .hint, .shot .exit-inside, .shot .views, .shot .sound, .shot .open-banner, .shot .paper-modal, .shot .back, .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
   .shot #scene { opacity: 1 !important; transition: none !important; }
 
   body.inside .vignette {
@@ -430,6 +463,8 @@
     .hint { font-size: 10px; letter-spacing: 0.08em; padding: 8px 14px; gap: 7px; }
     .hint .desk-only { display: none; }
     .sound { top: calc(54px + env(safe-area-inset-top, 0px)); font-size: 9px; padding: 6px 11px; }
+    .views { bottom: calc(120px + env(safe-area-inset-bottom, 0px)); gap: 2px; padding: 3px; }
+    .view-chip { font-size: 9px; padding: 5px 9px; letter-spacing: 0.08em; }
     .open-banner { font-size: 18px; letter-spacing: 0.22em; }
     .paper-card { padding: 24px 22px 20px; }
     .paper-card h2 { font-size: 20px; }
@@ -474,6 +509,12 @@
     <span class="hint-in" id="hintIn">轻点任意灯泡开关 · 拖拽环视</span>
   </div>
   <button class="exit-inside" id="exitBtn" type="button" hidden>← 退出瓶中</button>
+  <div class="views" role="group" aria-label="切换视角">
+    <button class="view-chip active" type="button" data-view="0" aria-pressed="true">全景</button>
+    <button class="view-chip" type="button" data-view="1" aria-pressed="false">门楼</button>
+    <button class="view-chip" type="button" data-view="2" aria-pressed="false">街心</button>
+    <button class="view-chip" type="button" data-view="3" aria-pressed="false">俯瞰</button>
+  </div>
   <div class="open-banner" id="openBanner" role="status"></div>
   <p id="status" class="sr-only" aria-live="polite"></p>
 
@@ -532,6 +573,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var bannerEl = document.getElementById('openBanner');
   var paperModal = document.getElementById('paperModal');
   var paperClose = document.getElementById('paperClose');
+  var viewTabs = document.querySelectorAll('.view-chip');
   var params = new URLSearchParams(location.search);
   var isShot = params.get('shot') === '1';
   if (isShot) document.body.classList.add('shot');
@@ -2068,6 +2110,51 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     lastY: 0
   };
 
+  /* 瓶内预设视角 */
+  var viewPresets = [
+    { theta: 0.30, phi: 1.38, radius: 5.2, targetY: 2.25 },
+    { theta: 0.18, phi: 1.30, radius: 3.55, targetY: 2.30 },
+    { theta: 0.00, phi: 1.50, radius: 3.40, targetY: 1.05 },
+    { theta: 0.30, phi: 1.00, radius: 4.80, targetY: 1.40 }
+  ];
+
+  function setActiveView(index) {
+    if (!viewTabs) return;
+    for (var i = 0; i < viewTabs.length; i++) {
+      var on = i === index;
+      viewTabs[i].classList.toggle('active', on);
+      viewTabs[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  function clearActiveView() {
+    if (!viewTabs) return;
+    for (var i = 0; i < viewTabs.length; i++) {
+      viewTabs[i].classList.remove('active');
+      viewTabs[i].setAttribute('aria-pressed', 'false');
+    }
+  }
+
+  function applyViewPreset(index, silent) {
+    var p = viewPresets[index];
+    if (!p) return;
+    var scale = camera.aspect < 0.85 ? 1.15 : 1;
+    view.tTheta = p.theta;
+    view.tPhi = p.phi;
+    view.tRadius = p.radius * scale;
+    view.tTargetY = p.targetY;
+    view.userZoomed = true;
+    view.idle = 0;
+    if (reduceMotion) {
+      view.theta = view.tTheta;
+      view.phi = view.tPhi;
+      view.radius = view.tRadius;
+      view.targetY = view.tTargetY;
+    }
+    setActiveView(index);
+    if (!silent) audio.chime(659.25);
+  }
+
   function setStall(stall, on) {
     stall.lit = on;
     stall.bulb.lit = on;
@@ -2168,6 +2255,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     view.tPhi = 1.38;
     view.tRadius = camera.aspect < 0.85 ? 6.0 : 5.2;
     view.tTargetY = 2.25;
+    applyViewPreset(0, true);
     view.userZoomed = false;
     if (isShot || reduceMotion) {
       glassFade = glassFadeTarget;
@@ -2395,6 +2483,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
   }
 
+  if (viewTabs && viewTabs.length) {
+    for (var vi = 0; vi < viewTabs.length; vi++) {
+      viewTabs[vi].addEventListener('click', function () {
+        applyViewPreset(parseInt(this.getAttribute('data-view'), 10));
+      });
+    }
+  }
+
   function markInteraction() { view.idle = 0; }
 
   canvas.addEventListener('pointerdown', function (e) {
@@ -2424,10 +2520,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (ids.length === 2 && lastPinch > 0) {
       var d = Math.hypot(pointers[ids[0]].x - pointers[ids[1]].x, pointers[ids[0]].y - pointers[ids[1]].y);
       if (d > 0 && lastPinch > 0) {
-        var minR = mode === 'inside' ? 3.15 : 8;
-        var maxR = mode === 'inside' ? 6.4 : 22;
+        var minR = mode === 'inside' ? 2.7 : 8;
+        var maxR = mode === 'inside' ? 6.8 : 22;
         view.tRadius = clamp(view.tRadius * (lastPinch / d), minR, maxR);
         view.userZoomed = true;
+        clearActiveView();
       }
       lastPinch = d;
       view.dragging = false;
@@ -2436,8 +2533,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var dy = e.clientY - view.lastY;
       movedPx += Math.abs(dx) + Math.abs(dy);
       view.tTheta -= dx * 0.0052;
-      view.tPhi = clamp(view.tPhi - dy * 0.0042, mode === 'inside' ? 1.05 : 0.9, 1.5);
+      view.tPhi = clamp(view.tPhi - dy * 0.0042, mode === 'inside' ? 0.88 : 0.9, mode === 'inside' ? 1.62 : 1.5);
       if (mode === 'inside') view.tTheta = clamp(view.tTheta, -0.95, 0.95);
+      clearActiveView();
       view.lastX = e.clientX;
       view.lastY = e.clientY;
     }
@@ -2471,10 +2569,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   canvas.addEventListener('wheel', function (e) {
     e.preventDefault();
-    var minR = mode === 'inside' ? 3.15 : 8;
-    var maxR = mode === 'inside' ? 6.4 : 22;
+    var minR = mode === 'inside' ? 2.7 : 8;
+    var maxR = mode === 'inside' ? 6.8 : 22;
     view.tRadius = clamp(view.tRadius * (1 + e.deltaY * 0.0011), minR, maxR);
     view.userZoomed = true;
+    clearActiveView();
     markInteraction();
   }, { passive: false });
 
