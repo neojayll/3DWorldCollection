@@ -424,7 +424,7 @@
 </style>
 </head>
 <body>
-  <canvas id="scene" aria-label="星夜的高架桥上，一列亮着暖橙车窗的低多边形蒸汽火车驶过河谷、平原、山岭、森林、湖泊、海滩与海洋，桥下是零散灯火的村庄、麦田与映着月光的水面"></canvas>
+  <canvas id="scene" aria-label="星夜里，一列亮着暖橙车窗的低多边形蒸汽火车时而驶上高架桥、时而贴着地面的路堤，穿过河谷、平原、山岭、森林、湖泊、海滩与海洋，沿途是零散灯火的村庄、麦田与映着月光的水面"></canvas>
 
   <div class="vignette"></div>
   <div class="grain"></div>
@@ -1009,6 +1009,49 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var rideGlass = [];
   var doors = [], boarders = [];
 
+  var _tm4 = new THREE.Matrix4(), _tzero = new THREE.Vector3(0, 0, 0);
+  // hide viaduct segments over ground-track regions; settle trackside furniture onto the bed
+  function maskTrackStructures() {
+    var i, x, dy;
+    for (i = 0; i < NSEG; i++) {
+      x = i * SEG - 176 + scroll.viaduct;
+      var g = trackAt(dist + x) === 'ground';
+      _tm4.makeTranslation(x, 0, 0);
+      if (g) _tm4.scale(_tzero);
+      viaduct.setMatrixAt(i, _tm4);
+      deckCaps.setMatrixAt(i, _tm4);
+    }
+    viaduct.instanceMatrix.needsUpdate = true;
+    deckCaps.instanceMatrix.needsUpdate = true;
+    for (i = 0; i < 12; i++) {
+      x = i * 32 - 176 + scroll.lamps;
+      dy = 0.78 * trackF(dist + x, 6);
+      _tm4.makeTranslation(x, -dy, 3.62); lampPosts.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(x - 0.42, 2.24 - dy, 3.62); lampBulbs.setMatrixAt(i, _tm4);
+      lampGlows[i].y = 2.24 - dy;
+    }
+    lampPosts.instanceMatrix.needsUpdate = true;
+    lampBulbs.instanceMatrix.needsUpdate = true;
+    for (i = 0; i < 16; i++) {
+      x = i * 24 - 192 + scroll.side;
+      _tm4.makeTranslation(x, -0.28 * trackF(dist + x, 6), -3.62);
+      telegraph.setMatrixAt(i, _tm4);
+    }
+    telegraph.instanceMatrix.needsUpdate = true;
+    for (i = 0; i < 4; i++) {
+      x = i * 96 - 160 + scroll.signal;
+      dy = 0.28 * trackF(dist + x, 6);
+      _tm4.makeTranslation(x, -dy, 3.62); signalPosts.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(x, 3.45 - dy, 3.7); sigRed.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(x, 3.16 - dy, 3.7); sigGreen.setMatrixAt(i, _tm4);
+      sigGlows[i * 2].y = 3.45 - dy;
+      sigGlows[i * 2 + 1].y = 3.16 - dy;
+    }
+    signalPosts.instanceMatrix.needsUpdate = true;
+    sigRed.instanceMatrix.needsUpdate = true;
+    sigGreen.instanceMatrix.needsUpdate = true;
+  }
+
   var viaductGroup = new THREE.Group();
   scene.add(viaductGroup);
 
@@ -1101,7 +1144,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var lampBulbGeo = new THREE.SphereGeometry(0.13, 8, 6);
   var lampBulbMat = new THREE.MeshStandardMaterial({ color: '#3a2410', emissive: '#ffb37a', emissiveIntensity: 2.2 });
   var lampBulbs = new THREE.InstancedMesh(lampBulbGeo, lampBulbMat, 12);
-  var lampGlows = [];
+  var lampGlows = [], sigGlows = [];
   (function () {
     var m = new THREE.Matrix4();
     for (var i = 0; i < 12; i++) {
@@ -1168,8 +1211,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       m.makeTranslation(x, 0, 3.62); signalPosts.setMatrixAt(i, m);
       m.makeTranslation(x, 3.45, 3.7); sigRed.setMatrixAt(i, m);
       m.makeTranslation(x, 3.16, 3.7); sigGreen.setMatrixAt(i, m);
-      addBGlow(x, 3.45, 3.75, 1.1, 0.4, '#ff5a4a', signalGroup);
-      addBGlow(x, 3.16, 3.75, 0.9, 0.3, '#5aff8a', signalGroup);
+      sigGlows.push(addBGlow(x, 3.45, 3.75, 1.1, 0.4, '#ff5a4a', signalGroup));
+      sigGlows.push(addBGlow(x, 3.16, 3.75, 0.9, 0.3, '#5aff8a', signalGroup));
     }
   })();
   signalGroup.add(signalPosts); signalGroup.add(sigRed); signalGroup.add(sigGreen);
@@ -1274,14 +1317,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ------------------------------------------------------------------ */
 
   var BIOMES = {
-    valley:    { name: '河谷', hFar: 12, hNear: 0,  und: 0.5,  sub: 0,    colA: '#20182c', colB: '#2c2438', water: [[-32.5, -19.5]], ridge: 1,    fly: 1,   wave: 0,    gust: 0 },
-    plains:    { name: '平原', hFar: 2,  hNear: 1,  und: 0.35, sub: 0,    colA: '#262030', colB: '#362e3c', water: [],               ridge: 0.5,  fly: 0.8, wave: 0,    gust: 0 },
-    hills:     { name: '丘陵', hFar: 9,  hNear: 6,  und: 2.2,  sub: 0,    colA: '#221c2e', colB: '#2e2a38', water: [],               ridge: 1.3,  fly: 0.6, wave: 0,    gust: 0.3 },
-    mountains: { name: '山岭', hFar: 30, hNear: 26, und: 2.6,  sub: 0,    colA: '#2a2236', colB: '#3c3248', water: [],               ridge: 2.2,  fly: 0.15, wave: 0,   gust: 1 },
-    forest:    { name: '森林', hFar: 7,  hNear: 3,  und: 0.8,  sub: 0,    colA: '#1a2026', colB: '#26302a', water: [],               ridge: 1.2,  fly: 1,   wave: 0,    gust: 0.1 },
-    lake:      { name: '湖泊', hFar: 3,  hNear: 1,  und: 0.4,  sub: 0,    colA: '#20182c', colB: '#2c2438', water: [[-85, -18]],     ridge: 0.7,  fly: 0.9, wave: 0.3,  gust: 0 },
-    beach:     { name: '海滩', hFar: 1,  hNear: 1,  und: 0.25, sub: 0.9,  colA: '#46403a', colB: '#585044', water: [[-90, -26], [30, 85]], ridge: 0.3, fly: 0.3, wave: 0.65, gust: 0.15 },
-    ocean:     { name: '海洋', hFar: 0,  hNear: 0,  und: 0,    sub: -0.8, colA: '#141e2c', colB: '#1c2a3a', water: [[-90, 85]],      ridge: 0.1,  fly: 0,   wave: 1,    gust: 0.2 }
+    valley:    { track: 'bridge', base: -14, name: '河谷', hFar: 12, hNear: 0,  und: 0.5,  sub: 0,    colA: '#20182c', colB: '#2c2438', water: [[-32.5, -19.5]], ridge: 1,    fly: 1,   wave: 0,    gust: 0 },
+    plains:    { track: 'ground', base: -1, name: '平原', hFar: 2,  hNear: 1,  und: 0.35, sub: 0,    colA: '#262030', colB: '#362e3c', water: [],               ridge: 0.5,  fly: 0.8, wave: 0,    gust: 0 },
+    hills:     { track: 'ground', base: -1, name: '丘陵', hFar: 9,  hNear: 6,  und: 2.2,  sub: 0,    colA: '#221c2e', colB: '#2e2a38', water: [],               ridge: 1.3,  fly: 0.6, wave: 0,    gust: 0.3 },
+    mountains: { track: 'bridge', base: -14, name: '山岭', hFar: 30, hNear: 26, und: 2.6,  sub: 0,    colA: '#2a2236', colB: '#3c3248', water: [],               ridge: 2.2,  fly: 0.15, wave: 0,   gust: 1 },
+    forest:    { track: 'ground', base: -1, name: '森林', hFar: 7,  hNear: 3,  und: 0.8,  sub: 0,    colA: '#1a2026', colB: '#26302a', water: [],               ridge: 1.2,  fly: 1,   wave: 0,    gust: 0.1 },
+    lake:      { track: 'bridge', base: -14, name: '湖泊', hFar: 3,  hNear: 1,  und: 0.4,  sub: 0,    colA: '#20182c', colB: '#2c2438', water: [[-85, -18]],     ridge: 0.7,  fly: 0.9, wave: 0.3,  gust: 0 },
+    beach:     { track: 'bridge', base: -14, name: '海滩', hFar: 1,  hNear: 1,  und: 0.25, sub: 0.9,  colA: '#46403a', colB: '#585044', water: [[-90, -26], [30, 85]], ridge: 0.3, fly: 0.3, wave: 0.65, gust: 0.15 },
+    ocean:     { track: 'bridge', base: -14, name: '海洋', hFar: 0,  hNear: 0,  und: 0,    sub: -0.8, colA: '#141e2c', colB: '#1c2a3a', water: [[-90, 85]],      ridge: 0.1,  fly: 0,   wave: 1,    gust: 0.2 }
   };
   Object.keys(BIOMES).forEach(function (k) {
     BIOMES[k].cA = new THREE.Color(BIOMES[k].colA);
@@ -1312,6 +1355,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var transParam = params.get('transition');
   if (eventParam === 'stop' || eventParam === 'tunnel') transParam = eventParam;
   if (['stop', 'tunnel', 'curve', 'open'].indexOf(transParam) < 0) transParam = null;
+  var trackParam = params.get('track');
+  if (['ground', 'bridge'].indexOf(trackParam) < 0) trackParam = null;
   var forcedTransUsed = false;
 
   function pickNextBiome(from) {
@@ -1348,7 +1393,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
   // interpolated terrain parameters across a 20 m blend band at each boundary
   var BLEND = 20;
-  var _pMix = { hFar: 0, hNear: 0, und: 0, sub: 0, cA: new THREE.Color(), cB: new THREE.Color() };
+  var _pMix = { hFar: 0, hNear: 0, und: 0, sub: 0, cA: new THREE.Color(), cB: new THREE.Color() , base: -14 };
   function paramsAt(W) {
     var r = regionAt(W);
     var p = BIOMES[r.biome];
@@ -1360,12 +1405,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     _pMix.hNear = lerp(p.hNear, q.hNear, t);
     _pMix.und = lerp(p.und, q.und, t);
     _pMix.sub = lerp(p.sub, q.sub, t);
+    _pMix.base = lerp(p.base, q.base, t);
     _pMix.cA.copy(p.cA).lerp(q.cA, t);
     _pMix.cB.copy(p.cB).lerp(q.cB, t);
     return _pMix;
   }
   function profileH(p, x, z) {
-    var h = -14 + p.sub;
+    var h = p.base + p.sub;
     h += p.hFar * clamp((-z - 40) / 18, 0, 1);
     h += p.hNear * clamp((z - 30) / 26, 0, 1);
     var flat = clamp((Math.abs(z) - 11) / 9, 0, 1);
@@ -1376,6 +1422,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var ws = BIOMES[biome].water;
     for (var i = 0; i < ws.length; i++) if (z >= ws[i][0] && z <= ws[i][1]) return true;
     return false;
+  }
+  // track structure library: viaduct over water/canyons, embankment on open land
+  function trackAt(W) { return trackParam || BIOMES[regionAt(W).biome].track; }
+  function trackF(W, ramp) {
+    if (trackAt(W) !== 'ground') return 0;
+    var r = regionAt(W);
+    return clamp(Math.min((W - r.start) / ramp, (r.end - W) / ramp), 0, 1);
+  }
+  // carve a level corridor so the rails stay at one height across fill and cutting
+  function corridorH(h, W, z) {
+    var tf = trackF(W, 14);
+    if (tf < 0.001) return h;
+    var az = Math.abs(z), bed = -0.33;
+    var run = clamp((h - bed) * 1.15, 2, 18);
+    var k = az < 6 ? 1 : (az < 6 + run ? 1 - (az - 6) / run : 0);
+    return k > 0 ? lerp(h, Math.min(h, bed), k * tf) : h;
   }
 
   // prop helpers read the height field of the tile being built
@@ -1836,6 +1898,50 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
   }
 
+  // lofted embankment: constant ballast crest, side slopes meet the terrain
+  function embankmentParts(parts, w, x0, x1) {
+    var y0 = 0.2, step = 4;
+    var pos = [], col = [];
+    var cc = new THREE.Color();
+    var ballA = new THREE.Color('#2c2338'), ballB = new THREE.Color('#382c44');
+    function sec(x) {
+      var p = paramsAt(w + x), toes = [];
+      for (var sg = -1; sg <= 1; sg += 2) {
+        var tn = profileH(p, x, sg * 10);
+        var fill = Math.max(0, y0 - 0.4 - tn);
+        var ws = fill > 0.05 ? Math.min(18, 3.5 + fill * 1.25) : 3.5;
+        var t = profileH(p, x, sg * ws);
+        if (fill <= 0.05) t = Math.min(t, y0 - 0.45);
+        toes.push([sg * ws, t - 0.35]);
+      }
+      return [toes[0], [-3.5, y0 - 0.4], [-2.6, y0], [2.6, y0], [3.5, y0 - 0.4], toes[1]];
+    }
+    function bandCol(b, x) {
+      if (b === 2) cc.copy(ballA).lerp(ballB, rnd());
+      else if (b === 1 || b === 3) cc.copy(ballA).lerp(ballB, 0.3 + rnd() * 0.3);
+      else { var p = paramsAt(w + x); cc.copy(p.cA).lerp(p.cB, 0.3 + rnd() * 0.5); }
+      return cc;
+    }
+    var prev = sec(x0);
+    for (var x = x0 + step; x <= x1 + 0.01; x += step) {
+      var cx = Math.min(x, x1), cur = sec(cx);
+      for (var b = 0; b < 5; b++) {
+        var a0 = prev[b], a1 = prev[b + 1], b0 = cur[b], b1 = cur[b + 1];
+        var c0 = bandCol(b, cx - step).clone(), c1 = bandCol(b, cx).clone();
+        pos.push(cx - step, a0[1], a0[0], cx, b1[1], b1[0], cx, b0[1], b0[0]);
+        pos.push(cx - step, a0[1], a0[0], cx - step, a1[1], a1[0], cx, b1[1], b1[0]);
+        for (var v = 0; v < 3; v++) col.push(c0.r, c0.g, c0.b);
+        for (v = 0; v < 3; v++) col.push(c1.r, c1.g, c1.b);
+      }
+      prev = cur;
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    parts.push(g);
+  }
+
   var PROP_BUILDERS = { valley: propsValley, plains: propsPlains, hills: propsHills, mountains: propsMountains, forest: propsForest, lake: propsLake, beach: propsBeach, ocean: propsOcean };
 
   /* --------------------------- tile assembly --------------------------- */
@@ -1856,7 +1962,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var gH = function (x, z) {
       var h = profileH(paramsAt(w + x), x, z);
       if (inWater(regionAt(w + x).biome, z)) h = Math.min(h, -14.4);
-      return h;
+      return corridorH(h, w + x, z);
     };
     _tileGH = gH;
     var ctx = { idx: idx, w: w, group: group, parts: parts, winParts: winParts, gH: gH };
@@ -1872,6 +1978,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var p = paramsAt(w + x);
       var y = profileH(p, x, z);
       if (inWater(regionAt(w + x).biome, z)) y = Math.min(y, -14.4);
+      y = corridorH(y, w + x, z);
       pos.setY(i, y);
       pos.setZ(i, z);
       cc.copy(p.cA).lerp(p.cB, clamp((y + 14.6) * 0.8, 0, 1) * 0.5 + rnd() * 0.4);
@@ -1901,6 +2008,25 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       }
     }
     if (wq.length) group.add(new THREE.Mesh(mergeGeos(wq), riverMat));
+
+    // ground-level track: embankment spans and masonry abutments at structure changes
+    var spans = [], curSpan = null;
+    for (var sx = -24; sx < 24; sx += 16) {
+      var gt = trackAt(w + sx + 8) === 'ground';
+      if (gt && !curSpan) curSpan = [sx, sx + 16];
+      else if (gt && curSpan) curSpan[1] = sx + 16;
+      else if (!gt && curSpan) { spans.push(curSpan); curSpan = null; }
+    }
+    if (curSpan) spans.push(curSpan);
+    for (var sp = 0; sp < spans.length; sp++) embankmentParts(parts, w, spans[sp][0], spans[sp][1]);
+    var stonePickT = function (x, y) { return clamp((y + 14) / 14, 0, 1) * 0.55 + rnd() * 0.3; };
+    for (var E = Math.ceil((w - 24 - 0.01) / 16) * 16; E < w + 24 - 0.01; E += 16) {
+      if (trackAt(E - 1) !== trackAt(E + 1)) {
+        var lx = E - w, bot = Math.min(gH(lx, 0), -2) - 1.2;
+        parts.push(facetColors(box(2.4, 1.3 - bot, 8.8, lx, (1.3 + bot) / 2, 0), '#3f3148', '#5c4a63', stonePickT));
+        parts.push(facetColors(box(2.8, 0.3, 9.2, lx, 1.15, 0), '#463852', '#63506c', stonePickT));
+      }
+    }
 
     // props: each biome decorates its own side of the boundary
     var r0 = regionAt(w - 24), r1 = regionAt(w + 24);
@@ -2472,6 +2598,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   var tunnelGroup = new THREE.Group();
   scene.add(tunnelGroup);
+  var tunnelMound = null;
   var tunnelBulbMat = new THREE.MeshStandardMaterial({ color: '#3a2410', emissive: '#ff9a5c', emissiveIntensity: 1.6 });
   var tunnelLight = null;
   (function () {
@@ -2518,6 +2645,41 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     mesh.castShadow = true;
     mesh.customDepthMaterial = worldDepthMat;
     tunnelGroup.add(mesh);
+    // earth cover over the bore when the tunnel sits on ground-level track
+    var mp = [], mc = [], mcol = new THREE.Color();
+    var mA = new THREE.Color('#2e2838'), mB = new THREE.Color('#3e3648');
+    var gA = new THREE.Color('#3c4634'), gB = new THREE.Color('#4c563e');
+    function msec(x) {
+      var t = clamp((40 - Math.abs(x)) / 10, 0, 1);
+      var pts = [[-22, -1.3], [-15, 1.2], [-10, 4.4], [-5.6, 7.95], [0, 8.4], [5.6, 7.95], [10, 4.4], [15, 1.2], [22, -1.3]];
+      return pts.map(function (q) { return [q[0], lerp(-1.3, q[1], t)]; });
+    }
+    var mprev = msec(-40);
+    for (var mx = -36; mx <= 40; mx += 4) {
+      var mcx = Math.min(mx, 40), mcur = msec(mcx);
+      for (var mb = 0; mb < 8; mb++) {
+        var a0 = mprev[mb], a1 = mprev[mb + 1], b0 = mcur[mb], b1 = mcur[mb + 1];
+        var top = mb >= 2 && mb <= 5;
+        mcol.copy(top ? gA : mA).lerp(top ? gB : mB, rnd());
+        var c0 = mcol.clone();
+        mcol.copy(top ? gA : mA).lerp(top ? gB : mB, rnd());
+        mp.push(mcx - 4, a0[1], a0[0], mcx, b1[1], b1[0], mcx, b0[1], b0[0]);
+        mp.push(mcx - 4, a0[1], a0[0], mcx - 4, a1[1], a1[0], mcx, b1[1], b1[0]);
+        for (var mv = 0; mv < 3; mv++) mc.push(c0.r, c0.g, c0.b);
+        for (mv = 0; mv < 3; mv++) mc.push(mcol.r, mcol.g, mcol.b);
+      }
+      mprev = mcur;
+    }
+    var mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', new THREE.Float32BufferAttribute(mp, 3));
+    mg.setAttribute('color', new THREE.Float32BufferAttribute(mc, 3));
+    mg.computeVertexNormals();
+    tunnelMound = new THREE.Mesh(mg, groundMat);
+    tunnelMound.visible = false;
+    tunnelMound.castShadow = true;
+    tunnelMound.receiveShadow = true;
+    tunnelMound.customDepthMaterial = worldDepthMat;
+    tunnelGroup.add(tunnelMound);
     // dim maintenance bulbs along the ceiling
     for (var bx = -22; bx <= 22; bx += 11) {
       var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), tunnelBulbMat);
@@ -3798,7 +3960,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       if (!rg.scheduled && rg.start - dist < 200 && rg.start > dist - 80) {
         rg.scheduled = true;
         if (rg.mech === 'stop') { stopPending = true; haltTargetW = rg.start; }
-        else if (rg.mech === 'tunnel') { tunnelPending = true; tunnelTargetW = rg.start; }
+        else if (rg.mech === 'tunnel') { tunnelPending = true; tunnelTargetW = rg.start; tunnelMound.visible = trackAt(rg.start) === 'ground'; }
         else if (rg.mech === 'curve') { curveArmed = true; curveTargetW = rg.start; }
       }
     }
@@ -3818,7 +3980,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     // tunnel presence (before environment so lights & audio can react)
     var tunnelX = tunnelPending ? tunnelTargetW - dist : 10000;
-    if (tunnelPending && tunnelX < -80) tunnelPending = false;
+    if (tunnelPending && tunnelX < -140) { tunnelPending = false; tunnelMound.visible = false; }
     // fraction of the train span (-24..24) covered by the bore (tunnelX +- 30)
     var ov = clamp((Math.min(tunnelX + 30, 24) - Math.max(tunnelX - 30, -24)) / 48, 0, 1);
     tunnelF = smooth(0.04, 0.5, ov);
@@ -3906,6 +4068,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     scroll.signal -= v * dt;
     if (scroll.signal <= -96) scroll.signal += 96;
     signalGroup.position.x = scroll.signal;
+
+    maskTrackStructures();
 
     haltGroup.position.x = stopPending || stopState !== 'cruise' ? haltTargetW - dist : -1000;
     tunnelGroup.position.x = tunnelX;
