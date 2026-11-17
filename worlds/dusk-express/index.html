@@ -78,7 +78,7 @@
     width: -webkit-fit-content;
     width: fit-content;
     max-width: calc(100% - 24px);
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(126px + env(safe-area-inset-bottom, 0px));
     z-index: 2;
     display: flex;
     align-items: center;
@@ -277,21 +277,87 @@
   }
   .sound:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-  .shot .hud, .shot .hint, .shot .modes, .shot .back, .shot .sound,
+  .env {
+    position: fixed;
+    left: 50%;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    border: 1px solid rgba(246, 234, 214, 0.15);
+    border-radius: 999px;
+    background: rgba(30, 18, 36, 0.55);
+    box-shadow: 0 8px 24px rgba(10, 5, 14, 0.35);
+    max-width: calc(100vw - 24px);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    animation: riseCenter 1.3s .8s cubic-bezier(.22,.61,.36,1) both;
+  }
+  .env button {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 5px 11px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: rgba(246, 234, 214, 0.7);
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+    white-space: nowrap;
+    flex: none;
+    transition: color .28s ease, background .28s ease;
+  }
+  .env button:hover { color: var(--cream); }
+  .env button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #autoBtn[aria-pressed="true"] { color: #2c1e2e; background: var(--cream); }
+  .env .time { display: flex; align-items: center; gap: 8px; }
+  #timeSlider {
+    width: 110px;
+    height: 22px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    background: transparent;
+  }
+  #timeSlider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #phaseLabel {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: rgba(246, 234, 214, 0.62);
+    white-space: nowrap;
+    min-width: 78px;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .shot .hud, .shot .hint, .shot .modes, .shot .env, .shot .back, .shot .sound,
   .shot .vignette, .shot .grain, .shot #boot { display: none !important; }
 
   @media (max-width: 640px) {
     .brand { letter-spacing: 0.22em; }
     .back { font-size: 10px; padding: 7px 13px; }
     .tag { font-size: 10px; letter-spacing: 0.16em; }
-    .hint { font-size: 10px; letter-spacing: 0.1em; padding: 8px 16px; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+    .hint { font-size: 10px; letter-spacing: 0.1em; padding: 8px 16px; bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
     .modes button { padding: 8px 11px; font-size: 11px; letter-spacing: 0.08em; gap: 0; }
     .modes button svg { display: none; }
     .sound { font-size: 10px; padding: 6px 12px; }
+    .env { gap: 3px; padding: 4px 7px; }
+    .env button { padding: 5px 8px; font-size: 10px; }
+    #timeSlider { width: 64px; }
+    #phaseLabel { min-width: 0; font-size: 9px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .hud, .hint, .modes, #boot .inner { animation: none !important; }
-    #scene, .hint, .back, .sound, .modes button { transition: none !important; }
+    .hud, .hint, .modes, .env, #boot .inner { animation: none !important; }
+    #scene, .hint, .back, .sound, .modes button, .env button { transition: none !important; }
   }
 </style>
 </head>
@@ -322,7 +388,19 @@
     <div class="tag">一列开往星夜的慢车</div>
   </header>
 
-  <div class="hint" id="hint"><i></i>拖动环视 · 滚轮缩放 · 点击车头鸣笛</div>
+  <div class="hint" id="hint"><i></i>拖动环视 · 点击车头鸣笛 · 下方切换天气与昼夜</div>
+
+  <div class="env" role="group" aria-label="环境与时间控制">
+    <button id="weatherBtn" type="button" title="手动切换天气（会关闭自动）">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M7 15a4.5 4.5 0 1 1 .8-8.9A5.5 5.5 0 0 1 18.6 8.6 3.8 3.8 0 0 1 17.5 15H7z"/><path d="M8 18.5v1.5M12 18.5v1.5M16 18.5v1.5"/></svg>
+      <span id="weatherLabel">晴朗</span>
+    </button>
+    <div class="time">
+      <input id="timeSlider" type="range" min="0" max="24" step="0.05" value="21.5" aria-label="一天中的时刻">
+      <span id="phaseLabel">21:30 · 夜晚</span>
+    </div>
+    <button id="autoBtn" type="button" aria-pressed="true" title="自动流转时间与天气">自动</button>
+  </div>
 
   <nav class="modes" aria-label="视角切换">
     <button type="button" data-mode="orbit" aria-pressed="true">
@@ -371,6 +449,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   if (isShot) document.body.classList.add('shot');
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // environment state (?hour=H&weather=W&auto=0 for deterministic shots)
+  var WEATHERS = ['clear', 'rain', 'snow', 'hail', 'fog', 'leafG', 'leafR'];
+  var WEATHER_NAMES = { clear: '晴朗', rain: '下雨', snow: '下雪', hail: '冰雹', fog: '雾天', leafG: '绿叶', leafR: '枫叶' };
+  var autoOn = params.get('auto') !== '0';
+  var hour = parseFloat(params.get('hour'));
+  if (!isFinite(hour)) hour = 21.5;
+  hour = ((hour % 24) + 24) % 24;
+  var weatherTarget = 'clear';
+  var wp = params.get('weather');
+  if (wp && WEATHERS.indexOf(wp) >= 0) weatherTarget = wp;
+  var weatherTimer = 0; // initialized once rnd() is available
+
   var renderer;
   try {
     renderer = new THREE.WebGLRenderer({
@@ -417,6 +507,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function rand(a, b) { return a + rnd() * (b - a); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function lerp(a, b, t) { return a + (b - a) * t; }
+  function smooth(a, b, x) { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); }
+  weatherTimer = rand(16, 28);
 
   function facetColors(geometry, colorA, colorB, pick) {
     var g = geometry.index ? geometry.toNonIndexed() : geometry;
@@ -482,6 +574,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   var stoneMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
   var darkMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
+  // lit-window materials: emissiveIntensity is driven by the time-of-day schedule
+  var carWinMat = new THREE.MeshStandardMaterial({ color: '#241a12', emissive: '#ffb37a', emissiveIntensity: 1.7, roughness: 0.5 });
+  var villageWinMat = new THREE.MeshStandardMaterial({ color: '#241a12', emissive: '#ffc98f', emissiveIntensity: 1.5, roughness: 0.6 });
+  // valley ground gets its own material so snow/wet tinting doesn't affect the train
+  var groundMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
 
   /* ------------------------------------------------------------------ */
   /* procedural textures                                                 */
@@ -656,22 +753,35 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var starsA = starLayer(420, 1.8, 0.65);
   var starsB = starLayer(240, 2.6, 0.8);
 
-  var moonPos = MOON_DIR.clone().multiplyScalar(470);
-  var moonHalo = addGlow(moonPos.x, moonPos.y, moonPos.z, 130, 0.16, '#b8c4f0');
+  var moonPos = new THREE.Vector3();
+  var moonHalo = addGlow(0, 0, 0, 130, 0.16, '#b8c4f0');
   moonHalo.material.depthTest = true;
   var moonCore = new THREE.Sprite(new THREE.SpriteMaterial({
     map: moonTex, transparent: true, opacity: 0.95,
     depthWrite: false, fog: false
   }));
   moonCore.scale.set(30, 30, 1);
-  moonCore.position.copy(moonPos);
   scene.add(moonCore);
+
+  var sunTex = radialTex([
+    [0, 'rgba(255,252,240,1)'], [0.3, 'rgba(255,238,190,1)'],
+    [0.5, 'rgba(255,214,140,0.85)'], [0.72, 'rgba(255,190,110,0.2)'], [1, 'rgba(255,180,100,0)']
+  ]);
+  var sunPos = new THREE.Vector3();
+  var sunCore = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: sunTex, transparent: true, opacity: 0,
+    depthWrite: false, fog: false
+  }));
+  sunCore.scale.set(46, 46, 1);
+  scene.add(sunCore);
+  var sunHalo = addGlow(0, 0, 0, 190, 0, '#ffd9a0');
 
   /* ------------------------------------------------------------------ */
   /* lights                                                              */
   /* ------------------------------------------------------------------ */
 
-  scene.add(new THREE.HemisphereLight(new THREE.Color('#4a3a6e'), new THREE.Color('#1a1226'), 1.0));
+  var hemi = new THREE.HemisphereLight(new THREE.Color('#4a3a6e'), new THREE.Color('#1a1226'), 1.0);
+  scene.add(hemi);
 
   var moonLight = new THREE.DirectionalLight(new THREE.Color('#b8c4f0'), 2.2);
   moonLight.position.copy(MOON_DIR).multiplyScalar(80);
@@ -688,6 +798,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   scene.add(moonLight);
   scene.add(moonLight.target);
 
+  var sunLight = new THREE.DirectionalLight(new THREE.Color('#ffd9a0'), 0);
+  sunLight.castShadow = false;
+  sunLight.shadow.mapSize.set(1024, 1024);
+  sunLight.shadow.camera.left = -48;
+  sunLight.shadow.camera.right = 48;
+  sunLight.shadow.camera.top = 40;
+  sunLight.shadow.camera.bottom = -30;
+  sunLight.shadow.camera.near = 10;
+  sunLight.shadow.camera.far = 220;
+  sunLight.shadow.bias = -0.0004;
+  sunLight.shadow.normalBias = 0.02;
+  scene.add(sunLight);
+  scene.add(sunLight.target);
+
   var warmFill = new THREE.DirectionalLight(new THREE.Color('#ff9a5c'), 0.35);
   warmFill.position.set(20, 8, 40);
   scene.add(warmFill);
@@ -700,6 +824,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var SEG = 16, NSEG = 22;
   var RAIL_TOP = 0.5;
   var scroll = { viaduct: 0, sleepers: 0, lamps: 0, side: 0, signal: 0, halt: 0 };
+  // lights that follow the day/night schedule
+  var nightGlows = [], boatGlows = [], carHalos = [];
+  var rideLampShade = null, rideInteriorLight = null;
 
   var viaductGroup = new THREE.Group();
   scene.add(viaductGroup);
@@ -899,8 +1026,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     haltGroup.add(mesh);
     var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), lampBulbMat);
     bulb.position.set(-5.36, 3.12, 5.6); haltGroup.add(bulb);
-    addGlow(-5.36, 3.12, 5.6, 2.4, 0.5, '#ffb37a', haltGroup);
-    addGlow(2.6, 2.2, 5.98, 1.6, 0.22, '#ffe9d5', haltGroup);
+    nightGlows.push({ sprite: addGlow(-5.36, 3.12, 5.6, 2.4, 0.5, '#ffb37a', haltGroup), base: 0.5 });
+    nightGlows.push({ sprite: addGlow(2.6, 2.2, 5.98, 1.6, 0.22, '#ffe9d5', haltGroup), base: 0.22 });
     haltGroup.position.x = -60;
   })();
 
@@ -1210,7 +1337,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       boat.add(new THREE.Mesh(mergeGeos(hull), stoneMat));
       var bl2 = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), lampBulbMat);
       bl2.position.set(0, 0.95, 0); boat.add(bl2);
-      addGlow(0, 0.95, 0, 1.4, 0.5, '#ffb37a', boat);
+      boatGlows.push(addGlow(0, 0.95, 0, 1.4, 0.5, '#ffb37a', boat));
       group.add(boat);
       boats.push({ group: boat, phase: rnd() * 6.28, baseY: -13.7 });
     }
@@ -1229,7 +1356,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       skyLanterns.push({ sprite: sl, x: sl.position.x, z: sl.position.z, phase: rnd() });
     }
 
-    var merged = new THREE.Mesh(mergeGeos(parts), stoneMat);
+    var merged = new THREE.Mesh(mergeGeos(parts), groundMat);
     merged.receiveShadow = true;
     group.add(merged);
 
@@ -1237,7 +1364,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var winGeo = mergeGeos(winParts.map(function (g) {
         return facetColors(g, '#ffb37a', '#ffd9a0', function () { return rnd(); });
       }));
-      var winMesh = new THREE.Mesh(winGeo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: true }));
+      var winMesh = new THREE.Mesh(winGeo, villageWinMat);
       group.add(winMesh);
     }
     return group;
@@ -1252,6 +1379,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   // mountain ridges (parallax)
   var ridges = [];
+  var ridgeMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: true });
   function makeRidge(z, h, color, speed, phase) {
     var len = 800, segs = 64;
     var positions = [], colors = [];
@@ -1281,7 +1409,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     g.setIndex(indices);
-    var mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, fog: true }));
+    var mesh = new THREE.Mesh(g, ridgeMat);
     scene.add(mesh);
     ridges.push({ mesh: mesh, speed: speed, offset: 0 });
   }
@@ -1343,8 +1471,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var plumA = '#2c2136', plumB = '#3a2c48';
   var brassA = '#b07a42', brassB = '#d99a55';
   var wheelMat = new THREE.MeshStandardMaterial({ color: '#1e1626', roughness: 0.6, metalness: 0.4, flatShading: true });
-  var winMatA = new THREE.MeshStandardMaterial({ color: '#2a1a10', emissive: '#ffb37a', emissiveIntensity: 1.7 });
-  var winMatB = new THREE.MeshStandardMaterial({ color: '#2a1a10', emissive: '#ffc98f', emissiveIntensity: 1.45 });
 
   function wheelGeo(r, withPin) {
     var parts = [];
@@ -1428,7 +1554,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var side1 = new THREE.PlaneGeometry(1.4, 1.0); side1.translate(-3.4, 3.2, 1.52); cw.push(side1);
     var side2 = new THREE.PlaneGeometry(1.4, 1.0); side2.rotateY(Math.PI); side2.translate(-3.4, 3.2, -1.52); cw.push(side2);
     var front = new THREE.PlaneGeometry(1.8, 0.9); front.rotateY(Math.PI / 2); front.translate(-1.88, 3.2, 0); cw.push(front);
-    var cwMesh = new THREE.Mesh(mergeGeos(cw.map(function (g) { return facetColors(g, '#ffb37a', '#ffd9a0', function () { return rnd(); }); })), new THREE.MeshBasicMaterial({ vertexColors: true }));
+    var cwMesh = new THREE.Mesh(mergeGeos(cw.map(function (g) { return facetColors(g, '#ffb37a', '#ffd9a0', function () { return rnd(); }); })), carWinMat);
     loco.add(cwMesh);
 
     // drive wheels + trucks
@@ -1574,18 +1700,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (!isRide) {
       var winMesh = new THREE.Mesh(mergeGeos(winParts.map(function (geo) {
         return facetColors(geo, '#ffb37a', '#ffd9a0', function () { return rnd(); });
-      })), new THREE.MeshBasicMaterial({ vertexColors: true }));
+      })), carWinMat);
       g.add(winMesh);
     } else {
       // ride car: only end-door windows glow; side windows are open openings
       var dw = [];
       var d1 = new THREE.PlaneGeometry(0.7, 0.9); d1.rotateY(Math.PI / 2); d1.translate(6.31, 2.9, 0); dw.push(d1);
       var d2 = new THREE.PlaneGeometry(0.7, 0.9); d2.rotateY(-Math.PI / 2); d2.translate(-6.31, 2.9, 0); dw.push(d2);
-      g.add(new THREE.Mesh(mergeGeos(dw.map(function (geo) { return facetColors(geo, '#ffb37a', '#ffd9a0', function () { return rnd(); }); })), new THREE.MeshBasicMaterial({ vertexColors: true })));
+      g.add(new THREE.Mesh(mergeGeos(dw.map(function (geo) { return facetColors(geo, '#ffb37a', '#ffd9a0', function () { return rnd(); }); })), carWinMat));
     }
     // warm halo strip along each side
-    addGlow(0, 2.95, 1.7, 1, 0.1, '#ffb37a', g).scale.set(13, 2.6, 1);
-    addGlow(0, 2.95, -1.7, 1, 0.1, '#ffb37a', g).scale.set(13, 2.6, 1);
+    carHalos.push(addGlow(0, 2.95, 1.7, 1, 0.1, '#ffb37a', g));
+    carHalos[carHalos.length - 1].scale.set(13, 2.6, 1);
+    carHalos.push(addGlow(0, 2.95, -1.7, 1, 0.1, '#ffb37a', g));
+    carHalos[carHalos.length - 1].scale.set(13, 2.6, 1);
 
     [-5.0, -3.4, 3.4, 5.0].forEach(function (wx) {
       addWheel(g, smallWheelGeo, wx, 1.05, 1.3, 0.55);
@@ -1596,9 +1724,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.2, 8), new THREE.MeshStandardMaterial({ color: '#3a2410', emissive: '#ffb37a', emissiveIntensity: 2.4 }));
       lampShade.position.set(0, 2.42, 0);
       g.add(lampShade);
+      rideLampShade = lampShade;
       var interiorLight = new THREE.PointLight(new THREE.Color('#ffb37a'), 2.2, 9, 2);
       interiorLight.position.set(0, 3.2, 0);
       g.add(interiorLight);
+      rideInteriorLight = interiorLight;
     }
     cars.push(g);
     return g;
@@ -1993,6 +2123,419 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   window.addEventListener('resize', resize);
 
   /* ------------------------------------------------------------------ */
+  /* weather & day/night environment                                     */
+  /* ------------------------------------------------------------------ */
+
+  var wx = { rain: 0, snow: 0, hail: 0, fog: 0, leafG: 0, leafR: 0 };
+  if (weatherTarget !== 'clear') wx[weatherTarget] = 1;
+  var snowAcc = wx.snow, wetness = wx.rain + wx.hail > 0 ? 1 : 0, hailAcc = wx.hail, leafAcc = wx.leafG + wx.leafR > 0 ? 1 : 0;
+  var dayF = 0, nightF = 1, duskF = 0, lampF = 1, carriageF = 1, villageF = 1, headF = 1, moonVis = 1, leafMix = 0;
+  var sunDir = new THREE.Vector3(), moonDir = new THREE.Vector3();
+
+  function approach(cur, goal, up, down) {
+    var d = goal - cur;
+    return cur + clamp(d, -(d > 0 ? up : down), d > 0 ? up : down);
+  }
+  function lightWindow(h, on, off) {
+    var span = (off - on + 24) % 24; if (span === 0) span = 24;
+    var d = (h - on + 24) % 24;
+    return smooth(0, 0.7, d) * (1 - smooth(span - 0.7, span, d));
+  }
+
+  // palettes: night / day / dusk
+  function pal(o) { var r = {}; for (var k in o) r[k] = new THREE.Color(o[k]); return r; }
+  var SKY_N = pal({ top: '#0b0718', mid: '#241430', hor: '#40243c', glow: '#a34a2e', below: '#160e20' });
+  var SKY_D = pal({ top: '#3a6ab0', mid: '#7aa2cc', hor: '#c4d6e2', glow: '#ffe9b8', below: '#7a8aa0' });
+  var SKY_K = pal({ top: '#241440', mid: '#5c3058', hor: '#c86a44', glow: '#ff9a5c', below: '#2c1a30' });
+  var FOG_N = new THREE.Color('#1a1128'), FOG_D = new THREE.Color('#b6c6d6'), FOG_K = new THREE.Color('#6a4458');
+  var HEMI_SN = new THREE.Color('#4a3a6e'), HEMI_SD = new THREE.Color('#bccfe8');
+  var HEMI_GN = new THREE.Color('#1a1226'), HEMI_GD = new THREE.Color('#8a9078');
+  var CLOUD_N = new THREE.Color('#4a3a5e'), CLOUD_D = new THREE.Color('#dfe4ee'), CLOUD_K = new THREE.Color('#c99a8a');
+  var SUN_LOW = new THREE.Color('#ff9a5c'), SUN_HIGH = new THREE.Color('#fff0d8');
+  var C_WET = new THREE.Color('#6a6a74'), C_SNOW = new THREE.Color('#dfe6f2');
+  function mix3(target, n, d, k, dusk, dk) {
+    target.copy(n).lerp(d, k);
+    if (dk > 0.001) target.lerp(dusk, dk);
+  }
+
+  /* ---- weather particles ---- */
+
+  var weatherGroup = new THREE.Group();
+  scene.add(weatherGroup);
+  var wMat4 = new THREE.Matrix4(), wQuat = new THREE.Quaternion(), wEuler = new THREE.Euler(), wScale = new THREE.Vector3(1, 1, 1), wPos = new THREE.Vector3();
+  var wCol = new THREE.Color();
+
+  // rain streaks
+  var RAIN_N = 320;
+  var rainMat = new THREE.MeshBasicMaterial({ color: '#a8bcd4', transparent: true, opacity: 0, fog: true });
+  var rainMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.025, 1.0, 0.025), rainMat, RAIN_N);
+  rainMesh.frustumCulled = false; rainMesh.visible = false;
+  weatherGroup.add(rainMesh);
+  var rainP = [];
+  for (var ri = 0; ri < RAIN_N; ri++) rainP.push({ x: rand(-70, 70), y: rand(0.2, 42), z: rand(-32, 32), v: rand(26, 34) });
+
+  // snow flakes
+  var SNOW_N = 260;
+  var snowGeo = new THREE.BufferGeometry();
+  var snowPos = new Float32Array(SNOW_N * 3);
+  var snowP = [];
+  for (var sni = 0; sni < SNOW_N; sni++) {
+    var sp = { x: rand(-70, 70), y: rand(0.2, 40), z: rand(-32, 32), v: rand(1.6, 2.8), ph: rand(0, 6.28) };
+    snowP.push(sp);
+    snowPos[sni * 3] = sp.x; snowPos[sni * 3 + 1] = sp.y; snowPos[sni * 3 + 2] = sp.z;
+  }
+  snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+  var snowMat = new THREE.PointsMaterial({
+    map: radialTex([[0, 'rgba(255,255,255,1)'], [0.5, 'rgba(255,255,255,0.8)'], [1, 'rgba(255,255,255,0)']], 64),
+    color: '#ffffff', size: 0.2, sizeAttenuation: true, transparent: true, opacity: 0, depthWrite: false, fog: true
+  });
+  var snowPoints = new THREE.Points(snowGeo, snowMat);
+  snowPoints.frustumCulled = false; snowPoints.visible = false;
+  weatherGroup.add(snowPoints);
+
+  // hail stones
+  var HAIL_N = 140;
+  var hailMat = new THREE.MeshBasicMaterial({ color: '#e8f0f8', transparent: true, opacity: 0, fog: true });
+  var hailMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.07, 0), hailMat, HAIL_N);
+  hailMesh.frustumCulled = false; hailMesh.visible = false;
+  weatherGroup.add(hailMesh);
+  var hailP = [];
+  for (var hi = 0; hi < HAIL_N; hi++) hailP.push({ x: rand(-70, 70), y: rand(0.2, 42), z: rand(-32, 32), v: rand(18, 26) });
+
+  // falling leaves (green <-> red maple mix)
+  var LEAF_N = 130;
+  var leafMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0, fog: true });
+  var leafMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.24, 0.16), leafMat, LEAF_N);
+  leafMesh.frustumCulled = false; leafMesh.visible = false;
+  weatherGroup.add(leafMesh);
+  var leafP = [], leafGreens = [], leafReds = [];
+  for (var li = 0; li < LEAF_N; li++) {
+    leafP.push({ x: rand(-70, 70), y: rand(0.2, 38), z: rand(-32, 32), v: rand(1.2, 2.2), ph: rand(0, 6.28) });
+    leafGreens.push(new THREE.Color().setHSL(0.26 + rnd() * 0.08, 0.5, 0.3 + rnd() * 0.15));
+    leafReds.push(new THREE.Color().setHSL(0.02 + rnd() * 0.05, 0.65, 0.35 + rnd() * 0.15));
+    leafMesh.setColorAt(li, leafGreens[li]);
+  }
+  var leafAppliedMix = -1;
+
+  // drifting fog banks
+  var fogBanks = [];
+  for (var fb = 0; fb < 7; fb++) {
+    var fs = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#9a8aa8', transparent: true, opacity: 0, depthWrite: false, fog: true }));
+    fs.position.set(rand(-65, 65), rand(1, 9), rand(-24, 24));
+    fs.scale.set(rand(30, 52), rand(8, 15), 1);
+    weatherGroup.add(fs);
+    fogBanks.push({ sprite: fs, phase: rand(0, 6.28) });
+  }
+
+  /* ---- ground & object weather response ---- */
+
+  var snowCapMat = new THREE.MeshStandardMaterial({ color: '#e9edf5', roughness: 0.92, flatShading: true, transparent: true, opacity: 0 });
+  var snowCapMeshes = [];
+
+  // snow sheets on the viaduct deck + parapet tops (scroll with the deck)
+  var deckCapGeo = mergeGeos([
+    box(16.4, 0.12, 0.44, 0, 1.06, 3.62),
+    box(16.4, 0.12, 0.44, 0, 1.06, -3.62),
+    box(16.4, 0.07, 7.3, 0, 0.26, 0)
+  ]);
+  var deckCaps = new THREE.InstancedMesh(deckCapGeo, snowCapMat, NSEG);
+  deckCaps.frustumCulled = false; deckCaps.visible = false;
+  (function () {
+    var m = new THREE.Matrix4();
+    for (var i = 0; i < NSEG; i++) { m.makeTranslation(i * SEG - 176, 0, 0); deckCaps.setMatrixAt(i, m); }
+  })();
+  viaductGroup.add(deckCaps);
+  snowCapMeshes.push(deckCaps);
+
+  // snow on train roofs
+  function addCap(parent, w, h, d, x, y, z) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), snowCapMat);
+    m.position.set(x, y, z);
+    m.visible = false;
+    parent.add(m);
+    snowCapMeshes.push(m);
+  }
+  addCap(loco, 6.4, 0.09, 1.1, 1.6, 3.52, 0);
+  addCap(loco, 3.3, 0.09, 3.3, -3.4, 4.44, 0);
+  addCap(tender, 6.2, 0.09, 2.8, 0, 3.88, 0);
+  for (var cpi = 0; cpi < cars.length; cpi++) addCap(cars[cpi], 12.3, 0.09, 2.0, 0, 4.44, 0);
+
+  // rain puddles on the deck
+  var puddleMat = new THREE.MeshStandardMaterial({ color: '#141e38', roughness: 0.06, metalness: 0.85, transparent: true, opacity: 0 });
+  var puddleGeo = new THREE.CircleGeometry(1, 12);
+  puddleGeo.rotateX(-Math.PI / 2);
+  var puddles = new THREE.InstancedMesh(puddleGeo, puddleMat, NSEG * 2);
+  puddles.frustumCulled = false; puddles.visible = false;
+  (function () {
+    var m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+    for (var i = 0; i < NSEG * 2; i++) {
+      var sc = rand(0.5, 1.4);
+      p.set(Math.floor(i / 2) * SEG - 176 + rand(-7, 7), 0.245, rand(-2.8, 2.8));
+      s.set(sc, 1, sc * rand(0.6, 1));
+      m.compose(p, q, s);
+      puddles.setMatrixAt(i, m);
+    }
+  })();
+  viaductGroup.add(puddles);
+
+  // hail ice specks on the deck
+  var hailSpeckMat = new THREE.MeshBasicMaterial({ color: '#dfe8f2', transparent: true, opacity: 0 });
+  var hailSpecks = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.05, 0), hailSpeckMat, 70);
+  hailSpecks.frustumCulled = false; hailSpecks.visible = false;
+  (function () {
+    var m = new THREE.Matrix4();
+    for (var i = 0; i < 70; i++) { m.makeTranslation(rand(-176, 176), 0.3, rand(-3, 3)); hailSpecks.setMatrixAt(i, m); }
+  })();
+  viaductGroup.add(hailSpecks);
+
+  // fallen leaf litter on the deck
+  var litterMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0, fog: true });
+  var litterGeo = new THREE.PlaneGeometry(0.2, 0.14);
+  litterGeo.rotateX(-Math.PI / 2);
+  var litter = new THREE.InstancedMesh(litterGeo, litterMat, 46);
+  litter.frustumCulled = false; litter.visible = false;
+  (function () {
+    var m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
+    for (var i = 0; i < 46; i++) {
+      p.set(rand(-176, 176), 0.29, rand(-3.2, 3.2));
+      e.set(0, rand(0, Math.PI), 0); q.setFromEuler(e);
+      m.compose(p, q, s);
+      litter.setMatrixAt(i, m);
+      litter.setColorAt(i, leafGreens[i % LEAF_N]);
+    }
+  })();
+  viaductGroup.add(litter);
+  var litterAppliedMix = -1;
+
+  /* ---- environment update ---- */
+
+  var timeSlider = document.getElementById('timeSlider');
+  var phaseLabel = document.getElementById('phaseLabel');
+  var weatherLabel = document.getElementById('weatherLabel');
+  var weatherBtn = document.getElementById('weatherBtn');
+  var autoBtn = document.getElementById('autoBtn');
+  var lastPhaseTxt = '';
+
+  function setAuto(on) {
+    autoOn = on;
+    autoBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on) weatherTimer = rand(12, 24);
+  }
+  function setWeather(w, manual) {
+    weatherTarget = w;
+    weatherLabel.textContent = WEATHER_NAMES[w];
+    if (manual) setAuto(false);
+  }
+  weatherBtn.addEventListener('click', function () {
+    setWeather(WEATHERS[(WEATHERS.indexOf(weatherTarget) + 1) % WEATHERS.length], true);
+  });
+  timeSlider.addEventListener('input', function () {
+    hour = parseFloat(timeSlider.value) % 24;
+    setAuto(false);
+  });
+  autoBtn.addEventListener('click', function () { setAuto(!autoOn); });
+  weatherLabel.textContent = WEATHER_NAMES[weatherTarget];
+  timeSlider.value = hour;
+  autoBtn.setAttribute('aria-pressed', autoOn ? 'true' : 'false');
+
+  function updateEnvironment(dt, t) {
+    if (autoOn) {
+      hour = (hour + dt * 0.1) % 24;
+      weatherTimer -= dt;
+      if (weatherTimer <= 0) {
+        weatherTimer = rand(18, 34);
+        var next = weatherTarget;
+        while (next === weatherTarget) next = WEATHERS[Math.floor(rnd() * WEATHERS.length)];
+        setWeather(next, false);
+      }
+    }
+
+    // weather crossfade (~2.5s)
+    var wk = Math.min(1, dt * 1.1);
+    for (var key in wx) wx[key] += ((key === weatherTarget ? 1 : 0) - wx[key]) * wk;
+    leafMix = wx.leafR / Math.max(0.001, wx.leafG + wx.leafR);
+
+    // ground accumulation / drying
+    snowAcc = approach(snowAcc, wx.snow > 0.35 ? 1 : 0, dt / 6, dt / 10);
+    wetness = approach(wetness, wx.rain + wx.hail > 0.3 ? 1 : 0, dt / 4, dt / 14);
+    hailAcc = approach(hailAcc, wx.hail > 0.3 ? 1 : 0, dt / 3, dt / 6);
+    leafAcc = approach(leafAcc, wx.leafG + wx.leafR > 0.3 ? 1 : 0, dt / 6, dt / 16);
+
+    // sun & moon geometry
+    var sunTheta = (hour - 6) / 12 * Math.PI;
+    var sunElev = Math.sin(sunTheta);
+    dayF = smooth(-0.06, 0.22, sunElev);
+    nightF = 1 - dayF;
+    duskF = Math.exp(-Math.pow(sunElev / 0.16, 2));
+    sunDir.set(Math.cos(sunTheta) * 0.85, sunElev, -0.5).normalize();
+    moonDir.set(-Math.cos(sunTheta) * 0.85, -sunElev, -0.5).normalize();
+    moonVis = smooth(-0.04, 0.16, -sunElev) * (1 - wx.fog * 0.75);
+    sunPos.copy(sunDir).multiplyScalar(470);
+    moonPos.copy(moonDir).multiplyScalar(470);
+
+    // light schedules: lamps 17->7, carriage 17->24 & 5->7, village follows lamps
+    lampF = lightWindow(hour, 17, 7);
+    carriageF = Math.max(lightWindow(hour, 17, 24), lightWindow(hour, 5, 7));
+    villageF = lampF;
+    headF = clamp(lampF + wx.rain * 0.7 + wx.fog * 0.9 + wx.snow * 0.5 + wx.hail * 0.6, 0, 1);
+
+    // sky, fog, hemisphere, exposure
+    var dk = duskF * 0.85;
+    mix3(skyMat.uniforms.uTop.value, SKY_N.top, SKY_D.top, dayF, SKY_K.top, dk);
+    mix3(skyMat.uniforms.uMid.value, SKY_N.mid, SKY_D.mid, dayF, SKY_K.mid, dk);
+    mix3(skyMat.uniforms.uHorizon.value, SKY_N.hor, SKY_D.hor, dayF, SKY_K.hor, dk);
+    mix3(skyMat.uniforms.uGlow.value, SKY_N.glow, SKY_D.glow, dayF, SKY_K.glow, dk);
+    mix3(skyMat.uniforms.uBelow.value, SKY_N.below, SKY_D.below, dayF, SKY_K.below, dk);
+    wPos.set(sunDir.x, 0.02, sunDir.z).normalize();
+    wScale.set(moonDir.x, 0.02, moonDir.z).normalize();
+    skyMat.uniforms.uGlowDir.value.copy(wScale).lerp(wPos, dayF).normalize();
+    mix3(scene.fog.color, FOG_N, FOG_D, dayF, FOG_K, dk);
+    scene.fog.density = lerp(0.006, 0.0032, dayF) + wx.fog * 0.011 + wx.rain * 0.003 + wx.snow * 0.004;
+    mix3(hemi.color, HEMI_SN, HEMI_SD, dayF, CLOUD_K, dk * 0.4);
+    mix3(hemi.groundColor, HEMI_GN, HEMI_GD, dayF, FOG_K, dk * 0.4);
+    hemi.intensity = lerp(1.0, 1.75, dayF) * (1 - wx.fog * 0.25) + duskF * 0.15;
+    renderer.toneMappingExposure = lerp(1.18, 1.12, dayF) + duskF * 0.05;
+
+    sunLight.position.copy(sunDir).multiplyScalar(80);
+    sunLight.color.copy(SUN_LOW).lerp(SUN_HIGH, smooth(0, 0.5, sunElev));
+    sunLight.intensity = 3.6 * dayF * clamp(1 - wx.fog * 0.6 - wx.rain * 0.3 - wx.snow * 0.25, 0.15, 1);
+    sunLight.castShadow = dayF > 0.5;
+    moonLight.position.copy(moonDir).multiplyScalar(80);
+    moonLight.intensity = 2.2 * nightF * (1 - wx.fog * 0.6);
+    moonLight.castShadow = dayF <= 0.5;
+    warmFill.intensity = 0.35 * nightF + duskF * 0.45;
+
+    sunCore.material.opacity = dayF * (1 - wx.fog * 0.7) * smooth(-0.08, 0.05, sunElev);
+    sunHalo.material.opacity = 0.22 * dayF * (1 - wx.fog * 0.6);
+    moonCore.material.opacity = 0.95 * moonVis;
+    moonPath.material.opacity = 0.16 * moonVis;
+    riverMat.emissiveIntensity = 0.8 * nightF;
+
+    // ridges brighten with daylight
+    var rb = 1 + dayF * 1.3;
+    ridgeMat.color.setRGB(rb * (1 + duskF * 0.15), rb * (1 - duskF * 0.05), rb * (1 - duskF * 0.12));
+
+    // wet / snow ground response (vertex colors are night-authored, so daylight lifts them)
+    var gb = 1 + dayF * 1.7 + duskF * 0.35;
+    groundMat.color.setRGB(gb, gb, gb * 1.04);
+    if (wetness > 0.01) groundMat.color.lerp(C_WET, wetness * 0.55 * (1 - snowAcc));
+    if (snowAcc > 0.01) {
+      wCol.copy(C_SNOW).multiplyScalar(1 + nightF * 1.5 + dayF * 0.4);
+      groundMat.color.lerp(wCol, snowAcc * 0.85);
+    }
+    groundMat.roughness = lerp(0.95, 0.8, wetness * (1 - snowAcc));
+    groundMat.metalness = 0.05 * wetness * (1 - snowAcc);
+    stoneMat.roughness = lerp(0.95, 0.6, wetness * 0.6);
+    stoneMat.color.setScalar(1 + dayF * 0.85 + duskF * 0.15);
+    darkMat.color.setScalar(1 + dayF * 0.85 + duskF * 0.15);
+
+    snowCapMat.opacity = snowAcc;
+    for (var sci = 0; sci < snowCapMeshes.length; sci++) snowCapMeshes[sci].visible = snowAcc > 0.02;
+    puddleMat.opacity = 0.75 * wetness * (1 - snowAcc);
+    puddles.visible = wetness > 0.02 && snowAcc < 0.5;
+    hailSpeckMat.opacity = 0.9 * hailAcc;
+    hailSpecks.visible = hailAcc > 0.02;
+    litterMat.opacity = 0.95 * leafAcc;
+    litter.visible = leafAcc > 0.02;
+    if (litter.visible && Math.abs(leafMix - litterAppliedMix) > 0.02) {
+      litterAppliedMix = leafMix;
+      for (var lti = 0; lti < 46; lti++) {
+        wCol.copy(leafGreens[lti % LEAF_N]).lerp(leafReds[lti % LEAF_N], leafMix);
+        litter.setColorAt(lti, wCol);
+      }
+      litter.instanceColor.needsUpdate = true;
+    }
+
+    updateWeatherParticles(dt, t);
+
+    // HUD time readout
+    if (autoOn) timeSlider.value = hour;
+    var hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60);
+    var phase = hour < 5 ? '深夜' : hour < 7 ? '清晨' : hour < 17 ? '白天' : hour < 19 ? '黄昏' : '夜晚';
+    var txt = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm + ' · ' + phase;
+    if (txt !== lastPhaseTxt) { phaseLabel.textContent = txt; lastPhaseTxt = txt; }
+  }
+
+  function updateWeatherParticles(dt, t) {
+    var i, p;
+    // rain
+    rainMesh.visible = wx.rain > 0.01;
+    if (rainMesh.visible) {
+      rainMat.opacity = 0.32 * wx.rain;
+      for (i = 0; i < RAIN_N; i++) {
+        p = rainP[i];
+        p.y -= p.v * dt; p.x -= 7 * dt;
+        if (p.y < 0.2) { p.y += 42; p.x = rand(-70, 70); p.z = rand(-32, 32); }
+        wMat4.makeRotationZ(0.12);
+        wMat4.setPosition(p.x, p.y, p.z);
+        rainMesh.setMatrixAt(i, wMat4);
+      }
+      rainMesh.instanceMatrix.needsUpdate = true;
+    }
+    // snow
+    snowPoints.visible = wx.snow > 0.01;
+    if (snowPoints.visible) {
+      snowMat.opacity = 0.85 * wx.snow;
+      for (i = 0; i < SNOW_N; i++) {
+        p = snowP[i];
+        p.y -= p.v * dt;
+        p.x += (Math.sin(t * 0.8 + p.ph) * 0.7 - 1.4) * dt;
+        if (p.y < 0.2) { p.y += 40; p.x = rand(-70, 70); p.z = rand(-32, 32); }
+        snowPos[i * 3] = p.x; snowPos[i * 3 + 1] = p.y; snowPos[i * 3 + 2] = p.z;
+      }
+      snowGeo.attributes.position.needsUpdate = true;
+    }
+    // hail
+    hailMesh.visible = wx.hail > 0.01;
+    if (hailMesh.visible) {
+      hailMat.opacity = 0.9 * wx.hail;
+      for (i = 0; i < HAIL_N; i++) {
+        p = hailP[i];
+        p.y -= p.v * dt; p.x -= 4 * dt;
+        if (p.y < 0.2) { p.y += 42; p.x = rand(-70, 70); p.z = rand(-32, 32); }
+        wMat4.makeTranslation(p.x, p.y, p.z);
+        hailMesh.setMatrixAt(i, wMat4);
+      }
+      hailMesh.instanceMatrix.needsUpdate = true;
+    }
+    // leaves
+    var leafAmt = wx.leafG + wx.leafR;
+    leafMesh.visible = leafAmt > 0.01;
+    if (leafMesh.visible) {
+      leafMat.opacity = Math.min(1, leafAmt) * 0.95;
+      if (Math.abs(leafMix - leafAppliedMix) > 0.02) {
+        leafAppliedMix = leafMix;
+        for (i = 0; i < LEAF_N; i++) {
+          wCol.copy(leafGreens[i]).lerp(leafReds[i], leafMix);
+          leafMesh.setColorAt(i, wCol);
+        }
+        leafMesh.instanceColor.needsUpdate = true;
+      }
+      for (i = 0; i < LEAF_N; i++) {
+        p = leafP[i];
+        p.y -= p.v * dt;
+        p.x += (Math.sin(t + p.ph) * 1.1 - 2.0) * dt;
+        p.z += Math.cos(t * 0.7 + p.ph) * 0.6 * dt;
+        if (p.y < 0.2) { p.y += 38; p.x = rand(-70, 70); p.z = rand(-32, 32); }
+        wEuler.set(t * 1.5 + p.ph, t * 1.1 + p.ph * 2, p.ph);
+        wQuat.setFromEuler(wEuler);
+        wPos.set(p.x, p.y, p.z);
+        wScale.set(1, 1, 1);
+        wMat4.compose(wPos, wQuat, wScale);
+        leafMesh.setMatrixAt(i, wMat4);
+      }
+      leafMesh.instanceMatrix.needsUpdate = true;
+    }
+    // fog banks
+    for (i = 0; i < fogBanks.length; i++) {
+      var f = fogBanks[i];
+      f.sprite.material.opacity = wx.fog * 0.2 * (0.85 + 0.15 * Math.sin(t * 0.3 + f.phase));
+      f.sprite.position.x -= dt * 1.2;
+      if (f.sprite.position.x < -70) f.sprite.position.x += 140;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* animation                                                           */
   /* ------------------------------------------------------------------ */
 
@@ -2004,6 +2547,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function update(dt, t) {
     var sway = reduceMotion ? 0 : 1;
+
+    updateEnvironment(dt, t);
 
     // scroll the world past the train
     scroll.viaduct -= SPEED * dt;
@@ -2060,7 +2605,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     for (var rmi = 0; rmi < riverMists.length; rmi++) {
       var mm = riverMists[rmi];
-      mm.sprite.material.opacity = 0.09 + 0.05 * (0.5 + 0.5 * Math.sin(t * 0.5 + mm.phase));
+      mm.sprite.material.opacity = 0.09 + 0.05 * (0.5 + 0.5 * Math.sin(t * 0.5 + mm.phase)) + wx.fog * 0.18;
       mm.sprite.position.x += Math.sin(t * 0.2 + mm.phase) * dt * 0.3;
     }
     for (var sl2 = 0; sl2 < skyLanterns.length; sl2++) {
@@ -2068,15 +2613,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var lk = (t * 0.045 + L.phase) % 1;
       L.sprite.position.y = -2 + lk * 72;
       L.sprite.position.x = L.x + Math.sin(t * 0.4 + L.phase * 6) * 1.6;
-      L.sprite.material.opacity = 0.55 * Math.sin(Math.PI * lk);
+      L.sprite.material.opacity = nightF * 0.55 * Math.sin(Math.PI * lk);
     }
     for (var rs2 = 0; rs2 < reflStreaks.length; rs2++) {
-      reflStreaks[rs2].sprite.material.opacity = 0.10 + 0.06 * (0.5 + 0.5 * Math.sin(t * 2 + reflStreaks[rs2].phase));
+      reflStreaks[rs2].sprite.material.opacity = villageF * (0.10 + 0.06 * (0.5 + 0.5 * Math.sin(t * 2 + reflStreaks[rs2].phase)));
     }
     for (var tg = 0; tg < tileGlows.length; tg++) {
-      tileGlows[tg].sprite.material.opacity = 0.38 * (1 + 0.14 * Math.sin(t * 3 + tileGlows[tg].phase) * sway);
+      tileGlows[tg].sprite.material.opacity = villageF * 0.38 * (1 + 0.14 * Math.sin(t * 3 + tileGlows[tg].phase) * sway);
     }
-    trainReflection.material.opacity = 0.12 * (1 + 0.2 * Math.sin(t * 2.3) * sway);
+    trainReflection.material.opacity = carriageF * 0.12 * (1 + 0.2 * Math.sin(t * 2.3) * sway);
 
     // drifting clouds
     for (var cl = 0; cl < clouds.length; cl++) {
@@ -2084,10 +2629,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       c.sprite.position.x -= c.speed * dt * sway;
       if (c.sprite.position.x < -420) c.sprite.position.x += 840;
       c.sprite.position.y = c.baseY + Math.sin(t * 0.1 + c.phase) * 2 * sway;
+      mix3(c.sprite.material.color, CLOUD_N, CLOUD_D, dayF, CLOUD_K, duskF * 0.5);
+      c.sprite.material.opacity = 0.15 + wx.rain * 0.2 + wx.snow * 0.15 + wx.fog * 0.12;
     }
 
-    // shooting star
-    if (!reduceMotion) {
+    // shooting star (clear nights only)
+    if (!reduceMotion && nightF > 0.5 && wx.fog < 0.4 && wx.rain < 0.3 && wx.snow < 0.3) {
       if (!meteor.visible) {
         meteorState.timer -= dt;
         if (meteorState.timer <= 0) {
@@ -2101,13 +2648,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         if (mk >= 1) { meteor.visible = false; meteor.material.opacity = 0; meteorState.timer = rand(14, 30); }
         else {
           meteor.position.copy(camera.position).add(meteorState.from).addScaledVector(meteorState.dir, mk * 160);
-          meteor.material.opacity = 0.8 * Math.sin(Math.PI * mk);
+          meteor.material.opacity = 0.8 * Math.sin(Math.PI * mk) * nightF;
         }
       }
+    } else if (meteor.visible) {
+      meteor.visible = false; meteor.material.opacity = 0; meteorState.timer = rand(14, 30);
     }
 
-    // bird flock
-    if (!reduceMotion) {
+    // bird flock (daytime only)
+    if (!reduceMotion && dayF > 0.5 && wx.rain < 0.4 && wx.hail < 0.4) {
       if (!birds.visible) {
         birdState.timer -= dt;
         if (birdState.timer <= 0) {
@@ -2131,10 +2680,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
           birds.instanceMatrix.needsUpdate = true;
         }
       }
+    } else if (birds.visible) {
+      birds.visible = false; birdState.timer = rand(18, 34);
     }
 
     // moon halo breathe
-    moonHalo.material.opacity = 0.16 + 0.03 * Math.sin(t * 0.6) * sway;
+    moonHalo.material.opacity = (0.16 + 0.03 * Math.sin(t * 0.6) * sway) * moonVis;
 
     // wheels & rods
     wheelAngle -= (SPEED / 0.85) * dt;
@@ -2183,13 +2734,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       sm.sprite.material.opacity = 0.28 * (1 - k) * Math.min(1, k * 6);
     }
 
-    // lamp & window shimmer
+    // lamp & window shimmer, driven by the time-of-day light schedules
     var flick = 1 + Math.sin(t * 7.3) * 0.04 + Math.sin(t * 11.7 + 1.2) * 0.03;
-    lampBulbMat.emissiveIntensity = 2.2 * flick;
-    headGlow.material.opacity = 0.55 * flick;
-    winMatA.emissiveIntensity = 1.7 + Math.sin(t * 1.9) * 0.1;
-    winMatB.emissiveIntensity = 1.45 + Math.sin(t * 1.6 + 0.8) * 0.08;
-    starsB.material.opacity = reduceMotion ? 0.65 : 0.45 + 0.3 * (0.5 + 0.5 * Math.sin(t * 0.9));
+    lampBulbMat.emissiveIntensity = 2.2 * lampF * flick;
+    for (var lg = 0; lg < lampGlows.length; lg++) lampGlows[lg].material.opacity = 0.5 * lampF * flick;
+    for (var ng = 0; ng < nightGlows.length; ng++) nightGlows[ng].sprite.material.opacity = nightGlows[ng].base * lampF * flick;
+    for (var bg = 0; bg < boatGlows.length; bg++) boatGlows[bg].material.opacity = 0.5 * lampF * flick;
+    carWinMat.emissiveIntensity = carriageF * (1.7 + Math.sin(t * 1.9) * 0.1);
+    villageWinMat.emissiveIntensity = villageF * (1.5 + Math.sin(t * 1.6 + 0.8) * 0.08);
+    for (var ch = 0; ch < carHalos.length; ch++) carHalos[ch].material.opacity = 0.1 * carriageF;
+    lens.material.emissiveIntensity = 3 * headF;
+    headGlow.material.opacity = 0.55 * headF * flick;
+    headSpot.intensity = 300 * headF;
+    beam.material.opacity = 0.04 * headF + wx.fog * 0.03 * headF;
+    if (rideInteriorLight) rideInteriorLight.intensity = 2.2 * carriageF;
+    if (rideLampShade) rideLampShade.material.emissiveIntensity = 2.4 * carriageF;
+    starsA.material.opacity = 0.65 * nightF * (1 - wx.fog * 0.8);
+    starsB.material.opacity = (reduceMotion ? 0.65 : 0.45 + 0.3 * (0.5 + 0.5 * Math.sin(t * 0.9))) * nightF * (1 - wx.fog * 0.8);
 
     // idle auto-orbit
     view.idleTimer += dt;
@@ -2211,6 +2772,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     starsB.position.copy(camera.position);
     moonCore.position.copy(camera.position).add(moonPos);
     moonHalo.position.copy(camera.position).add(moonPos);
+    sunCore.position.copy(camera.position).add(sunPos);
+    sunHalo.position.copy(camera.position).add(sunPos);
   }
 
   function animate() {
