@@ -579,7 +579,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* helpers                                                             */
   /* ------------------------------------------------------------------ */
 
-  var seed = 20261114;
+  // shot mode keeps a fixed seed for reproducible frames; normal visits get a fresh world
+  var seed = isShot ? 20261114 : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) | 0);
   function rnd() {
     seed |= 0;
     seed = (seed + 0x6D2B79F5) | 0;
@@ -1381,7 +1382,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     recentBiomes.push(prev.biome);
     if (recentBiomes.length > 2) recentBiomes.shift();
   }
-  regions.push({ start: -1000, end: eventParam ? 60 : 96, biome: regionParam || 'valley', mech: 'open', scheduled: true });
+  var BIOME_KEYS = Object.keys(BIOMES);
+  var startBiome = regionParam || (isShot ? 'valley' : BIOME_KEYS[Math.floor(rnd() * BIOME_KEYS.length)]);
+  regions.push({ start: -1000, end: eventParam ? 60 : 96, biome: startBiome, mech: 'open', scheduled: true });
   planRegion(regions[0].end);
   planRegion(regions[1].end);
   currentBiome = regions[0].biome;
