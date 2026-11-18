@@ -75,6 +75,7 @@
   .status {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
     margin-top: 12px;
     font-size: 10px;
@@ -89,6 +90,14 @@
     border-radius: 50%;
     background: rgba(255, 186, 132, 0.9);
     box-shadow: 0 0 8px rgba(255, 170, 110, 0.9);
+  }
+  .status .event {
+    color: rgba(255, 198, 150, 0.94);
+  }
+  .status .event::before {
+    content: "·";
+    margin-right: 8px;
+    opacity: 0.45;
   }
 
   .back {
@@ -205,6 +214,16 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
   }
 
+  #fade {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    background: #08060c;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.38s ease;
+  }
+
   #boot {
     position: fixed;
     inset: 0;
@@ -287,7 +306,7 @@
 </style>
 </head>
 <body>
-  <canvas id="scene" aria-label="雨夜街角的自助洗衣店 3D 场景，滚筒在转，猫睡在椅子上"></canvas>
+  <canvas id="scene" aria-label="雨夜街角的自助洗衣店 3D 场景，滚筒在转，猫在椅子上，夜晚会停电、落雪或慢慢天亮"></canvas>
 
   <div class="vignette"></div>
   <div class="grain"></div>
@@ -300,11 +319,12 @@
       <span class="en">Midnight Laundromat</span>
     </div>
     <div class="rule"></div>
-    <div class="tag">雨夜 · 街角 · 还亮着灯</div>
+    <div class="tag">雨夜 · 街角 · 今晚不一样</div>
     <div class="status">
       <span id="clock">02:17</span>
       <i></i>
       <span id="status-text">3 台在转</span>
+      <span id="event-text" class="event" hidden></span>
     </div>
   </header>
 
@@ -313,9 +333,12 @@
     <div class="controls" role="group" aria-label="场景控制">
       <button id="btn-sign" type="button" aria-pressed="true">招牌 · 开</button>
       <button id="btn-cat" type="button">叫醒猫</button>
+      <button id="btn-night" type="button">换一夜</button>
       <button id="btn-pause" type="button" aria-pressed="false">暂停</button>
     </div>
   </div>
+
+  <div id="fade"></div>
 
   <div id="boot">
     <div class="inner">
@@ -348,9 +371,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var bootText = document.getElementById('boot-text');
   var clockEl = document.getElementById('clock');
   var statusEl = document.getElementById('status-text');
+  var eventEl = document.getElementById('event-text');
   var btnSign = document.getElementById('btn-sign');
   var btnCat = document.getElementById('btn-cat');
+  var btnNight = document.getElementById('btn-night');
   var btnPause = document.getElementById('btn-pause');
+  var fadeEl = document.getElementById('fade');
 
   var params = new URLSearchParams(window.location.search || '');
   var COVER = params.get('cover') === '1';
@@ -638,6 +664,25 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   sky.position.set(0, 15, -42);
   scene.add(sky);
 
+  var dawnSkyTex = canvasTex(4, 512, function (ctx, w, h) {
+    var g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#42566b');
+    g.addColorStop(0.45, '#7c92a8');
+    g.addColorStop(0.78, '#b0bcc8');
+    g.addColorStop(1, '#d8c9b9');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+  var dawnSky = new THREE.Mesh(
+    new THREE.PlaneGeometry(130, 64),
+    new THREE.MeshBasicMaterial({
+      map: dawnSkyTex, transparent: true, opacity: 0, fog: false,
+      depthWrite: false, toneMapped: false
+    })
+  );
+  dawnSky.position.set(0, 15, -41.8);
+  scene.add(dawnSky);
+
   function buildingTex(seed) {
     return canvasTex(128, 256, function (ctx, w, h) {
       var r = mulberry32(seed);
@@ -661,6 +706,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   var bg = new THREE.Group();
   scene.add(bg);
+  var buildingMats = [];
 
   var buildings = [
     { x: -15, z: -26, w: 7, h: 11, d: 6, seed: 11 },
@@ -672,6 +718,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   ];
   buildings.forEach(function (b) {
     var bm = new THREE.MeshBasicMaterial({ map: buildingTex(b.seed), fog: true, toneMapped: true });
+    buildingMats.push(bm);
     var mesh = new THREE.Mesh(boxGeo(b.w, b.h, b.d), bm);
     mesh.position.set(b.x, b.h / 2, b.z);
     bg.add(mesh);
@@ -685,10 +732,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   addCyl(bg, 0.7, 1.0, 1.4, 10, '#241d2a', 16, 12.1, -10.5, { cast: false, receive: false });
 
   /* ---------- ground / street ---------- */
-  addBox(scene, 90, 0.12, 70, '#14111c', 0, -0.06, 10, { cast: false, receive: true });
-  addBox(scene, 30, 0.14, 4.4, '#2a2530', 0, 0.07, 2.2, { cast: false, receive: true });
-  addBox(scene, 30, 0.22, 0.34, '#3a343e', 0, 0.11, 4.42, { cast: false, receive: true });
+  var ground = addBox(scene, 90, 0.12, 70, '#14111c', 0, -0.06, 10, { cast: false, receive: true });
+  var sidewalk = addBox(scene, 30, 0.14, 4.4, '#2a2530', 0, 0.07, 2.2, { cast: false, receive: true });
+  var curb = addBox(scene, 30, 0.22, 0.34, '#3a343e', 0, 0.11, 4.42, { cast: false, receive: true });
   addBox(scene, 60, 0.04, 20, '#131019', 0, 0.02, 14.3, { cast: false, receive: true });
+  ground.material = ground.material.clone();
+  sidewalk.material = sidewalk.material.clone();
+  curb.material = curb.material.clone();
 
   var asphaltTex = canvasTex(256, 256, function (ctx, w, h) {
     var r = mulberry32(77);
@@ -708,6 +758,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   street.position.set(0, 0.041, 14.3);
   street.receiveShadow = true;
   scene.add(street);
+
+  var groundBaseColor = ground.material.color.clone();
+  var sidewalkBaseColor = sidewalk.material.color.clone();
+  var curbBaseColor = curb.material.color.clone();
+  var streetBaseColor = street.material.color.clone();
+  var fogBaseColor = scene.fog.color.clone();
+  var fogBaseDensity = scene.fog.density;
+  var bgBaseColor = scene.background.clone();
 
   /* ---------- store shell ---------- */
   var store = new THREE.Group();
@@ -763,8 +821,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   });
   glass.receiveShadow = false;
 
+  var stripMat = new THREE.MeshBasicMaterial({ color: '#ffd2a0', toneMapped: false });
   addBox(store, 10.4, 0.03, 0.05, '#ffd2a0', 0, 3.275, 0.46, {
-    material: basic('#ffd2a0', { toneMapped: false }), cast: false
+    material: stripMat, cast: false
   });
 
   /* door */
@@ -847,8 +906,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   signGlow.position.set(0, 3.82, 0.17);
   store.add(signGlow);
 
-  addSphere(store, 0.045, '#ffd6a7', -4.75, 3.2, 0.08, { material: basic('#ffd6a7', { toneMapped: false }), cast: false });
-  addSphere(store, 0.045, '#ffd6a7', 4.75, 3.2, 0.08, { material: basic('#ffd6a7', { toneMapped: false }), cast: false });
+  var sconceMat = new THREE.MeshBasicMaterial({ color: '#ffd6a7', toneMapped: false });
+  addSphere(store, 0.045, '#ffd6a7', -4.75, 3.2, 0.08, { material: sconceMat, cast: false });
+  addSphere(store, 0.045, '#ffd6a7', 4.75, 3.2, 0.08, { material: sconceMat, cast: false });
 
   /* open sign */
   var openTex = canvasTex(256, 128, function (ctx, w, h) {
@@ -1100,6 +1160,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
   addBox(table, 0.48, 0.015, 0.34, '#d8cbb5', 0.55, 0.94, 0.16, { rotY: -0.12 });
   addBox(table, 0.22, 0.02, 0.3, '#bcae98', 0.55, 0.95, 0.16, { rotY: -0.12, cast: false });
+
+  var phone = new THREE.Group();
+  phone.position.set(-0.45, 0.93, 0.12);
+  phone.rotation.y = -0.35;
+  table.add(phone);
+  addBox(phone, 0.18, 0.015, 0.1, '#18181f', 0, 0, 0, { cast: false });
+  var phoneScreen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.16, 0.08),
+    new THREE.MeshBasicMaterial({ color: '#dff4ff', toneMapped: false })
+  );
+  phoneScreen.rotation.x = -Math.PI / 2;
+  phoneScreen.position.y = 0.009;
+  phone.add(phoneScreen);
+  phone.visible = false;
+  var phoneLight = new THREE.PointLight(new THREE.Color('#a8dcff'), 0, 4.5, 2);
+  phoneLight.position.set(-0.45, 1.15, 0.12);
+  table.add(phoneLight);
 
   function buildChair(x, z, color) {
     var c = new THREE.Group();
@@ -1408,14 +1485,95 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     puddles.push({ mesh: m, base: p.op, phase: rand(0, 6.28) });
   });
 
-  /* ---------- streetlamp / street props ---------- */
+  /* ---------- snow ---------- */
+  var SNOW_COUNT = 900;
+  var snowPos = new Float32Array(SNOW_COUNT * 3);
+  var snowFlakes = [];
+  for (var si = 0; si < SNOW_COUNT; si++) {
+    snowFlakes.push({
+      x: rand(-16, 16),
+      y: rand(0.2, 13),
+      z: rand(0.5, 17),
+      v: rand(0.8, 2.0),
+      phase: rand(0, 6.28)
+    });
+  }
+  var snowGeo = new THREE.BufferGeometry();
+  snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+  var snowFlakeTex = canvasTex(64, 64, function (ctx, w, h) {
+    ctx.clearRect(0, 0, w, h);
+    var g = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+    g.addColorStop(0, 'rgba(255,255,255,0.96)');
+    g.addColorStop(0.45, 'rgba(235,244,255,0.68)');
+    g.addColorStop(1, 'rgba(235,244,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(32, 32, 30, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  var snowMat = new THREE.PointsMaterial({
+    size: 0.1, map: snowFlakeTex, color: '#f2f7ff', transparent: true,
+    opacity: 0, depthWrite: false, sizeAttenuation: true
+  });
+  var snow = new THREE.Points(snowGeo, snowMat);
+  snow.frustumCulled = false;
+  scene.add(snow);
+
+  var snowCoverTex = canvasTex(256, 256, function (ctx, w, h) {
+    var r = mulberry32(919);
+    ctx.fillStyle = '#b8c5d4';
+    ctx.fillRect(0, 0, w, h);
+    for (var i = 0; i < 700; i++) {
+      ctx.fillStyle = r() < 0.55
+        ? 'rgba(255,255,255,' + (0.06 + r() * 0.18) + ')'
+        : 'rgba(92,108,128,' + (0.04 + r() * 0.08) + ')';
+      ctx.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 2);
+    }
+  }, [8, 8]);
+  var snowStreetMat = new THREE.MeshStandardMaterial({
+    map: snowCoverTex, color: '#aebdcd', roughness: 0.95, metalness: 0,
+    transparent: true, opacity: 0, depthWrite: false
+  });
+  var snowStreet = new THREE.Mesh(new THREE.PlaneGeometry(60, 20), snowStreetMat);
+  snowStreet.rotation.x = -Math.PI / 2;
+  snowStreet.position.set(0, 0.055, 14.3);
+  snowStreet.receiveShadow = true;
+  scene.add(snowStreet);
+  var snowWalkMat = snowStreetMat.clone();
+  var snowWalk = new THREE.Mesh(new THREE.PlaneGeometry(30, 4.4), snowWalkMat);
+  snowWalk.rotation.x = -Math.PI / 2;
+  snowWalk.position.set(0, 0.153, 2.2);
+  snowWalk.receiveShadow = true;
+  scene.add(snowWalk);
+
+  var snowCaps = new THREE.Group();
+  snowCaps.visible = false;
+  store.add(snowCaps);
+  addBox(snowCaps, 10.4, 0.05, 0.18, '#dfe8f0', 0, 3.47, 0.06, { cast: false });
+  addBox(snowCaps, 7.0, 0.05, 0.2, '#dfe8f0', 0, 4.34, 0.15, { cast: false });
+  addBox(snowCaps, 8.7, 0.05, 0.12, '#dfe8f0', -0.8, 0.35, 0.04, { cast: false });
+
+  var weather = {
+    rain: 1, rainTarget: 1,
+    snow: 0, snowTarget: 0,
+    puddle: 1, puddleTarget: 1,
+    ground: 0, groundTarget: 0,
+    dawn: 0, dawnTarget: 0
+  };
+  var snowGroundColor = new THREE.Color('#8f9bab');
+  var snowWalkColor = new THREE.Color('#c3cdd9');
+  var snowCurbColor = new THREE.Color('#aeb9c6');
+  var snowStreetColor = new THREE.Color('#d5dee9');
+  var dawnFogColor = new THREE.Color('#667486');
+  var dawnBgColor = new THREE.Color('#3b485b');
   var lamp = new THREE.Group();
   lamp.position.set(-7.1, 0, 4.55);
   scene.add(lamp);
   addCyl(lamp, 0.09, 0.12, 5.5, 8, '#27222c', 0, 2.75, 0, { metalness: 0.35 });
   addBox(lamp, 1.25, 0.08, 0.08, '#27222c', 0.55, 5.3, 0, { metalness: 0.35 });
+  var lampBulbMat = new THREE.MeshBasicMaterial({ color: '#ffcf9a', toneMapped: false });
   addSphere(lamp, 0.16, '#ffcf9a', 1.15, 5.22, 0, {
-    material: basic('#ffcf9a', { toneMapped: false }), cast: false, seg: 8
+    material: lampBulbMat, cast: false, seg: 8
   });
   addCyl(lamp, 0.3, 0.12, 0.12, 10, '#2e2832', 1.15, 5.36, 0, { metalness: 0.3 });
 
@@ -1485,13 +1643,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return [c.coat, c.pants, c.scarf, c.beanie, c.umbrella].join('/');
   }
 
-  function makeCast(count) {
+  function makeCast(count, seed) {
     var list = [];
     var seen = {};
     var attempts = 0;
     while (list.length < count && attempts < count * 30) {
       attempts++;
-      var c = makeOutfit((SEED ^ (list.length * 7919) ^ (attempts * 104729)) >>> 0);
+      var c = makeOutfit((seed ^ (list.length * 7919) ^ (attempts * 104729)) >>> 0);
       var k = outfitKey(c);
       if (seen[k]) continue;
       seen[k] = 1;
@@ -1706,7 +1864,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     };
   }
 
-  var cast = makeCast(5);
+  var cast = makeCast(5, SEED);
   var coverCfg = {
     coat: '#b08a4a', pants: '#3a3a44', shoes: '#3a302c', skin: '#c98f6a',
     hair: '#2a2020', accent: '#a34a3f', scarf: '#a34a3f', beanie: null,
@@ -1967,16 +2125,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   var signOn = true;
-  function toggleSign() {
-    signOn = !signOn;
-    signFace.material.opacity = signOn ? 1 : 0.18;
+  function setSign(on) {
+    signOn = on;
+    signFace.material.opacity = on ? 1 : 0.18;
     signFace.material.transparent = true;
-    signGlow.material.opacity = signOn ? 0.34 : 0.04;
-    openSign.visible = signOn;
-    openSignLight.intensity = signOn ? 4.5 : 0;
-    signLight.intensity = signOn ? 16 : 5;
-    btnSign.textContent = signOn ? '招牌 · 开' : '招牌 · 关';
-    btnSign.setAttribute('aria-pressed', signOn ? 'true' : 'false');
+    signGlow.material.opacity = on ? 0.34 : 0.04;
+    openSign.visible = on;
+    btnSign.textContent = on ? '招牌 · 开' : '招牌 · 关';
+    btnSign.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  function toggleSign() {
+    setSign(!signOn);
   }
 
   var paused = false;
@@ -2000,17 +2159,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function flickerTube() {
-    if (reduceMotion) return;
+    if (reduceMotion || tubesForcedOff) return;
     var t = tubes[Math.floor(rand(0, tubes.length))];
     t.mat.color.copy(tubeOff);
     setTimeout(function () {
-      t.mat.color.copy(tubeOn);
+      if (!tubesForcedOff) t.mat.color.copy(tubeOn);
     }, 70 + Math.floor(rand(0, 110)));
     setTimeout(function () {
-      t.mat.color.copy(tubeOff);
+      if (!tubesForcedOff) t.mat.color.copy(tubeOff);
     }, 210);
     setTimeout(function () {
-      t.mat.color.copy(tubeOn);
+      if (!tubesForcedOff) t.mat.color.copy(tubeOn);
     }, 300 + Math.floor(rand(0, 120)));
   }
 
@@ -2149,6 +2308,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   if (btnSign) btnSign.addEventListener('click', toggleSign);
   if (btnCat) btnCat.addEventListener('click', function () { wakeCat(7); });
+  if (btnNight) btnNight.addEventListener('click', function () { resetNight(true); });
   if (btnPause) btnPause.addEventListener('click', togglePause);
 
   /* ---------- resize / camera defaults ---------- */
@@ -2189,11 +2349,422 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var firstFrame = true;
   var rainPhase = rand(0, 10);
 
+  /* ---------- night director ---------- */
+  var nightState = 'idle';
+  var powerOut = false;
+  var tubesForcedOff = false;
+  var nightPlan = [];
+  var dawnAt = Infinity;
+  var dawnStarted = false;
+  var eventEndsAt = 0;
+  var dawnEndsAt = 0;
+  var resetting = false;
+  var nightIndex = 0;
+  var CLOCK_RATE = 0.5;
+
+  var T_FIRST_MIN = 18, T_FIRST_MAX = 30;
+  var T_GAP_MIN = 35, T_GAP_MAX = 60;
+  var T_DAWN_MIN = 210, T_DAWN_MAX = 270;
+  var DUR_BLACKOUT_MIN = 26, DUR_BLACKOUT_MAX = 44;
+  var DUR_SNOW_MIN = 60, DUR_SNOW_MAX = 90;
+  var DUR_DAWN = 34;
+
+  var LIGHT_BASE = {
+    interior: 60, table: 13, back: 8, cat: 3, sign: 16, vend: 9, lamp: 48,
+    key: 1.25, fill: 0.5, hemi: 0.9, open: 4.5, glow: 0.34, phone: 0
+  };
+  var L = {};
+  for (var lk in LIGHT_BASE) L[lk] = LIGHT_BASE[lk];
+
+  function damp(a, b, lambda, dt) {
+    return b + (a - b) * Math.exp(-lambda * dt);
+  }
+
+  function planNight(now) {
+    nightState = 'idle';
+    eventEndsAt = 0;
+    dawnStarted = false;
+    nightPlan = [];
+    dawnAt = now + rand(T_DAWN_MIN, T_DAWN_MAX);
+    var firstType = rng() < 0.5 ? 'blackout' : 'snow';
+    var firstAt = now + rand(T_FIRST_MIN, T_FIRST_MAX);
+    var firstDur = firstType === 'blackout'
+      ? rand(DUR_BLACKOUT_MIN, DUR_BLACKOUT_MAX)
+      : rand(DUR_SNOW_MIN, DUR_SNOW_MAX);
+    nightPlan.push({ type: firstType, at: firstAt, dur: firstDur });
+    if (dawnAt < firstAt + firstDur + 8) dawnAt = firstAt + firstDur + 20;
+    if (rng() < 0.7) {
+      var secondType = firstType === 'blackout' ? 'snow' : 'blackout';
+      var secondAt = firstAt + firstDur + rand(T_GAP_MIN, T_GAP_MAX);
+      var secondDur = secondType === 'blackout'
+        ? rand(DUR_BLACKOUT_MIN, DUR_BLACKOUT_MAX)
+        : rand(DUR_SNOW_MIN, DUR_SNOW_MAX);
+      if (secondAt + secondDur < dawnAt - 8) {
+        nightPlan.push({ type: secondType, at: secondAt, dur: secondDur });
+      }
+    }
+    if (eventEl) {
+      eventEl.hidden = true;
+      eventEl.textContent = '';
+    }
+  }
+
+  function resetWashers() {
+    for (var i = 0; i < washers.length; i++) {
+      var w = washers[i];
+      w.state = 'idle';
+      w.timer = 0;
+      w.doneTimer = 0;
+      w.speed = 0;
+      w.targetSpeed = 0;
+      w.ledMat.color.set('#3a3740');
+      w.glassMat.opacity = 0.14;
+    }
+    if (washers[0]) {
+      washers[0].state = 'running';
+      washers[0].timer = rand(45, 78);
+      washers[0].targetSpeed = 1;
+      washers[0].ledMat.color.set('#83d7a1');
+    }
+    if (washers[1]) {
+      washers[1].state = 'running';
+      washers[1].timer = rand(35, 60);
+      washers[1].targetSpeed = 1;
+      washers[1].ledMat.color.set('#83d7a1');
+    }
+    if (washers[2]) {
+      washers[2].state = 'running';
+      washers[2].timer = rand(55, 90);
+      washers[2].targetSpeed = 1;
+      washers[2].ledMat.color.set('#83d7a1');
+    }
+    if (washers[3]) {
+      washers[3].state = 'done';
+      washers[3].doneTimer = rand(18, 30);
+      washers[3].ledMat.color.set('#ffab5a');
+    }
+  }
+
+  function rebuildCast(seed) {
+    activeActor = null;
+    castActors.forEach(function (a) { scene.remove(a.group); });
+    extras.forEach(function (a) { scene.remove(a.group); });
+    walkers.forEach(function (w) { scene.remove(w.p.group); });
+    castActors = [];
+    extras = [];
+    walkers.length = 0;
+    cast = makeCast(5, seed);
+    castActors = cast.map(function (cfg) { return createActor(cfg); });
+    lastCastIndex = -1;
+  }
+
+  function startEvent(type, dur, t) {
+    nightState = type;
+    eventEndsAt = t + dur;
+    if (eventEl) {
+      eventEl.hidden = false;
+      eventEl.textContent = type === 'blackout' ? '停电' : '下雪了';
+    }
+    if (type === 'blackout') {
+      powerOut = true;
+      for (var i = 0; i < washers.length; i++) {
+        washers[i].targetSpeed = 0;
+        washers[i].ledMat.color.set('#2a2630');
+      }
+      catWake = 9999;
+      catEyeMat.color.set('#ffb45e');
+      eyeL.scale.setScalar(2.6);
+      eyeR.scale.setScalar(2.6);
+      phone.visible = true;
+    } else {
+      weather.snowTarget = 1;
+      weather.rainTarget = 0;
+      weather.puddleTarget = 0.1;
+      weather.groundTarget = 1;
+      wakeCat(9);
+    }
+  }
+
+  function endEvent(t) {
+    if (nightState === 'blackout') {
+      powerOut = false;
+      for (var i = 0; i < washers.length; i++) {
+        washers[i].targetSpeed = washers[i].state === 'running' ? 1 : 0;
+      }
+      catWake = 3;
+      eyeL.scale.setScalar(1);
+      eyeR.scale.setScalar(1);
+      phone.visible = false;
+      setTimeout(function () {
+        if (nightState === 'idle') flickerTube();
+      }, 220);
+    } else if (nightState === 'snow') {
+      weather.snowTarget = 0;
+      weather.rainTarget = 1;
+      weather.puddleTarget = 1;
+      weather.groundTarget = 0;
+    }
+    nightState = 'idle';
+    eventEndsAt = 0;
+    if (eventEl) {
+      eventEl.hidden = true;
+      eventEl.textContent = '';
+    }
+  }
+
+  function startDawn(t) {
+    nightState = 'dawn';
+    dawnStarted = true;
+    dawnEndsAt = t + DUR_DAWN;
+    nightPlan = [];
+    weather.rainTarget = 0;
+    weather.snowTarget = 0;
+    weather.puddleTarget = 0.7;
+    weather.groundTarget = 0;
+    weather.dawnTarget = 1;
+    setSign(false);
+    for (var i = 0; i < washers.length; i++) {
+      washers[i].targetSpeed = 0;
+    }
+    catWake = 10;
+    catEyeMat.color.set('#ffb45e');
+    nightMinutes = Math.max(nightMinutes, 4 * 60 + 50);
+    if (eventEl) {
+      eventEl.hidden = false;
+      eventEl.textContent = '天快亮了';
+    }
+  }
+
+  function updateNight(dt, t) {
+    if (COVER || resetting) return;
+    if (nightState === 'blackout' || nightState === 'snow') {
+      if (t >= eventEndsAt) endEvent(t);
+      return;
+    }
+    if (nightState === 'dawn') {
+      if (t >= dawnEndsAt) resetNight(false);
+      return;
+    }
+    if (!dawnStarted && t >= dawnAt) {
+      startDawn(t);
+      return;
+    }
+    if (nightPlan.length && t >= nightPlan[0].at) {
+      var e = nightPlan.shift();
+      startEvent(e.type, e.dur, t);
+    }
+  }
+
+  function hardResetNight() {
+    nightState = 'idle';
+    powerOut = false;
+    tubesForcedOff = false;
+    dawnStarted = false;
+    eventEndsAt = 0;
+    dawnEndsAt = 0;
+    nightPlan = [];
+    dawnAt = Infinity;
+
+    weather.rain = 1; weather.rainTarget = 1;
+    weather.snow = 0; weather.snowTarget = 0;
+    weather.puddle = 1; weather.puddleTarget = 1;
+    weather.ground = 0; weather.groundTarget = 0;
+    weather.dawn = 0; weather.dawnTarget = 0;
+
+    snowMat.opacity = 0;
+    snowStreetMat.opacity = 0;
+    snowWalkMat.opacity = 0;
+    snowCaps.visible = false;
+    ground.material.color.copy(groundBaseColor);
+    sidewalk.material.color.copy(sidewalkBaseColor);
+    curb.material.color.copy(curbBaseColor);
+    street.material.color.copy(streetBaseColor);
+    dawnSky.material.opacity = 0;
+    buildingMats.forEach(function (m) { m.color.setRGB(1, 1, 1); });
+    scene.fog.color.copy(fogBaseColor);
+    scene.fog.density = fogBaseDensity;
+    scene.background.copy(bgBaseColor);
+
+    for (var lk2 in LIGHT_BASE) L[lk2] = LIGHT_BASE[lk2];
+    interiorLight.intensity = L.interior;
+    tableLight.intensity = L.table;
+    backLight.intensity = L.back;
+    catLight.intensity = L.cat;
+    signLight.intensity = L.sign;
+    vendLight.intensity = L.vend;
+    lampLight.intensity = L.lamp;
+    keyLight.intensity = L.key;
+    fillLight.intensity = L.fill;
+    hemi.intensity = L.hemi;
+    openSignLight.intensity = L.open;
+    signGlow.material.opacity = L.glow;
+    phone.visible = false;
+    phoneLight.intensity = 0;
+    sconceMat.color.set('#ffd6a7');
+    stripMat.color.set('#ffd2a0');
+    lampBulbMat.color.set('#ffcf9a');
+    tubes.forEach(function (t) { t.mat.color.copy(tubeOn); });
+    setSign(true);
+
+    resetWashers();
+    catWake = 0;
+    catEyeMat.color.set('#2a2020');
+    eyeL.scale.setScalar(1);
+    eyeR.scale.setScalar(1);
+    catHead.rotation.x = 0.03;
+
+    SEED = (SEED + 0x9e3779b9) >>> 0;
+    rng = mulberry32(SEED);
+    rebuildCast(SEED);
+
+    nightMinutes = rand(2 * 60 + 5, 2 * 60 + 45);
+    hudTimer = 0;
+    nextActorAt = sceneTime + rand(5, 10);
+    nextWalkerAt = sceneTime + rand(4, 10);
+    nextCatAt = sceneTime + rand(8, 18);
+    nextFlickerAt = sceneTime + rand(8, 18);
+    nextSockAt = sceneTime + rand(55, 100);
+    if (eventEl) {
+      eventEl.hidden = true;
+      eventEl.textContent = '';
+    }
+    nightIndex++;
+    planNight(sceneTime);
+  }
+
+  function resetNight() {
+    if (COVER || resetting) return;
+    resetting = true;
+    if (fadeEl) fadeEl.style.opacity = '1';
+    setTimeout(function () {
+      hardResetNight();
+      if (fadeEl) fadeEl.style.opacity = '0';
+      setTimeout(function () { resetting = false; }, 380);
+    }, 400);
+  }
+
+  function updateWeather(dt) {
+    weather.rain = damp(weather.rain, weather.rainTarget, 1.6, dt);
+    weather.snow = damp(weather.snow, weather.snowTarget, 1.2, dt);
+    weather.puddle = damp(weather.puddle, weather.puddleTarget, 1.4, dt);
+    weather.ground = damp(weather.ground, weather.groundTarget, 0.9, dt);
+    weather.dawn = damp(weather.dawn, weather.dawnTarget, 1.0, dt);
+
+    var g = weather.ground;
+    ground.material.color.copy(groundBaseColor).lerp(snowGroundColor, g * 0.72);
+    sidewalk.material.color.copy(sidewalkBaseColor).lerp(snowWalkColor, g);
+    curb.material.color.copy(curbBaseColor).lerp(snowCurbColor, g);
+    street.material.color.copy(streetBaseColor).lerp(snowStreetColor, g * 0.65);
+    snowMat.opacity = weather.snow * 0.95;
+    snowStreetMat.opacity = g * 0.78;
+    snowWalkMat.opacity = g * 0.78;
+    snowCaps.visible = g > 0.08;
+  }
+
+  function updateSnow(dt, t) {
+    if (weather.snow < 0.01) return;
+    for (var i = 0; i < SNOW_COUNT; i++) {
+      var f = snowFlakes[i];
+      f.y -= f.v * dt;
+      f.x += Math.sin(t * 0.55 + f.phase) * 0.11 * dt;
+      if (f.y < 0.1) {
+        f.y = rand(9, 13);
+        f.x = rand(-16, 16);
+        f.z = rand(0.5, 17);
+      }
+      var idx = i * 3;
+      snowPos[idx] = f.x;
+      snowPos[idx + 1] = f.y;
+      snowPos[idx + 2] = f.z;
+    }
+    snowGeo.attributes.position.needsUpdate = true;
+  }
+
+  function updateLighting(dt) {
+    var target = {};
+    for (var bk in LIGHT_BASE) target[bk] = LIGHT_BASE[bk];
+
+    if (nightState === 'blackout') {
+      target.interior = 0;
+      target.table = 0;
+      target.back = 0;
+      target.cat = 0;
+      target.sign = signOn ? 8 : 0;
+      target.vend = 9;
+      target.lamp = 48;
+      target.key = 0.1;
+      target.fill = 0.08;
+      target.hemi = 0.16;
+      target.open = signOn ? 4.5 : 0;
+      target.glow = signOn ? 0.34 : 0.04;
+      target.phone = 14;
+    } else if (nightState === 'dawn') {
+      target.interior = 0;
+      target.table = 0;
+      target.back = 0;
+      target.cat = 0;
+      target.sign = 0;
+      target.vend = 8;
+      target.lamp = 0;
+      target.key = 0.35;
+      target.fill = 0.25;
+      target.hemi = 0.65;
+      target.open = 0;
+      target.glow = 0.04;
+      target.phone = 0;
+    }
+    if (!signOn) {
+      target.sign = 0;
+      target.open = 0;
+      target.glow = 0.04;
+    }
+
+    var k = 1 - Math.exp(-dt * (nightState === 'blackout' ? 5 : 2.2));
+    for (var key in L) L[key] = lerp(L[key], target[key], k);
+
+    interiorLight.intensity = L.interior;
+    tableLight.intensity = L.table;
+    backLight.intensity = L.back;
+    catLight.intensity = L.cat;
+    signLight.intensity = L.sign;
+    vendLight.intensity = L.vend;
+    lampLight.intensity = L.lamp;
+    keyLight.intensity = L.key;
+    fillLight.intensity = L.fill;
+    hemi.intensity = L.hemi;
+    openSignLight.intensity = L.open;
+    signGlow.material.opacity = signOn ? L.glow : 0.04;
+    openSign.visible = signOn;
+    phoneLight.intensity = L.phone;
+    phone.visible = nightState === 'blackout';
+
+    var interiorOn = nightState !== 'blackout' && nightState !== 'dawn';
+    sconceMat.color.set(interiorOn ? '#ffd6a7' : '#3a3238');
+    stripMat.color.set(interiorOn ? '#ffd2a0' : '#3a2c2a');
+    lampBulbMat.color.set(nightState === 'dawn' ? '#3a3438' : '#ffcf9a');
+
+    var forceOff = nightState === 'blackout' || nightState === 'dawn';
+    if (forceOff !== tubesForcedOff) {
+      tubesForcedOff = forceOff;
+      tubes.forEach(function (t) { t.mat.color.copy(forceOff ? tubeOff : tubeOn); });
+    }
+
+    var d = weather.dawn;
+    dawnSky.material.opacity = d;
+    buildingMats.forEach(function (m) {
+      m.color.setRGB(1 - 0.62 * d, 1 - 0.56 * d, 1 - 0.44 * d);
+    });
+    scene.fog.color.copy(fogBaseColor).lerp(dawnFogColor, d);
+    scene.fog.density = lerp(fogBaseDensity, 0.036, d);
+    scene.background.copy(bgBaseColor).lerp(dawnBgColor, d);
+  }
+
   function updateRain(dt) {
     var intensity = reduceMotion ? 0.66 : 0.58 + Math.sin(rainPhase) * 0.2 + Math.sin(rainPhase * 2.7 + 1.1) * 0.08;
     intensity = clamp(intensity, 0.35, 0.9);
-    rainMat.opacity = 0.14 + intensity * 0.24;
-    rainGeo.setDrawRange(0, Math.floor(RAIN_COUNT * intensity) * 2);
+    var visible = intensity * weather.rain;
+    rainMat.opacity = (0.14 + intensity * 0.24) * weather.rain;
+    rainGeo.setDrawRange(0, Math.floor(RAIN_COUNT * visible) * 2);
     for (var i = 0; i < RAIN_COUNT; i++) {
       var d = rainDrops[i];
       d.y -= d.v * dt;
@@ -2214,10 +2785,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function updateWashers(dt) {
+    var machinesPaused = powerOut || nightState === 'dawn';
     for (var i = 0; i < washers.length; i++) {
       var w = washers[i];
+      if (machinesPaused) w.targetSpeed = 0;
       w.speed = lerp(w.speed, w.targetSpeed, 1 - Math.exp(-dt * 1.8));
       if (w.speed > 0.001) w.drum.rotation.z += w.speed * dt * 5.4;
+      if (machinesPaused) {
+        w.ledMat.color.set('#2a2630');
+        w.glassMat.opacity = 0.14;
+        continue;
+      }
       if (w.state === 'running') {
         w.timer -= dt;
         if (w.timer <= 0) machineDone(w);
@@ -2267,13 +2845,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function updatePuddles(dt, t) {
     for (var i = 0; i < puddles.length; i++) {
       var p = puddles[i];
-      p.mesh.material.opacity = p.base * (0.78 + Math.sin(t * 0.35 + p.phase) * 0.22);
+      p.mesh.material.opacity = p.base * (0.78 + Math.sin(t * 0.35 + p.phase) * 0.22) * weather.puddle;
     }
   }
 
   function updateHud(dt) {
     if (paused) return;
-    nightMinutes += dt * 0.125;
+    nightMinutes += dt * CLOCK_RATE;
     hudTimer -= dt;
     if (hudTimer <= 0) {
       hudTimer = 0.4;
@@ -2283,7 +2861,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       if (clockEl) clockEl.textContent = str;
       var running = 0;
       for (var i = 0; i < washers.length; i++) if (washers[i].state === 'running') running++;
-      if (statusEl) statusEl.textContent = running + ' 台在转';
+      var machinesStopped = powerOut || nightState === 'dawn';
+      if (statusEl) statusEl.textContent = running + (machinesStopped ? ' 台停着' : ' 台在转');
       var hAngle = ((nightMinutes % 720) / 720) * Math.PI * 2;
       var mAngle = ((nightMinutes % 60) / 60) * Math.PI * 2;
       hourHand.rotation.z = -hAngle;
@@ -2326,7 +2905,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function update(dt, t) {
     rainPhase += dt * 0.07;
+    updateNight(dt, t);
+    updateWeather(dt);
+    updateLighting(dt);
     updateRain(dt);
+    updateSnow(dt, t);
     updateWashers(dt);
     updateCat(dt, t);
     updatePuddles(dt, t);
@@ -2335,7 +2918,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     updateDoor(dt);
     if (!COVER) {
       if (activeActor) activeActor.update(dt, t);
-      if (!activeActor && t > nextActorAt) {
+      if (!activeActor && t > nextActorAt && (nightState === 'idle' || nightState === 'snow')) {
         if (spawnActor()) nextActorAt = t + rand(18, 36);
         else nextActorAt = t + 5;
       }
@@ -2352,7 +2935,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         nextCatAt = t + rand(12, 30);
       }
       if (t > nextFlickerAt) {
-        flickerTube();
+        if (nightState !== 'blackout' && nightState !== 'dawn') flickerTube();
         nextFlickerAt = t + rand(9, 22);
       }
       if (t > nextSockAt) {
@@ -2428,6 +3011,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     catWake = 9999;
     catEyeMat.color.set('#ffb45e');
     catHead.rotation.x = -0.18;
+    nightPlan = [];
+    dawnAt = Infinity;
+  } else {
+    nightMinutes = rand(2 * 60 + 5, 2 * 60 + 45);
+    planNight(0);
   }
 
   animate();
