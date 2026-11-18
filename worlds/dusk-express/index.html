@@ -709,6 +709,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     '  worldPosition.xyz = bendWorld( worldPosition.xyz );',
     '#endif'
   ].join('\n');
+  // snow has real thickness: upward faces inflate along their normal into a soft cap,
+  // not just a white tint — the same mask drives the fragment whitening
+  var SNOW_VERT_COMMON = 'uniform float uSnow;';
+  var SNOW_VERT = [
+    '#include <begin_vertex>',
+    'if (uSnow > 0.001) {',
+    '  float sMask = smoothstep(0.25, 0.75, objectNormal.y);',
+    '  transformed += objectNormal * (uSnow * sMask * 0.22);',
+    '}'
+  ].join('\n');
+  var SNOW_FRAG_COMMON = 'uniform float uSnow;\nuniform vec3 uSnowCol;';
+  var SNOW_FRAG = '#include <normal_fragment_begin>\nif (uSnow > 0.001) {\n  diffuseColor.rgb = mix(diffuseColor.rgb, uSnowCol, uSnow * smoothstep(0.25, 0.75, normal.y));\n}';
   function bendify(mat) {
     mat.onBeforeCompile = function (shader) {
       shader.uniforms.uBend = uBend;
@@ -720,9 +732,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       if (su) {
         shader.uniforms.uSnow = su;
         shader.uniforms.uSnowCol = snowColU;
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\n' + SNOW_VERT_COMMON)
+          .replace('#include <begin_vertex>', SNOW_VERT);
         shader.fragmentShader = shader.fragmentShader
-          .replace('#include <common>', '#include <common>\nuniform float uSnow;\nuniform vec3 uSnowCol;')
-          .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nif (uSnow > 0.001) {\n  diffuseColor.rgb = mix(diffuseColor.rgb, uSnowCol, uSnow * smoothstep(0.25, 0.75, normal.y));\n}');
+          .replace('#include <common>', '#include <common>\n' + SNOW_FRAG_COMMON)
+          .replace('#include <normal_fragment_begin>', SNOW_FRAG);
       }
     };
     mat.customProgramCacheKey = function () { return (mat.userData.snowU ? 'bend-snow' : 'bend') + ':' + mat.uuid; };
@@ -734,9 +749,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     mat.onBeforeCompile = function (shader) {
       shader.uniforms.uSnow = u;
       shader.uniforms.uSnowCol = snowColU;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\n' + SNOW_VERT_COMMON)
+        .replace('#include <begin_vertex>', SNOW_VERT);
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform float uSnow;\nuniform vec3 uSnowCol;')
-        .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nif (uSnow > 0.001) {\n  diffuseColor.rgb = mix(diffuseColor.rgb, uSnowCol, uSnow * smoothstep(0.25, 0.75, normal.y));\n}');
+        .replace('#include <common>', '#include <common>\n' + SNOW_FRAG_COMMON)
+        .replace('#include <normal_fragment_begin>', SNOW_FRAG);
     };
     mat.customProgramCacheKey = function () { return 'snow-only:' + mat.uuid; };
     return mat;
@@ -815,6 +833,29 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(5, 1);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  })();
+
+  // maple-leaf silhouette (white on transparent) so falling leaves & litter read as leaves, not squares
+  var leafTex = (function () {
+    var c = document.createElement('canvas');
+    c.width = c.height = 64;
+    var ctx = c.getContext('2d');
+    var pts = [[50, 3], [56, 20], [72, 12], [65, 30], [88, 27], [73, 43], [96, 50], [72, 57], [80, 78], [57, 65], [53, 88], [50, 78], [47, 88], [43, 65], [20, 78], [28, 57], [4, 50], [27, 43], [12, 27], [35, 30], [28, 12], [44, 20]];
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0] * 0.64, pts[0][1] * 0.64);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] * 0.64, pts[i][1] * 0.64);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(50 * 0.64, 78 * 0.64);
+    ctx.lineTo(50 * 0.64, 99 * 0.64);
+    ctx.stroke();
+    var tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   })();
@@ -2048,7 +2089,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var wamp = 0.12 + 0.55 * BIOMES[wbiome].wave;
       for (var zi = 0; zi < zones.length; zi++) {
         var qD = zones[zi][1] - zones[zi][0];
-        var q = new THREE.PlaneGeometry(8.05, qD, 4, Math.max(2, Math.round(qD / 4)));
+        var q = new THREE.PlaneGeometry(8, qD, 4, Math.max(2, Math.round(qD / 4)));
         // keep texel density identical to the old 48x13 river across columns
         var quv = q.attributes.uv;
         for (var qi = 0; qi < quv.count; qi++) {
@@ -3443,8 +3484,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   // falling leaves (green <-> red maple mix)
   var LEAF_N = 130;
-  var leafMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0, fog: true });
-  var leafMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.24, 0.16), leafMat, LEAF_N);
+  var leafMat = new THREE.MeshBasicMaterial({ map: leafTex, alphaTest: 0.35, side: THREE.DoubleSide, transparent: true, opacity: 0, depthWrite: false, fog: true });
+  var leafMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.32, 0.32), leafMat, LEAF_N);
   leafMesh.frustumCulled = false; leafMesh.visible = false;
   weatherGroup.add(leafMesh);
   var leafP = [], leafGreens = [], leafReds = [];
@@ -3590,8 +3631,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   viaductGroup.add(hailSpecks);
 
   // fallen leaf litter on the deck
-  var litterMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true, opacity: 0, fog: true });
-  var litterGeo = new THREE.PlaneGeometry(0.2, 0.14);
+  var litterMat = new THREE.MeshBasicMaterial({ map: leafTex, alphaTest: 0.35, side: THREE.DoubleSide, transparent: true, opacity: 0, depthWrite: false, fog: true });
+  var litterGeo = new THREE.PlaneGeometry(0.24, 0.24);
   litterGeo.rotateX(-Math.PI / 2);
   var litter = new THREE.InstancedMesh(litterGeo, litterMat, 46);
   litter.frustumCulled = false; litter.visible = false;
@@ -4016,7 +4057,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       if (!rg.scheduled && rg.start - dist < 200 && rg.start > dist - 80) {
         rg.scheduled = true;
         if (rg.mech === 'stop') { stopPending = true; haltTargetW = rg.start; }
-        else if (rg.mech === 'tunnel') { tunnelPending = true; tunnelTargetW = rg.start; tunnelMound.visible = trackAt(rg.start) === 'ground'; }
+        else if (rg.mech === 'tunnel') {
+          tunnelPending = true;
+          // keep the bore + earth mound fully on ground-level track: at a bridge<->ground
+          // boundary shift the tunnel into the ground region so it never floats over the viaduct
+          var gNext = trackAt(rg.start) === 'ground', gPrev = trackAt(rg.start - 1) === 'ground';
+          var tOff = (gNext && gPrev) ? 0 : (gNext ? 44 : -44);
+          tunnelTargetW = rg.start + tOff;
+          tunnelMound.visible = trackAt(tunnelTargetW) === 'ground';
+        }
         else if (rg.mech === 'curve') { curveArmed = true; curveTargetW = rg.start; }
       }
     }
