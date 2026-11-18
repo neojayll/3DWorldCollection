@@ -80,6 +80,16 @@
       "cover": "worlds/midnight-laundromat/preview.jpg",
       "tags": ["雨夜", "停电", "落雪"],
       "added": "2026-11"
+    },
+    {
+      "id": "corner-house",
+      "name": "街角小楼",
+      "nameEn": "Corner House",
+      "description": "黄昏街角的小楼，每次换一栋，楼层、窗、雨棚、招牌与屋顶都重新组合。",
+      "entry": "worlds/corner-house/index.html",
+      "cover": "worlds/corner-house/preview.jpg",
+      "tags": ["黄昏", "程序生成", "可交互"],
+      "added": "2026-11"
     }
   ]
 }
