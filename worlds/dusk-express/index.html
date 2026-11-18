@@ -424,7 +424,7 @@
 </style>
 </head>
 <body>
-  <canvas id="scene" aria-label="星夜的高架桥上，一列亮着暖橙车窗的低多边形蒸汽火车缓缓驶过河谷，桥下是零散灯火的村庄与映着月光的河流"></canvas>
+  <canvas id="scene" aria-label="星夜里，一列亮着暖橙车窗的低多边形蒸汽火车时而驶上高架桥、时而贴着地面的路堤，穿过河谷、平原、山岭、森林、湖泊、海滩与海洋，沿途是零散灯火的村庄、麦田与映着月光的水面"></canvas>
 
   <div class="vignette"></div>
   <div class="grain"></div>
@@ -579,7 +579,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* helpers                                                             */
   /* ------------------------------------------------------------------ */
 
-  var seed = 20261114;
+  // shot mode keeps a fixed seed for reproducible frames; normal visits get a fresh world
+  var seed = isShot ? 20261114 : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) | 0);
   function rnd() {
     seed |= 0;
     seed = (seed + 0x6D2B79F5) | 0;
@@ -666,7 +667,60 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // normal-weighted snow: upward faces collect snow, walls stay bare
   var groundSnowU = { value: 0 }, stoneSnowU = { value: 0 };
   var snowColU = { value: new THREE.Color('#dfe6f2') };
-  function snowify(mat, u) {
+  // track curvature: the whole world bends around the train during a curve
+  // transition (quadratic near the train, linear far away so ridges swing too)
+  var uBend = { value: 0 };
+  var BEND_FN = [
+    'uniform float uBend;',
+    'vec3 bendWorld(vec3 p) {',
+    '  float ax = abs(p.x);',
+    '  float f = ax < 200.0 ? p.x * p.x * 0.5 : 200.0 * ax - 20000.0;',
+    '  p.z += uBend * f;',
+    '  return p;',
+    '}'
+  ].join('\n');
+  var BEND_PROJECT = [
+    'vec4 mvPosition = vec4( transformed, 1.0 );',
+    '#ifdef USE_INSTANCING',
+    '  mvPosition = instanceMatrix * mvPosition;',
+    '#endif',
+    'mvPosition = modelMatrix * mvPosition;',
+    'mvPosition.xyz = bendWorld( mvPosition.xyz );',
+    'mvPosition = viewMatrix * mvPosition;',
+    'gl_Position = projectionMatrix * mvPosition;'
+  ].join('\n');
+  var BEND_WORLDPOS = [
+    '#if defined( USE_ENVMAP ) || defined( DISTANCE ) || defined ( USE_SHADOWMAP ) || defined ( USE_TRANSMISSION ) || NUM_SPOT_LIGHT_COORDS > 0',
+    '  vec4 worldPosition = vec4( transformed, 1.0 );',
+    '  #ifdef USE_INSTANCING',
+    '    worldPosition = instanceMatrix * worldPosition;',
+    '  #endif',
+    '  worldPosition = modelMatrix * worldPosition;',
+    '  worldPosition.xyz = bendWorld( worldPosition.xyz );',
+    '#endif'
+  ].join('\n');
+  function bendify(mat) {
+    mat.onBeforeCompile = function (shader) {
+      shader.uniforms.uBend = uBend;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\n' + BEND_FN)
+        .replace('#include <project_vertex>', BEND_PROJECT)
+        .replace('#include <worldpos_vertex>', BEND_WORLDPOS);
+      var su = mat.userData.snowU;
+      if (su) {
+        shader.uniforms.uSnow = su;
+        shader.uniforms.uSnowCol = snowColU;
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nuniform float uSnow;\nuniform vec3 uSnowCol;')
+          .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nif (uSnow > 0.001) {\n  diffuseColor.rgb = mix(diffuseColor.rgb, uSnowCol, uSnow * smoothstep(0.25, 0.75, normal.y));\n}');
+      }
+    };
+    mat.customProgramCacheKey = function () { return (mat.userData.snowU ? 'bend-snow' : 'bend') + ':' + mat.uuid; };
+    return mat;
+  }
+  function snowify(mat, u) { mat.userData.snowU = u; return bendify(mat); }
+  // snow without the world bend: the train stays rigid while the world curves
+  function snowOnly(mat, u) {
     mat.onBeforeCompile = function (shader) {
       shader.uniforms.uSnow = u;
       shader.uniforms.uSnowCol = snowColU;
@@ -674,9 +728,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         .replace('#include <common>', '#include <common>\nuniform float uSnow;\nuniform vec3 uSnowCol;')
         .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nif (uSnow > 0.001) {\n  diffuseColor.rgb = mix(diffuseColor.rgb, uSnowCol, uSnow * smoothstep(0.25, 0.75, normal.y));\n}');
     };
+    mat.customProgramCacheKey = function () { return 'snow-only:' + mat.uuid; };
+    return mat;
   }
   snowify(groundMat, groundSnowU);
   snowify(stoneMat, stoneSnowU);
+  var trainMat = snowOnly(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }), stoneSnowU);
+  // shadow depth pass must bend with the world, or shadows detach during curves
+  var worldDepthMat = bendify(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }));
 
   /* ------------------------------------------------------------------ */
   /* procedural textures                                                 */
@@ -937,14 +996,62 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var scroll = { viaduct: 0, sleepers: 0, lamps: 0, side: 0, signal: 0, halt: 0, tunnel: 0 };
   // station-stop state machine & tunnel presence
   var speedF = 1, tunnelF = 0, tunnelViewF = 0;
-  var stopState = 'cruise', stopTimer = 0, stopCooldown = 26, doorT = 0;
-  if (eventParam === 'stop') { stopCooldown = 0; scroll.halt = -294; }
-  if (eventParam === 'tunnel') { scroll.tunnel = -280; }
+  var stopState = 'cruise', stopTimer = 0, doorT = 0;
+  // boundary-driven events: a stop, tunnel or curve is armed at each region edge
+  var stopPending = false, haltTargetW = 0;
+  var tunnelPending = false, tunnelTargetW = 0;
+  var curveArmed = false, curveTargetW = 0, curveActive = false, curveT = 0, curvePeak = 0;
+  var CURVE_DUR = 13;
+  var waveAmt = 0, gustAmt = 0, flyBiomeF = 1, reflBiomeF = 1;
+  var moonPathZ = -26, moonPathO = 0.16, moonPathSX = 1;
   // lights that follow the day/night schedule
   var nightGlows = [], boatGlows = [], carHalos = [];
   var rideLampShade = null, rideInteriorLight = null;
   var rideGlass = [];
   var doors = [], boarders = [];
+
+  var _tm4 = new THREE.Matrix4(), _tzero = new THREE.Vector3(0, 0, 0);
+  // hide viaduct segments over ground-track regions; settle trackside furniture onto the bed
+  function maskTrackStructures() {
+    var i, x, dy;
+    for (i = 0; i < NSEG; i++) {
+      x = i * SEG - 176 + scroll.viaduct;
+      var g = trackAt(dist + x) === 'ground';
+      _tm4.makeTranslation(x, 0, 0);
+      if (g) _tm4.scale(_tzero);
+      viaduct.setMatrixAt(i, _tm4);
+      deckCaps.setMatrixAt(i, _tm4);
+    }
+    viaduct.instanceMatrix.needsUpdate = true;
+    deckCaps.instanceMatrix.needsUpdate = true;
+    for (i = 0; i < 12; i++) {
+      x = i * 32 - 176 + scroll.lamps;
+      dy = 0.78 * trackF(dist + x, 6);
+      _tm4.makeTranslation(x, -dy, 3.62); lampPosts.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(x - 0.42, 2.24 - dy, 3.62); lampBulbs.setMatrixAt(i, _tm4);
+      lampGlows[i].y = 2.24 - dy;
+    }
+    lampPosts.instanceMatrix.needsUpdate = true;
+    lampBulbs.instanceMatrix.needsUpdate = true;
+    for (i = 0; i < 16; i++) {
+      x = i * 24 - 192 + scroll.side;
+      _tm4.makeTranslation(x, -0.28 * trackF(dist + x, 6), -3.62);
+      telegraph.setMatrixAt(i, _tm4);
+    }
+    telegraph.instanceMatrix.needsUpdate = true;
+    for (i = 0; i < 4; i++) {
+      x = i * 96 - 160 + scroll.signal;
+      dy = 0.28 * trackF(dist + x, 6);
+      _tm4.makeTranslation(x, -dy, 3.62); signalPosts.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(x, 3.45 - dy, 3.7); sigRed.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(x, 3.16 - dy, 3.7); sigGreen.setMatrixAt(i, _tm4);
+      sigGlows[i * 2].y = 3.45 - dy;
+      sigGlows[i * 2 + 1].y = 3.16 - dy;
+    }
+    signalPosts.instanceMatrix.needsUpdate = true;
+    sigRed.instanceMatrix.needsUpdate = true;
+    sigGreen.instanceMatrix.needsUpdate = true;
+  }
 
   var viaductGroup = new THREE.Group();
   scene.add(viaductGroup);
@@ -1038,7 +1145,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var lampBulbGeo = new THREE.SphereGeometry(0.13, 8, 6);
   var lampBulbMat = new THREE.MeshStandardMaterial({ color: '#3a2410', emissive: '#ffb37a', emissiveIntensity: 2.2 });
   var lampBulbs = new THREE.InstancedMesh(lampBulbGeo, lampBulbMat, 12);
-  var lampGlows = [];
+  var lampGlows = [], sigGlows = [];
   (function () {
     var m = new THREE.Matrix4();
     for (var i = 0; i < 12; i++) {
@@ -1105,8 +1212,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       m.makeTranslation(x, 0, 3.62); signalPosts.setMatrixAt(i, m);
       m.makeTranslation(x, 3.45, 3.7); sigRed.setMatrixAt(i, m);
       m.makeTranslation(x, 3.16, 3.7); sigGreen.setMatrixAt(i, m);
-      addBGlow(x, 3.45, 3.75, 1.1, 0.4, '#ff5a4a', signalGroup);
-      addBGlow(x, 3.16, 3.75, 0.9, 0.3, '#5aff8a', signalGroup);
+      sigGlows.push(addBGlow(x, 3.45, 3.75, 1.1, 0.4, '#ff5a4a', signalGroup));
+      sigGlows.push(addBGlow(x, 3.16, 3.75, 0.9, 0.3, '#5aff8a', signalGroup));
     }
   })();
   signalGroup.add(signalPosts); signalGroup.add(sigRed); signalGroup.add(sigGreen);
@@ -1158,6 +1265,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       parts.push(facetColors(head, '#3a2c44', '#4a3a54', function () { return rnd(); }));
       var m = new THREE.Mesh(mergeGeos(parts), stoneMat);
       m.castShadow = true;
+      m.customDepthMaterial = worldDepthMat;
       m.visible = false;
       haltGroup.add(m);
       return m;
@@ -1171,8 +1279,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ------------------------------------------------------------------ */
 
   var riverMat = new THREE.MeshStandardMaterial({
-    color: '#1a2644', roughness: 0.25, metalness: 0.7,
-    emissive: '#3a4a70', emissiveIntensity: 0.8, emissiveMap: riverTex
+    color: '#2a3a60', roughness: 0.35, metalness: 0.25,
+    emissive: '#4a5a88', emissiveIntensity: 0.8, emissiveMap: riverTex
   });
 
   var moonPath = new THREE.Mesh(
@@ -1203,10 +1311,142 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var windmillRotors = [], chimneyWisps = [], boats = [], riverMists = [];
   var skyLanterns = [], reflStreaks = [], tileGlows = [];
   var villageWinMats = [], tileLightCfg = [];
+  var beacons = [], foams = [];
 
-  // far bank rises into a hillside so the village lights sit above the deck line
-  function farHill(z) { return 12 * clamp((-z - 40) / 18, 0, 1); }
-  function baseY(z) { return -14 + farHill(z); }
+  /* ------------------------------------------------------------------ */
+  /* terrain library: eight biomes, an adjacency graph and a region plan */
+  /* ------------------------------------------------------------------ */
+
+  var BIOMES = {
+    valley:    { track: 'bridge', base: -14, name: '河谷', hFar: 12, hNear: 0,  und: 0.5,  sub: 0,    colA: '#20182c', colB: '#2c2438', water: [[-32.5, -19.5]], ridge: 1,    fly: 1,   wave: 0,    gust: 0 },
+    plains:    { track: 'ground', base: -1, name: '平原', hFar: 2,  hNear: 1,  und: 0.35, sub: 0,    colA: '#262030', colB: '#362e3c', water: [],               ridge: 0.5,  fly: 0.8, wave: 0,    gust: 0 },
+    hills:     { track: 'ground', base: -1, name: '丘陵', hFar: 9,  hNear: 6,  und: 2.2,  sub: 0,    colA: '#221c2e', colB: '#2e2a38', water: [],               ridge: 1.3,  fly: 0.6, wave: 0,    gust: 0.3 },
+    mountains: { track: 'bridge', base: -14, name: '山岭', hFar: 30, hNear: 26, und: 2.6,  sub: 0,    colA: '#2a2236', colB: '#3c3248', water: [],               ridge: 2.2,  fly: 0.15, wave: 0,   gust: 1 },
+    forest:    { track: 'ground', base: -1, name: '森林', hFar: 7,  hNear: 3,  und: 0.8,  sub: 0,    colA: '#1a2026', colB: '#26302a', water: [],               ridge: 1.2,  fly: 1,   wave: 0,    gust: 0.1 },
+    lake:      { track: 'bridge', base: -14, name: '湖泊', hFar: 3,  hNear: 1,  und: 0.4,  sub: 0,    colA: '#20182c', colB: '#2c2438', water: [[-85, -18]],     ridge: 0.7,  fly: 0.9, wave: 0.3,  gust: 0 },
+    beach:     { track: 'bridge', base: -14, name: '海滩', hFar: 1,  hNear: 1,  und: 0.25, sub: 0.9,  colA: '#46403a', colB: '#585044', water: [[-90, -26], [30, 85]], ridge: 0.3, fly: 0.3, wave: 0.65, gust: 0.15 },
+    ocean:     { track: 'bridge', base: -14, name: '海洋', hFar: 0,  hNear: 0,  und: 0,    sub: -0.8, colA: '#141e2c', colB: '#1c2a3a', water: [[-90, 85]],      ridge: 0.1,  fly: 0,   wave: 1,    gust: 0.2 }
+  };
+  Object.keys(BIOMES).forEach(function (k) {
+    BIOMES[k].cA = new THREE.Color(BIOMES[k].colA);
+    BIOMES[k].cB = new THREE.Color(BIOMES[k].colB);
+  });
+  // sensible neighbours: sea only via beach, peaks only via hills or forest
+  var ADJ = {
+    valley: ['plains', 'hills', 'forest', 'lake'],
+    plains: ['valley', 'hills', 'forest', 'beach', 'lake'],
+    hills: ['valley', 'plains', 'mountains', 'forest'],
+    mountains: ['hills', 'forest'],
+    forest: ['valley', 'plains', 'hills', 'mountains', 'lake'],
+    lake: ['valley', 'plains', 'forest'],
+    beach: ['plains', 'ocean'],
+    ocean: ['beach']
+  };
+  var STATIONS = { valley: '暮溪站', plains: '麦田站', hills: '牧坡站', mountains: '岩门站', forest: '林语站', lake: '湖光站', beach: '白沙站', ocean: '海望站' };
+  var REGION_LEN = TILE * 6;
+  var dist = 0;
+  var regions = [];
+  var crossIdx = 0;
+  var currentBiome = 'valley';
+  var recentBiomes = [];
+  var regionParam = params.get('region');
+  if (regionParam && !BIOMES[regionParam]) regionParam = null;
+  var nextParam = params.get('next');
+  if (nextParam && !BIOMES[nextParam]) nextParam = null;
+  var transParam = params.get('transition');
+  if (eventParam === 'stop' || eventParam === 'tunnel') transParam = eventParam;
+  if (['stop', 'tunnel', 'curve', 'open'].indexOf(transParam) < 0) transParam = null;
+  var trackParam = params.get('track');
+  if (['ground', 'bridge'].indexOf(trackParam) < 0) trackParam = null;
+  var forcedTransUsed = false;
+
+  function pickNextBiome(from) {
+    var opts = ADJ[from].filter(function (b) { return recentBiomes.indexOf(b) < 0; });
+    if (!opts.length) opts = ADJ[from];
+    return opts[Math.floor(rnd() * opts.length)];
+  }
+  function pickMech(a, b) {
+    if (transParam && !forcedTransUsed) { forcedTransUsed = true; return transParam; }
+    var r = rnd();
+    if (a === 'mountains' || b === 'mountains') return r < 0.7 ? 'tunnel' : 'curve';
+    if (a === 'ocean' || b === 'ocean' || a === 'beach' || b === 'beach') return r < 0.5 ? 'curve' : r < 0.8 ? 'stop' : 'open';
+    // tunnels need high ground on at least one side of the boundary
+    var hilly = a === 'hills' || b === 'hills' || a === 'forest' || b === 'forest';
+    if (hilly) return r < 0.35 ? 'stop' : r < 0.7 ? 'curve' : r < 0.85 ? 'tunnel' : 'open';
+    return r < 0.45 ? 'stop' : r < 0.85 ? 'curve' : 'open';
+  }
+  function planRegion(start) {
+    var prev = regions[regions.length - 1];
+    var biome = (nextParam && regions.length === 1) ? nextParam : pickNextBiome(prev.biome);
+    regions.push({ start: start, end: start + REGION_LEN, biome: biome, mech: pickMech(prev.biome, biome), scheduled: false });
+    recentBiomes.push(prev.biome);
+    if (recentBiomes.length > 2) recentBiomes.shift();
+  }
+  var BIOME_KEYS = Object.keys(BIOMES);
+  var startBiome = regionParam || (isShot ? 'valley' : BIOME_KEYS[Math.floor(rnd() * BIOME_KEYS.length)]);
+  regions.push({ start: -1000, end: eventParam ? 60 : 96, biome: startBiome, mech: 'open', scheduled: true });
+  planRegion(regions[0].end);
+  planRegion(regions[1].end);
+  currentBiome = regions[0].biome;
+  function regionAt(W) {
+    for (var i = 0; i < regions.length; i++) {
+      if (W >= regions[i].start && W < regions[i].end) return regions[i];
+    }
+    return W < regions[0].start ? regions[0] : regions[regions.length - 1];
+  }
+  // interpolated terrain parameters across a 20 m blend band at each boundary
+  var BLEND = 20;
+  var _pMix = { hFar: 0, hNear: 0, und: 0, sub: 0, cA: new THREE.Color(), cB: new THREE.Color() , base: -14 };
+  function paramsAt(W) {
+    var r = regionAt(W);
+    var p = BIOMES[r.biome];
+    var t = 0, q = null;
+    if (W - r.start < BLEND && regions.indexOf(r) > 0) { q = BIOMES[regions[regions.indexOf(r) - 1].biome]; t = 0.5 * (1 - (W - r.start) / BLEND); }
+    else if (r.end - W < BLEND) { var ni = regions.indexOf(r) + 1; if (ni < regions.length) { q = BIOMES[regions[ni].biome]; t = 0.5 * (1 - (r.end - W) / BLEND); } }
+    if (!q) return p;
+    _pMix.hFar = lerp(p.hFar, q.hFar, t);
+    _pMix.hNear = lerp(p.hNear, q.hNear, t);
+    _pMix.und = lerp(p.und, q.und, t);
+    _pMix.sub = lerp(p.sub, q.sub, t);
+    _pMix.base = lerp(p.base, q.base, t);
+    _pMix.cA.copy(p.cA).lerp(q.cA, t);
+    _pMix.cB.copy(p.cB).lerp(q.cB, t);
+    return _pMix;
+  }
+  function profileH(p, x, z) {
+    var h = p.base + p.sub;
+    h += p.hFar * clamp((-z - 40) / 18, 0, 1);
+    h += p.hNear * clamp((z - 30) / 26, 0, 1);
+    var flat = clamp((Math.abs(z) - 11) / 9, 0, 1);
+    h += p.und * (0.5 * Math.sin(x * 0.2618) * Math.cos(z * 0.09) + 0.1 * Math.sin(z * 0.5)) * flat;
+    return h;
+  }
+  function inWater(biome, z) {
+    var ws = BIOMES[biome].water;
+    for (var i = 0; i < ws.length; i++) if (z >= ws[i][0] && z <= ws[i][1]) return true;
+    return false;
+  }
+  // track structure library: viaduct over water/canyons, embankment on open land
+  function trackAt(W) { return trackParam || BIOMES[regionAt(W).biome].track; }
+  function trackF(W, ramp) {
+    if (trackAt(W) !== 'ground') return 0;
+    var r = regionAt(W);
+    return clamp(Math.min((W - r.start) / ramp, (r.end - W) / ramp), 0, 1);
+  }
+  // carve a level corridor so the rails stay at one height across fill and cutting
+  function corridorH(h, W, z) {
+    var tf = trackF(W, 14);
+    if (tf < 0.001) return h;
+    var az = Math.abs(z), bed = -0.33;
+    var run = clamp((h - bed) * 1.15, 2, 18);
+    var k = az < 6 ? 1 : (az < 6 + run ? 1 - (az - 6) / run : 0);
+    return k > 0 ? lerp(h, Math.min(h, bed), k * tf) : h;
+  }
+
+  // prop helpers read the height field of the tile being built
+  var _tileGH = function (x, z) { return -14 + 12 * clamp((-z - 40) / 18, 0, 1); };
+  var _px = 0;
+  function baseY(z) { return _tileGH(_px, z); }
 
   function houseParts(parts, winParts, x, z, s, wallA, wallB, face) {
     var y = baseY(z);
@@ -1216,11 +1456,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     roof.rotateY(Math.PI / 4);
     roof.translate(x, y + h + 0.72 * s, z);
     parts.push(facetColors(roof, '#33203a', '#42284a', function () { return rnd(); }));
-    // chimney
     if (rnd() < 0.6) {
       parts.push(facetColors(box(0.4 * s, 1.0 * s, 0.4 * s, x + w * 0.26, y + h + 0.9 * s, z + d * 0.18), '#3a2c44', '#4a3a54', function () { return rnd(); }));
     }
-    // warm windows facing the track
     var n = rnd() < 0.5 ? 1 : 2;
     for (var i = 0; i < n; i++) {
       var wx = x + (i === 0 ? -w * 0.22 : w * 0.22);
@@ -1251,273 +1489,613 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       blob.translate(x, y + 1.5 * s, z);
       parts.push(facetColors(blob, '#22302a', '#2c3c32', function () { return rnd(); }));
     } else {
-      // tall poplar
       parts.push(facetColors(cylY(0.08 * s, 0.12 * s, 1.0 * s, x, y + 0.5 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
       var pop = new THREE.ConeGeometry(0.5 * s, 3.4 * s, 6);
       pop.translate(x, y + 2.4 * s, z);
       parts.push(facetColors(pop, '#1e2c26', '#2a3a30', function () { return rnd(); }));
     }
   }
-
-  function buildTile(variant, idx) {
-    var group = new THREE.Group();
-    var parts = [], winParts = [], glows = [];
-    // each village keeps its own lighting rhythm: staggered dusk-on, some sleep late
-    var tileWinMat = villageWinMat.clone();
-    villageWinMats.push(tileWinMat);
-    tileLightCfg.push({
-      on: 17 + rand(-0.7, 0.7),
-      off: rnd() < 0.45 ? rand(22.0, 23.8) : 24,
-      dawn: 5 + rand(-0.3, 0.3)
-    });
-
-    // ground
-    var gg = new THREE.PlaneGeometry(TILE, 170, 10, 16);
-    gg.rotateX(-Math.PI / 2);
-    var pos = gg.attributes.position;
-    for (var i = 0; i < pos.count; i++) {
-      var x = pos.getX(i), z = pos.getZ(i) - 5;
-      var h = 0.5 * Math.sin(x * 0.2618) * Math.cos(z * 0.09 + variant) + 0.1 * Math.sin(z * 0.5 + variant);
-      var flat = clamp((Math.abs(z) - 11) / 9, 0, 1);
-      var riverDip = Math.abs(z + 26) < 7 ? -0.45 : 0;
-      pos.setY(i, h * flat + riverDip + farHill(z));
-      pos.setZ(i, z);
+  function pineParts(parts, x, z, s) {
+    var y = baseY(z);
+    parts.push(facetColors(cylY(0.1 * s, 0.16 * s, 0.9 * s, x, y + 0.45 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
+    for (var i = 0; i < 3; i++) {
+      var c = new THREE.ConeGeometry((1.15 - i * 0.3) * s, 1.7 * s, 6);
+      c.translate(x, y + (1.3 + i * 1.05) * s, z);
+      parts.push(facetColors(c, '#182620', '#243428', function () { return rnd(); }));
     }
-    gg.translate(0, -14, 0);
-    parts.push(facetColors(gg, '#20182c', '#2c2438', function (cx, cy, cz) {
-      return clamp((cy + 14.6) * 0.8, 0, 1) * 0.5 + rnd() * 0.4;
-    }));
+  }
+  function rockParts(parts, x, z, s, ca, cb) {
+    var rock = new THREE.IcosahedronGeometry(s, 0);
+    rock.scale(1, rand(0.5, 0.85), 1);
+    rock.translate(x, baseY(z) + s * 0.2, z);
+    parts.push(facetColors(rock, ca || '#322842', cb || '#443654', function () { return rnd(); }));
+  }
+  function fieldParts(parts, gH, fx, fz, w, d, ca, cb) {
+    var fg = new THREE.PlaneGeometry(w, d, 3, 3);
+    fg.rotateX(-Math.PI / 2);
+    var fp = fg.attributes.position;
+    for (var i = 0; i < fp.count; i++) fp.setY(i, gH(fx + fp.getX(i), fz + fp.getZ(i)) + 0.06);
+    fg.translate(fx, 0, fz);
+    parts.push(facetColors(fg, ca, cb, function () { return rnd(); }));
+  }
+  function sheepParts(parts, gH, x, z) {
+    var body2 = new THREE.IcosahedronGeometry(0.34, 0);
+    body2.scale(1.25, 0.85, 0.85);
+    body2.translate(x, gH(x, z) + 0.32, z);
+    parts.push(facetColors(body2, '#cfc4d4', '#e0d6e4', function () { return rnd(); }));
+    parts.push(facetColors(box(0.16, 0.16, 0.16, x + 0.4, gH(x, z) + 0.4, z), '#3a2c34', '#4a3c44', function () { return rnd(); }));
+  }
+  function reedParts(parts, gH, x, z) {
+    var reed = new THREE.ConeGeometry(0.06, rand(0.7, 1.2), 4);
+    reed.translate(x, gH(x, z) + 0.4, z);
+    parts.push(facetColors(reed, '#2a3226', '#36402c', function () { return rnd(); }));
+  }
+  function wispAt(ctx, x, y, z) {
+    var ws = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#cbb8c4', transparent: true, opacity: 0, depthWrite: false, fog: true }));
+    ws.position.set(x, y, z);
+    ctx.group.add(ws);
+    chimneyWisps.push({ sprite: ws, x: x, y0: y, phase: rnd(), ti: ctx.idx });
+  }
+  function houseAt(ctx, x, z, s, face, wallA, wallB) {
+    _px = x;
+    var w = houseParts(ctx.parts, ctx.winParts, x, z, s, wallA || '#3e3050', wallB || '#4e3c5c', face);
+    var hg = addBGlow(w.x, w.y, w.z, 3.4, 0.4, '#ffb37a', ctx.group);
+    tileGlows.push({ rec: hg, phase: rnd() * 6.28, ti: ctx.idx });
+    if (rnd() < 0.6) wispAt(ctx, x + 0.8, baseY(z) + 3.4, z);
+    return w;
+  }
+  function boatAt(ctx, x, y, z) {
+    var boat = new THREE.Group();
+    boat.position.set(x, y, z);
+    var hull = [];
+    hull.push(facetColors(box(2.6, 0.5, 1.0, 0, 0.25, 0), '#3a2c24', '#4a3c34', function () { return rnd(); }));
+    var prow = new THREE.ConeGeometry(0.5, 0.9, 4);
+    prow.rotateZ(-Math.PI / 2);
+    prow.translate(1.7, 0.3, 0);
+    hull.push(facetColors(prow, '#3a2c24', '#4a3c34', function () { return rnd(); }));
+    boat.add(new THREE.Mesh(mergeGeos(hull), stoneMat));
+    var bl2 = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), lampBulbMat);
+    bl2.position.set(0, 0.95, 0); boat.add(bl2);
+    var bg = addBGlow(0, 0.95, 0, 1.4, 0.5, '#ffb37a', boat);
+    bg.ti = ctx.idx;
+    boatGlows.push(bg);
+    ctx.group.add(boat);
+    boats.push({ group: boat, phase: rnd() * 6.28, baseY: y, ti: ctx.idx });
+    return boat;
+  }
+  function windmillAt(ctx, x, z) {
+    _px = x;
+    var wy = baseY(z);
+    ctx.parts.push(facetColors(cylY(1.0, 1.6, 5.0, x, wy + 2.5, z, 8), '#463650', '#564262', function () { return rnd(); }));
+    var cap = new THREE.ConeGeometry(1.25, 1.3, 6);
+    cap.translate(x, wy + 5.6, z);
+    ctx.parts.push(facetColors(cap, '#33203a', '#42284a', function () { return rnd(); }));
+    var rotor = new THREE.Group();
+    rotor.position.set(x, wy + 5.0, z + 1.35);
+    rotor.userData.ti = ctx.idx;
+    var blades = [];
+    for (var b = 0; b < 4; b++) {
+      var bl = new THREE.BoxGeometry(0.3, 3.4, 0.06);
+      bl.translate(0, 1.8, 0);
+      bl.rotateZ(b * Math.PI / 2);
+      blades.push(facetColors(bl, '#3a2c44', '#4a3a54', function () { return rnd(); }));
+    }
+    blades.push(facetColors(new THREE.SphereGeometry(0.22, 8, 6), '#241c30', '#322640', function () { return rnd(); }));
+    rotor.add(new THREE.Mesh(mergeGeos(blades), stoneMat));
+    ctx.group.add(rotor);
+    windmillRotors.push(rotor);
+    var wg2 = addBGlow(x, wy + 2.2, z + 1.6, 2.2, 0.32, '#ffb37a', ctx.group);
+    tileGlows.push({ rec: wg2, phase: rnd() * 6.28, ti: ctx.idx });
+  }
 
-    // river
-    var rg = new THREE.PlaneGeometry(TILE, 13);
-    rg.rotateX(-Math.PI / 2);
-    var river = new THREE.Mesh(rg, riverMat);
-    river.position.set(0, -13.82, -26);
-    group.add(river);
+  /* ------------------------- biome prop builders ------------------------- */
 
-    // trees
-    for (var t = 0; t < 26; t++) {
-      var tx = rand(-23, 23);
-      var tz = rnd() < 0.55 ? rand(13, 72) : rand(-78, -36);
+  function propsValley(ctx, x0, x1) {
+    var k = (x1 - x0) / 48, variant = ctx.idx % 4, parts = ctx.parts, gH = ctx.gH;
+    function rx() { return rand(x0 + 2, x1 - 2); }
+    for (var t = 0; t < Math.round(26 * k); t++) {
+      var tx = rx(), tz = rnd() < 0.55 ? rand(13, 72) : rand(-78, -36);
       if (Math.abs(tz + 26) < 8.5) continue;
-      treeParts(parts, tx, tz);
+      _px = tx; treeParts(parts, tx, tz);
     }
-    // rocks
-    for (var r = 0; r < 7; r++) {
-      var rx = rand(-23, 23);
-      var rz = rnd() < 0.5 ? rand(12, 60) : rand(-70, -35);
-      var rock = new THREE.IcosahedronGeometry(rand(0.3, 0.8), 0);
-      rock.scale(1, rand(0.5, 0.8), 1);
-      rock.translate(rx, baseY(rz) + 0.1, rz);
-      parts.push(facetColors(rock, '#322842', '#443654', function () { return rnd(); }));
-    }
-
-    // houses: mostly on the far bank so their lit windows face the camera
+    for (var r = 0; r < Math.round(7 * k); r++) { _px = rx(); rockParts(parts, _px, rnd() < 0.5 ? rand(12, 60) : rand(-70, -35), rand(0.3, 0.8)); }
     var spots = [];
     function cluster(n, zMin, zMax, face) {
-      for (var h = 0; h < n; h++) {
-        var hx = rand(-20, 20), hz = rand(zMin, zMax);
-        var ok = true;
-        for (var s = 0; s < spots.length; s++) {
-          if (Math.hypot(spots[s].x - hx, spots[s].z - hz) < 6) { ok = false; break; }
-        }
+      for (var h = 0; h < Math.round(n * k); h++) {
+        var hx = rx(), hz = rand(zMin, zMax), ok = true;
+        for (var s = 0; s < spots.length; s++) if (Math.hypot(spots[s].x - hx, spots[s].z - hz) < 6) { ok = false; break; }
         if (!ok) continue;
-        var w = houseParts(parts, winParts, hx, hz, rand(0.8, 1.25), '#3e3050', '#4e3c5c', face);
         spots.push({ x: hx, z: hz });
-        var hg = addBGlow(w.x, w.y, w.z, 3.4, 0.4, '#ffb37a', group);
-        glows.push(hg);
-        tileGlows.push({ rec: hg, phase: rnd() * 6.28, ti: idx });
-        // vertical light reflection on the river opposite the house
-        var rs = addBGlow(hx, -13.5, -31, 1, 0.12, '#ffb37a', group, 1.4, 7);
-        reflStreaks.push({ rec: rs, phase: rnd() * 6.28, ti: idx });
-        // chimney wisp
-        if (rnd() < 0.6) {
-          var ws = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#cbb8c4', transparent: true, opacity: 0, depthWrite: false, fog: true }));
-          ws.position.set(hx + 0.8, baseY(hz) + 3.4, hz);
-          group.add(ws);
-          chimneyWisps.push({ sprite: ws, x: hx + 0.8, y0: baseY(hz) + 3.4, phase: rnd() });
-        }
+        var w = houseAt(ctx, hx, hz, rand(0.8, 1.25), face);
+        var rs = addBGlow(hx, -13.5, -31, 1, 0.12, '#ffb37a', ctx.group, 1.4, 7);
+        reflStreaks.push({ rec: rs, phase: rnd() * 6.28, ti: ctx.idx });
       }
     }
     if (variant === 0) cluster(3, -66, -48, 1);
     else if (variant === 1) {
       cluster(4, -72, -46, 1);
-      // church tower on the far bank
-      var cx = rand(-12, 12), cz = rand(-64, -50), by = baseY(cz);
+      var cx = rx(), cz = rand(-64, -50); _px = cx;
+      var by = baseY(cz);
       parts.push(facetColors(box(2.2, 6.5, 2.2, cx, by + 3.25, cz), '#463650', '#564262', function () { return rnd(); }));
       var spire = new THREE.ConeGeometry(1.7, 2.4, 4);
-      spire.rotateY(Math.PI / 4);
-      spire.translate(cx, by + 7.7, cz);
+      spire.rotateY(Math.PI / 4); spire.translate(cx, by + 7.7, cz);
       parts.push(facetColors(spire, '#33203a', '#42284a', function () { return rnd(); }));
       var clock = new THREE.CircleGeometry(0.5, 12);
       clock.translate(cx, by + 4.8, cz + 1.13);
-      winParts.push(clock);
-      var cg = addBGlow(cx, by + 4.8, cz + 1.2, 2.6, 0.35, '#ffe9d5', group);
-      glows.push(cg);
-      tileGlows.push({ rec: cg, phase: rnd() * 6.28, ti: idx });
+      ctx.winParts.push(clock);
+      var cg = addBGlow(cx, by + 4.8, cz + 1.2, 2.6, 0.35, '#ffe9d5', ctx.group);
+      tileGlows.push({ rec: cg, phase: rnd() * 6.28, ti: ctx.idx });
     }
     else if (variant === 2) { cluster(2, -58, -46, 1); cluster(1, 20, 28, -1); }
     else cluster(3, -70, -50, 1);
-
-    // conforming ground height for props
-    function gH(x, z) {
-      var h = 0.5 * Math.sin(x * 0.2618) * Math.cos(z * 0.09 + variant) + 0.1 * Math.sin(z * 0.5 + variant);
-      var flat = clamp((Math.abs(z) - 11) / 9, 0, 1);
-      var dip = Math.abs(z + 26) < 7 ? -0.45 : 0;
-      return -14 + h * flat + dip + farHill(z);
-    }
-    function field(fx, fz, w, d, ca, cb) {
-      var fg = new THREE.PlaneGeometry(w, d, 3, 3);
-      fg.rotateX(-Math.PI / 2);
-      var fp = fg.attributes.position;
-      for (var i = 0; i < fp.count; i++) {
-        fp.setY(i, gH(fx + fp.getX(i), fz + fp.getZ(i)) + 0.06);
-      }
-      fg.translate(fx, 0, fz);
-      parts.push(facetColors(fg, ca, cb, function () { return rnd(); }));
-    }
-
-    // crop fields + haystacks on the near bank
-    field(rand(-16, -4), rand(18, 30), rand(7, 11), rand(5, 8), '#3a3226', '#4a4030');
-    field(rand(4, 16), rand(20, 34), rand(6, 10), rand(5, 8), '#2a3226', '#36402c');
-    for (var hs = 0; hs < 2; hs++) {
-      var hx2 = rand(-20, 20), hz2 = rand(14, 36);
+    fieldParts(parts, gH, rand(x0 + 4, x0 + 14), rand(18, 30), rand(7, 11), rand(5, 8), '#3a3226', '#4a4030');
+    fieldParts(parts, gH, rand(x1 - 14, x1 - 4), rand(20, 34), rand(6, 10), rand(5, 8), '#2a3226', '#36402c');
+    for (var hs = 0; hs < Math.round(2 * k); hs++) {
+      var hx2 = rx(), hz2 = rand(14, 36);
       var hay = new THREE.ConeGeometry(0.7, 1.1, 6);
       hay.translate(hx2, gH(hx2, hz2) + 0.5, hz2);
       parts.push(facetColors(hay, '#4a3c28', '#5a4c34', function () { return rnd(); }));
     }
-    // fence line
-    if (variant === 0 || variant === 2) {
-      var fz0 = rand(15, 24), fx0 = rand(-18, -6);
-      for (var fp2 = 0; fp2 < 8; fp2++) {
-        var px = fx0 + fp2 * 1.3;
-        parts.push(facetColors(box(0.08, 0.7, 0.08, px, gH(px, fz0) + 0.35, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
-      }
-      parts.push(facetColors(box(9.2, 0.06, 0.05, fx0 + 4.5, gH(fx0 + 4.5, fz0) + 0.55, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
-      parts.push(facetColors(box(9.2, 0.06, 0.05, fx0 + 4.5, gH(fx0 + 4.5, fz0) + 0.3, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
-    }
-    // grazing sheep on the far hillside
-    if (variant === 0 || variant === 3) {
-      for (var sh = 0; sh < 4; sh++) {
-        var sx = rand(-18, 18), sz = rand(-58, -42);
-        var body2 = new THREE.IcosahedronGeometry(0.34, 0);
-        body2.scale(1.25, 0.85, 0.85);
-        body2.translate(sx, gH(sx, sz) + 0.32, sz);
-        parts.push(facetColors(body2, '#cfc4d4', '#e0d6e4', function () { return rnd(); }));
-        parts.push(facetColors(box(0.16, 0.16, 0.16, sx + 0.4, gH(sx, sz) + 0.4, sz), '#3a2c34', '#4a3c44', function () { return rnd(); }));
-      }
-    }
-    // orchard rows
-    if (variant === 2) {
-      for (var ox = 0; ox < 3; ox++) {
-        for (var oz = 0; oz < 2; oz++) {
-          var oxx = 6 + ox * 3.4, ozz = 18 + oz * 4.2;
-          parts.push(facetColors(cylY(0.08, 0.11, 0.6, oxx, gH(oxx, ozz) + 0.3, ozz, 5), '#241a28', '#2e2234', function () { return rnd(); }));
-          var ob = new THREE.IcosahedronGeometry(0.7, 0);
-          ob.scale(1, 0.8, 1);
-          ob.translate(oxx, gH(oxx, ozz) + 1.0, ozz);
-          parts.push(facetColors(ob, '#22302a', '#2c3c32', function () { return rnd(); }));
-        }
-      }
-    }
-    // reeds at the river banks
-    for (var rd2 = 0; rd2 < 12; rd2++) {
-      var rx2 = rand(-22, 22);
-      var rz2 = rnd() < 0.5 ? -19.5 + rand(-0.6, 0.6) : -32.5 + rand(-0.6, 0.6);
-      var reed = new THREE.ConeGeometry(0.06, rand(0.7, 1.2), 4);
-      reed.translate(rx2, gH(rx2, rz2) + 0.4, rz2);
-      parts.push(facetColors(reed, '#2a3226', '#36402c', function () { return rnd(); }));
-    }
-
-    // windmill on the far hill
-    if (variant === 1 || variant === 3) {
-      var wx = rand(-16, 16), wz = rand(-70, -56), wy = gH(wx, wz);
-      parts.push(facetColors(cylY(1.0, 1.6, 5.0, wx, wy + 2.5, wz, 8), '#463650', '#564262', function () { return rnd(); }));
-      var cap = new THREE.ConeGeometry(1.25, 1.3, 6);
-      cap.translate(wx, wy + 5.6, wz);
-      parts.push(facetColors(cap, '#33203a', '#42284a', function () { return rnd(); }));
-      var rotor = new THREE.Group();
-      rotor.position.set(wx, wy + 5.0, wz + 1.35);
-      var blades = [];
-      for (var b = 0; b < 4; b++) {
-        var bl = new THREE.BoxGeometry(0.3, 3.4, 0.06);
-        bl.translate(0, 1.8, 0);
-        bl.rotateZ(b * Math.PI / 2);
-        blades.push(facetColors(bl, '#3a2c44', '#4a3a54', function () { return rnd(); }));
-      }
-      var hub = new THREE.SphereGeometry(0.22, 8, 6);
-      blades.push(facetColors(hub, '#241c30', '#322640', function () { return rnd(); }));
-      rotor.add(new THREE.Mesh(mergeGeos(blades), stoneMat));
-      group.add(rotor);
-      windmillRotors.push(rotor);
-      var wg2 = addBGlow(wx, wy + 2.2, wz + 1.6, 2.2, 0.32, '#ffb37a', group);
-      tileGlows.push({ rec: wg2, phase: rnd() * 6.28, ti: idx });
-    }
-
-    // footbridge over the river + dock + moored boat
-    if (variant === 0 || variant === 2) {
-      var bx = rand(-14, 14);
+    if (variant === 0 || variant === 3) for (var sh = 0; sh < Math.round(4 * k); sh++) sheepParts(parts, gH, rx(), rand(-58, -42));
+    for (var rd2 = 0; rd2 < Math.round(12 * k); rd2++) reedParts(parts, gH, rx(), rnd() < 0.5 ? -19.5 + rand(-0.6, 0.6) : -32.5 + rand(-0.6, 0.6));
+    if ((variant === 1 || variant === 3) && k > 0.6) windmillAt(ctx, rx(), rand(-70, -56));
+    if ((variant === 0 || variant === 2) && k > 0.6) {
+      var bx = rx();
       parts.push(facetColors(box(1.6, 0.2, 15, bx, -12.6, -26), '#3f3148', '#5c4a63', function () { return rnd(); }));
       var bArch = new THREE.TorusGeometry(6.2, 0.22, 5, 12, Math.PI);
-      bArch.rotateY(Math.PI / 2);
-      bArch.translate(bx, -13.4, -26);
+      bArch.rotateY(Math.PI / 2); bArch.translate(bx, -13.4, -26);
       parts.push(facetColors(bArch, '#544260', '#6a5670', function () { return rnd(); }));
-      [-0.8, 0.8].forEach(function (ox2) {
-        parts.push(facetColors(box(0.08, 0.5, 15, bx + ox2, -12.2, -26), '#463852', '#63506c', function () { return rnd(); }));
-      });
       parts.push(facetColors(box(3, 0.2, 2.4, bx + 4, -13.3, -19.5), '#3a2c24', '#4a3c34', function () { return rnd(); }));
-      [[bx + 2.8, -18.6], [bx + 5.2, -18.6], [bx + 2.8, -20.4], [bx + 5.2, -20.4]].forEach(function (p) {
-        parts.push(facetColors(cylY(0.08, 0.1, 1.2, p[0], -13.8, p[1], 5), '#241c30', '#322640', function () { return rnd(); }));
+      boatAt(ctx, bx - 4, -13.7, -27);
+    }
+    var ms = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#8a7a9a', transparent: true, opacity: 0.1, depthWrite: false, fog: true }));
+    ms.position.set(rx(), -13.2, -26 + rand(-4, 4));
+    ms.scale.set(14, 4, 1);
+    ctx.group.add(ms);
+    riverMists.push({ sprite: ms, phase: rnd() * 6.28, ti: ctx.idx });
+    if (variant !== 2 && k > 0.5) {
+      var sl = addBGlow(rx(), 0, rand(-64, -44), 2.0, 0.5, '#ffb37a', ctx.group);
+      skyLanterns.push({ rec: sl, x0: sl.x, phase: rnd(), ti: ctx.idx });
+    }
+  }
+
+  function propsPlains(ctx, x0, x1) {
+    var k = (x1 - x0) / 48, parts = ctx.parts, gH = ctx.gH;
+    function rx() { return rand(x0 + 2, x1 - 2); }
+    var cols = ['#3a3226', '#4a4030', '#2a3226', '#36402c', '#443a24', '#52462e'];
+    for (var f = 0; f < Math.round(10 * k); f++) {
+      var fz = rnd() < 0.65 ? rand(-66, -16) : rand(14, 66);
+      fieldParts(parts, gH, rx(), fz, rand(8, 15), rand(6, 12), cols[Math.floor(rnd() * 6)], cols[Math.floor(rnd() * 6)]);
+    }
+    for (var hs = 0; hs < Math.round(6 * k); hs++) {
+      var hx = rx(), hz = rnd() < 0.65 ? rand(-60, -16) : rand(14, 60);
+      var hay = new THREE.ConeGeometry(rand(0.6, 0.9), rand(1.0, 1.4), 6);
+      hay.translate(hx, gH(hx, hz) + 0.55, hz);
+      parts.push(facetColors(hay, '#4a3c28', '#5a4c34', function () { return rnd(); }));
+    }
+    for (var t = 0; t < Math.round(8 * k); t++) { _px = rx(); treeParts(parts, _px, rnd() < 0.6 ? rand(-72, -18) : rand(16, 70)); }
+    for (var sh = 0; sh < Math.round(8 * k); sh++) sheepParts(parts, gH, rx(), rnd() < 0.65 ? rand(-60, -20) : rand(16, 60));
+    if (rnd() < 0.7 && k > 0.5) houseAt(ctx, rx(), rand(20, 40), rand(0.8, 1.1), -1);
+    if (rnd() < 0.55 && k > 0.6) windmillAt(ctx, rx(), rand(-64, -30));
+    // fence line along a field
+    var fz0 = rand(15, 30), fx0 = rand(x0 + 3, x1 - 12);
+    for (var fp2 = 0; fp2 < 8; fp2++) {
+      var px = fx0 + fp2 * 1.3;
+      parts.push(facetColors(box(0.08, 0.7, 0.08, px, gH(px, fz0) + 0.35, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
+    }
+    parts.push(facetColors(box(9.2, 0.06, 0.05, fx0 + 4.5, gH(fx0 + 4.5, fz0) + 0.55, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
+  }
+
+  function propsHills(ctx, x0, x1) {
+    var k = (x1 - x0) / 48, parts = ctx.parts, gH = ctx.gH;
+    function rx() { return rand(x0 + 2, x1 - 2); }
+    for (var t = 0; t < Math.round(16 * k); t++) { _px = rx(); treeParts(parts, _px, rnd() < 0.5 ? rand(16, 68) : rand(-70, -18)); }
+    for (var r = 0; r < Math.round(8 * k); r++) { _px = rx(); rockParts(parts, _px, rnd() < 0.5 ? rand(14, 60) : rand(-66, -16), rand(0.4, 1.1)); }
+    for (var sh = 0; sh < Math.round(9 * k); sh++) sheepParts(parts, gH, rx(), rnd() < 0.65 ? rand(-56, -20) : rand(16, 56));
+    // terraced strips on the far slope
+    for (var te = 0; te < Math.round(3 * k); te++) {
+      var tz = -34 - te * 7;
+      fieldParts(parts, gH, rx(), tz, rand(8, 14), 3.2, '#2a3226', '#36402c');
+    }
+    // dry stone wall
+    var wz = rand(16, 30), wx0 = rand(x0 + 3, x1 - 10);
+    for (var wi = 0; wi < 7; wi++) {
+      var wx = wx0 + wi * 1.1;
+      parts.push(facetColors(box(1.0, rand(0.5, 0.7), 0.5, wx, gH(wx, wz) + 0.3, wz), '#322842', '#443654', function () { return rnd(); }));
+    }
+    if (rnd() < 0.6 && k > 0.5) houseAt(ctx, rx(), rand(-52, -30), rand(0.7, 1.0), 1);
+  }
+
+  function propsMountains(ctx, x0, x1) {
+    var k = (x1 - x0) / 48, parts = ctx.parts, gH = ctx.gH;
+    function rx() { return rand(x0 + 2, x1 - 2); }
+    // rock spires rising past the deck line, clear of the track corridor
+    for (var s = 0; s < Math.round(9 * k); s++) {
+      var sx = rx(), sz = (rnd() < 0.5 ? -1 : 1) * rand(16, 46);
+      _px = sx;
+      var by = baseY(sz), h = rand(8, 24), rw = rand(1.6, 3.4);
+      var spire = new THREE.ConeGeometry(rw, h, 5);
+      spire.translate(sx, by + h / 2 - 1, sz);
+      parts.push(facetColors(spire, '#2c2438', '#443654', function () { return rnd(); }));
+      var base = new THREE.IcosahedronGeometry(rw * 1.3, 0);
+      base.scale(1, 0.6, 1);
+      base.translate(sx, by + 0.5, sz);
+      parts.push(facetColors(base, '#282034', '#3a3048', function () { return rnd(); }));
+      // permanent snow cap on the tallest peaks
+      if (h > 15) {
+        var cap = new THREE.ConeGeometry(rw * 0.34, h * 0.22, 5);
+        cap.translate(sx, by + h - 1 - h * 0.11, sz);
+        parts.push(facetColors(cap, '#dfe6f2', '#eef2fa', function () { return rnd(); }));
+      }
+    }
+    for (var t = 0; t < Math.round(14 * k); t++) { _px = rx(); pineParts(parts, _px, (rnd() < 0.5 ? -1 : 1) * rand(14, 50), rand(0.7, 1.4)); }
+    for (var r = 0; r < Math.round(10 * k); r++) { _px = rx(); rockParts(parts, _px, (rnd() < 0.5 ? -1 : 1) * rand(13, 55), rand(0.4, 1.4), '#2c2438', '#3e3450'); }
+    if (rnd() < 0.4 && k > 0.6) houseAt(ctx, rx(), (rnd() < 0.5 ? -1 : 1) * rand(20, 30), rand(0.7, 0.9), rnd() < 0.5 ? 1 : -1, '#3a3044', '#4a3c54');
+  }
+
+  function propsForest(ctx, x0, x1) {
+    var k = (x1 - x0) / 48, parts = ctx.parts, gH = ctx.gH;
+    function rx() { return rand(x0 + 2, x1 - 2); }
+    for (var t = 0; t < Math.round(52 * k); t++) {
+      var tx = rx(), tz = rnd() < 0.5 ? rand(13, 74) : rand(-76, -16);
+      _px = tx;
+      if (rnd() < 0.65) pineParts(parts, tx, tz, rand(0.8, 1.7));
+      else treeParts(parts, tx, tz);
+    }
+    for (var r = 0; r < Math.round(5 * k); r++) { _px = rx(); rockParts(parts, _px, rnd() < 0.5 ? rand(14, 60) : rand(-66, -16), rand(0.3, 0.7)); }
+    // logging cabin + log pile
+    if (rnd() < 0.6 && k > 0.55) {
+      var lx = rx(), lz = rand(18, 34);
+      houseAt(ctx, lx, lz, rand(0.8, 1.0), -1, '#33283c', '#42344a');
+      for (var lg = 0; lg < 4; lg++) {
+        var log = cylX(0.22, 2.4, lx + 3.2, gH(lx + 3.2, lz) + 0.24 + (lg > 1 ? 0.4 : 0), lz + (lg % 2) * 0.5 - 0.25, 6);
+        parts.push(facetColors(log, '#3a2c24', '#4a3c34', function () { return rnd(); }));
+      }
+    }
+    for (var st = 0; st < Math.round(3 * k); st++) {
+      var sx = rx(), sz = rand(14, 60);
+      parts.push(facetColors(cylY(0.25, 0.32, 0.3, sx, gH(sx, sz) + 0.15, sz, 6), '#3a2c24', '#4a3c34', function () { return rnd(); }));
+    }
+  }
+
+  function propsLake(ctx, x0, x1) {
+    var k = (x1 - x0) / 48, parts = ctx.parts, gH = ctx.gH;
+    function rx() { return rand(x0 + 2, x1 - 2); }
+    for (var t = 0; t < Math.round(12 * k); t++) { _px = rx(); treeParts(parts, _px, rand(16, 70)); }
+    for (var rd2 = 0; rd2 < Math.round(20 * k); rd2++) reedParts(parts, gH, rx(), -17 + rand(-1.5, 1.5));
+    if (rnd() < 0.7 && k > 0.5) houseAt(ctx, rx(), rand(20, 36), rand(0.8, 1.1), -1);
+    // pier out over the water + moored boat
+    if (rnd() < 0.75 && k > 0.55) {
+      var bx = rx();
+      parts.push(facetColors(box(2.2, 0.18, 12, bx, -13.1, -24), '#3a2c24', '#4a3c34', function () { return rnd(); }));
+      [[bx - 0.9, -19], [bx + 0.9, -19], [bx - 0.9, -29], [bx + 0.9, -29]].forEach(function (p) {
+        parts.push(facetColors(cylY(0.08, 0.1, 1.4, p[0], -13.6, p[1], 5), '#241c30', '#322640', function () { return rnd(); }));
       });
-      var boat = new THREE.Group();
-      boat.position.set(bx - 4, -13.7, -27);
-      var hull = [];
-      hull.push(facetColors(box(2.6, 0.5, 1.0, 0, 0.25, 0), '#3a2c24', '#4a3c34', function () { return rnd(); }));
-      var prow = new THREE.ConeGeometry(0.5, 0.9, 4);
-      prow.rotateZ(-Math.PI / 2);
-      prow.translate(1.7, 0.3, 0);
-      hull.push(facetColors(prow, '#3a2c24', '#4a3c34', function () { return rnd(); }));
-      boat.add(new THREE.Mesh(mergeGeos(hull), stoneMat));
-      var bl2 = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), lampBulbMat);
-      bl2.position.set(0, 0.95, 0); boat.add(bl2);
-      boatGlows.push(addBGlow(0, 0.95, 0, 1.4, 0.5, '#ffb37a', boat));
-      group.add(boat);
-      boats.push({ group: boat, phase: rnd() * 6.28, baseY: -13.7 });
+      boatAt(ctx, bx + 2.4, -13.7, -26);
+      var rs = addBGlow(bx, -13.5, -30, 1, 0.12, '#ffb37a', ctx.group, 1.4, 7);
+      reflStreaks.push({ rec: rs, phase: rnd() * 6.28, ti: ctx.idx });
+    }
+    for (var r = 0; r < Math.round(4 * k); r++) { _px = rx(); rockParts(parts, _px, rand(14, 50), rand(0.3, 0.7)); }
+    var ms = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#8a7a9a', transparent: true, opacity: 0.1, depthWrite: false, fog: true }));
+    ms.position.set(rx(), -13.2, -40 + rand(-8, 8));
+    ms.scale.set(18, 4, 1);
+    ctx.group.add(ms);
+    riverMists.push({ sprite: ms, phase: rnd() * 6.28, ti: ctx.idx });
+  }
+
+  var foamMat = bendify(new THREE.MeshBasicMaterial({ color: '#cfd8e8', transparent: true, opacity: 0.25, fog: true }));
+  function propsBeach(ctx, x0, x1) {
+    var k = (x1 - x0) / 48, parts = ctx.parts, gH = ctx.gH;
+    function rx() { return rand(x0 + 2, x1 - 2); }
+    // beach grass tufts on the sand bar
+    for (var g = 0; g < Math.round(20 * k); g++) {
+      var gx = rx(), gz = rand(-24, 28);
+      for (var b = 0; b < 3; b++) {
+        var blade = new THREE.ConeGeometry(0.04, rand(0.5, 0.9), 3);
+        blade.translate(gx + rand(-0.2, 0.2), gH(gx, gz) + 0.3, gz + rand(-0.2, 0.2));
+        parts.push(facetColors(blade, '#3e4a30', '#4e5a3a', function () { return rnd(); }));
+      }
+    }
+    // driftwood
+    for (var d = 0; d < Math.round(3 * k); d++) {
+      var dx = rx(), dz = rand(-22, 26);
+      var dw = cylX(0.12, rand(1.2, 2.4), dx, gH(dx, dz) + 0.12, dz, 5);
+      parts.push(facetColors(dw, '#3a3230', '#4a423c', function () { return rnd(); }));
+    }
+    // beach huts
+    for (var h = 0; h < Math.round(2 * k); h++) {
+      var hx = rx(), hz = rand(-16, 20); _px = hx;
+      var hy = baseY(hz);
+      parts.push(facetColors(box(1.6, 1.5, 1.6, hx, hy + 0.75, hz), '#4e4048', '#5e4c54', function () { return rnd(); }));
+      var roof = new THREE.ConeGeometry(1.3, 0.9, 4);
+      roof.rotateY(Math.PI / 4); roof.translate(hx, hy + 1.95, hz);
+      parts.push(facetColors(roof, '#3a3040', '#4a3c4c', function () { return rnd(); }));
+      var wg = new THREE.PlaneGeometry(0.4, 0.5);
+      wg.translate(hx, hy + 0.8, hz + 0.82);
+      ctx.winParts.push(wg);
+      var hg = addBGlow(hx, hy + 0.8, hz + 0.9, 2.2, 0.3, '#ffb37a', ctx.group);
+      tileGlows.push({ rec: hg, phase: rnd() * 6.28, ti: ctx.idx });
+    }
+    // lighthouse with a sweeping beam
+    if (rnd() < 0.4 && k > 0.6) {
+      var lx = rx(), lz = rand(-20, 22); _px = lx;
+      var ly = baseY(lz);
+      for (var band = 0; band < 5; band++) {
+        var r0 = 1.0 - band * 0.12;
+        parts.push(facetColors(cylY(r0 - 0.1, r0, 1.7, lx, ly + 0.85 + band * 1.7, lz, 8), band % 2 ? '#8a3a3a' : '#d8d0c8', band % 2 ? '#9a4a4a' : '#e8e0d8', function () { return rnd(); }));
+      }
+      parts.push(facetColors(cylY(0.55, 0.55, 0.9, lx, ly + 9.0, lz, 8), '#2a2234', '#3a3044', function () { return rnd(); }));
+      var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), lampBulbMat);
+      lamp.position.set(lx, ly + 9.0, lz);
+      ctx.group.add(lamp);
+      var beam = new THREE.Group();
+      beam.position.set(lx, ly + 9.0, lz);
+      beam.userData.ti = ctx.idx;
+      var cone = new THREE.ConeGeometry(2.6, 26, 8, 1, true);
+      cone.rotateZ(Math.PI / 2);
+      cone.translate(13, 0, 0);
+      var beamMesh = new THREE.Mesh(cone, new THREE.MeshBasicMaterial({ color: '#ffe9c0', transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+      beam.add(beamMesh);
+      ctx.group.add(beam);
+      beacons.push({ group: beam, ti: ctx.idx, mat: beamMesh.material });
+      var lg = addBGlow(lx, ly + 9.0, lz, 5, 0.6, '#ffe9c0', ctx.group);
+      tileGlows.push({ rec: lg, phase: rnd() * 6.28, ti: ctx.idx });
+    }
+    // foam lines along both water edges
+    [-26, 30].forEach(function (fz) {
+      var fm = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 - 2, 0.8), foamMat);
+      fm.rotation.x = -Math.PI / 2;
+      fm.position.set((x0 + x1) / 2, -13.7, fz);
+      ctx.group.add(fm);
+      foams.push({ mesh: fm, phase: rnd() * 6.28, ti: ctx.idx, z: fz });
+    });
+    // a couple of rocks in the surf
+    for (var r = 0; r < Math.round(3 * k); r++) { _px = rx(); rockParts(parts, _px, rnd() < 0.5 ? rand(-40, -28) : rand(32, 46), rand(0.4, 1.0), '#2c2836', '#3e3a48'); }
+  }
+
+  function propsOcean(ctx, x0, x1) {
+    var k = (x1 - x0) / 48, parts = ctx.parts, gH = ctx.gH;
+    function rx() { return rand(x0 + 2, x1 - 2); }
+    // rocky islet with a lone wind-bent pine
+    if (rnd() < 0.55 && k > 0.5) {
+      var ix = rx(), iz = (rnd() < 0.5 ? -1 : 1) * rand(24, 60);
+      var isle = new THREE.IcosahedronGeometry(rand(2.5, 4.5), 0);
+      isle.scale(1.4, 0.5, 1);
+      isle.translate(ix, -13.6, iz);
+      parts.push(facetColors(isle, '#242030', '#363244', function () { return rnd(); }));
+      _px = ix;
+      pineParts(parts, ix + rand(-1, 1), iz, rand(0.8, 1.2));
+    }
+    // channel buoy with a red lamp, bobbing
+    if (rnd() < 0.7 && k > 0.4) {
+      var buoy = new THREE.Group();
+      buoy.position.set(rx(), -13.6, (rnd() < 0.5 ? -1 : 1) * rand(16, 40));
+      var bh = [];
+      bh.push(facetColors(cylY(0.3, 0.5, 1.0, 0, 0.5, 0, 6), '#6a2a2a', '#8a3a3a', function () { return rnd(); }));
+      bh.push(facetColors(cylY(0.05, 0.05, 0.8, 0, 1.3, 0, 4), '#2a2234', '#3a3044', function () { return rnd(); }));
+      buoy.add(new THREE.Mesh(mergeGeos(bh), stoneMat));
+      var bb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), sigRedMat);
+      bb.position.set(0, 1.75, 0); buoy.add(bb);
+      var bg = addBGlow(0, 1.75, 0, 1.6, 0.5, '#ff5a4a', buoy);
+      bg.ti = ctx.idx;
+      boatGlows.push(bg);
+      ctx.group.add(buoy);
+      boats.push({ group: buoy, phase: rnd() * 6.28, baseY: -13.6, ti: ctx.idx });
+    }
+    // distant ship silhouette on the horizon
+    if (rnd() < 0.4 && k > 0.6) {
+      var ship = new THREE.Group();
+      ship.position.set(rx(), -13.4, (rnd() < 0.5 ? -1 : 1) * rand(66, 82));
+      var sh = [];
+      sh.push(facetColors(box(7, 1.1, 1.6, 0, 0.55, 0), '#1c1826', '#282234', function () { return rnd(); }));
+      sh.push(facetColors(box(1.6, 1.2, 1.2, -1.5, 1.6, 0), '#241e30', '#302840', function () { return rnd(); }));
+      sh.push(facetColors(cylY(0.06, 0.06, 2.4, 1.8, 2.2, 0, 4), '#1c1826', '#282234', function () { return rnd(); }));
+      ship.add(new THREE.Mesh(mergeGeos(sh), stoneMat));
+      var sl2 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 5), lampBulbMat);
+      sl2.position.set(-1.5, 2.3, 0); ship.add(sl2);
+      var sg = addBGlow(-1.5, 2.3, 0, 1.4, 0.4, '#ffb37a', ship);
+      sg.ti = ctx.idx;
+      boatGlows.push(sg);
+      ctx.group.add(ship);
+      boats.push({ group: ship, phase: rnd() * 6.28, baseY: -13.4, ti: ctx.idx });
+    }
+  }
+
+  // lofted embankment: constant ballast crest, side slopes meet the terrain
+  function embankmentParts(parts, w, x0, x1) {
+    var y0 = 0.2, step = 4;
+    var pos = [], col = [];
+    var cc = new THREE.Color();
+    var ballA = new THREE.Color('#2c2338'), ballB = new THREE.Color('#382c44');
+    function sec(x) {
+      var p = paramsAt(w + x), toes = [];
+      for (var sg = -1; sg <= 1; sg += 2) {
+        var tn = profileH(p, x, sg * 10);
+        var fill = Math.max(0, y0 - 0.4 - tn);
+        var ws = fill > 0.05 ? Math.min(18, 3.5 + fill * 1.25) : 3.5;
+        var t = profileH(p, x, sg * ws);
+        if (fill <= 0.05) t = Math.min(t, y0 - 0.45);
+        toes.push([sg * ws, t - 0.35]);
+      }
+      return [toes[0], [-3.5, y0 - 0.4], [-2.6, y0], [2.6, y0], [3.5, y0 - 0.4], toes[1]];
+    }
+    function bandCol(b, x) {
+      if (b === 2) cc.copy(ballA).lerp(ballB, rnd());
+      else if (b === 1 || b === 3) cc.copy(ballA).lerp(ballB, 0.3 + rnd() * 0.3);
+      else { var p = paramsAt(w + x); cc.copy(p.cA).lerp(p.cB, 0.3 + rnd() * 0.5); }
+      return cc;
+    }
+    var prev = sec(x0);
+    for (var x = x0 + step; x <= x1 + 0.01; x += step) {
+      var cx = Math.min(x, x1), cur = sec(cx);
+      for (var b = 0; b < 5; b++) {
+        var a0 = prev[b], a1 = prev[b + 1], b0 = cur[b], b1 = cur[b + 1];
+        var c0 = bandCol(b, cx - step).clone(), c1 = bandCol(b, cx).clone();
+        pos.push(cx - step, a0[1], a0[0], cx, b1[1], b1[0], cx, b0[1], b0[0]);
+        pos.push(cx - step, a0[1], a0[0], cx - step, a1[1], a1[0], cx, b1[1], b1[0]);
+        for (var v = 0; v < 3; v++) col.push(c0.r, c0.g, c0.b);
+        for (v = 0; v < 3; v++) col.push(c1.r, c1.g, c1.b);
+      }
+      prev = cur;
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    parts.push(g);
+  }
+
+  var PROP_BUILDERS = { valley: propsValley, plains: propsPlains, hills: propsHills, mountains: propsMountains, forest: propsForest, lake: propsLake, beach: propsBeach, ocean: propsOcean };
+
+  /* --------------------------- tile assembly --------------------------- */
+
+  function buildTile(idx, w) {
+    var group = new THREE.Group();
+    var parts = [], winParts = [];
+    var glowStart = glowRecs.length;
+    var tileWinMat = bendify(villageWinMat.clone());
+    if (villageWinMats[idx]) villageWinMats[idx].dispose();
+    villageWinMats[idx] = tileWinMat;
+    tileLightCfg[idx] = {
+      on: 17 + rand(-0.7, 0.7),
+      off: rnd() < 0.45 ? rand(22.0, 23.8) : 24,
+      dawn: 5 + rand(-0.3, 0.3),
+      f: 0
+    };
+    var gH = function (x, z) {
+      var h = profileH(paramsAt(w + x), x, z);
+      if (inWater(regionAt(w + x).biome, z)) h = Math.min(h, -14.4);
+      return corridorH(h, w + x, z);
+    };
+    _tileGH = gH;
+    var ctx = { idx: idx, w: w, group: group, parts: parts, winParts: winParts, gH: gH };
+
+    // ground mesh, per-vertex biome blend
+    var gg = new THREE.PlaneGeometry(TILE, 170, 12, 20);
+    gg.rotateX(-Math.PI / 2);
+    var pos = gg.attributes.position;
+    var colors = new Float32Array(pos.count * 3);
+    var cc = new THREE.Color();
+    for (var i = 0; i < pos.count; i++) {
+      var x = pos.getX(i), z = pos.getZ(i) - 5;
+      var p = paramsAt(w + x);
+      var y = profileH(p, x, z);
+      if (inWater(regionAt(w + x).biome, z)) y = Math.min(y, -14.4);
+      y = corridorH(y, w + x, z);
+      pos.setY(i, y);
+      pos.setZ(i, z);
+      cc.copy(p.cA).lerp(p.cB, clamp((y + 14.6) * 0.8, 0, 1) * 0.5 + rnd() * 0.4);
+      colors[i * 3] = cc.r; colors[i * 3 + 1] = cc.g; colors[i * 3 + 2] = cc.b;
+    }
+    gg.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    gg.computeVertexNormals();
+    var ground = new THREE.Mesh(gg, groundMat);
+    ground.receiveShadow = true;
+    group.add(ground);
+
+    // water: 8 m columns so shores advance/retreat gradually at boundaries
+    var wq = [];
+    for (var col = 0; col < 6; col++) {
+      var cx = -24 + col * 8 + 4;
+      var zones = BIOMES[regionAt(w + cx).biome].water;
+      for (var zi = 0; zi < zones.length; zi++) {
+        var q = new THREE.PlaneGeometry(8.05, zones[zi][1] - zones[zi][0]);
+        // keep texel density identical to the old 48x13 river across columns
+        var quv = q.attributes.uv, qD = zones[zi][1] - zones[zi][0];
+        for (var qi = 0; qi < quv.count; qi++) {
+          quv.setXY(qi, (col + quv.getX(qi)) / 6, quv.getY(qi) * qD / 13);
+        }
+        q.rotateX(-Math.PI / 2);
+        q.translate(cx, -13.82, (zones[zi][0] + zones[zi][1]) / 2);
+        wq.push(q.toNonIndexed());
+      }
+    }
+    if (wq.length) group.add(new THREE.Mesh(mergeGeos(wq), riverMat));
+
+    // ground-level track: embankment spans and masonry abutments at structure changes
+    var spans = [], curSpan = null;
+    for (var sx = -24; sx < 24; sx += 16) {
+      var gt = trackAt(w + sx + 8) === 'ground';
+      if (gt && !curSpan) curSpan = [sx, sx + 16];
+      else if (gt && curSpan) curSpan[1] = sx + 16;
+      else if (!gt && curSpan) { spans.push(curSpan); curSpan = null; }
+    }
+    if (curSpan) spans.push(curSpan);
+    for (var sp = 0; sp < spans.length; sp++) embankmentParts(parts, w, spans[sp][0], spans[sp][1]);
+    var stonePickT = function (x, y) { return clamp((y + 14) / 14, 0, 1) * 0.55 + rnd() * 0.3; };
+    for (var E = Math.ceil((w - 24 - 0.01) / 16) * 16; E < w + 24 - 0.01; E += 16) {
+      if (trackAt(E - 1) !== trackAt(E + 1)) {
+        var lx = E - w, bot = Math.min(gH(lx, 0), -2) - 1.2;
+        parts.push(facetColors(box(2.4, 1.3 - bot, 8.8, lx, (1.3 + bot) / 2, 0), '#3f3148', '#5c4a63', stonePickT));
+        parts.push(facetColors(box(2.8, 0.3, 9.2, lx, 1.15, 0), '#463852', '#63506c', stonePickT));
+      }
     }
 
-    // low mist drifting over the river
-    for (var rm = 0; rm < 1; rm++) {
-      var ms = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#8a7a9a', transparent: true, opacity: 0.1, depthWrite: false, fog: true }));
-      ms.position.set(rand(-20, 20), -13.2, -26 + rand(-4, 4));
-      ms.scale.set(14, 4, 1);
-      group.add(ms);
-      riverMists.push({ sprite: ms, phase: rnd() * 6.28 });
-    }
-    // a sky lantern rising from the valley
-    if (variant !== 2) {
-      var sl = addBGlow(rand(-18, 18), 0, rand(-64, -44), 2.0, 0.5, '#ffb37a', group);
-      skyLanterns.push({ rec: sl, x0: sl.x, phase: rnd() });
+    // props: each biome decorates its own side of the boundary
+    var r0 = regionAt(w - 24), r1 = regionAt(w + 24);
+    if (r0 === r1) {
+      PROP_BUILDERS[r0.biome](ctx, -24, 24);
+    } else {
+      var xb = clamp(r1.start - w, -22, 22);
+      PROP_BUILDERS[r0.biome](ctx, -24, xb);
+      PROP_BUILDERS[r1.biome](ctx, xb, 24);
     }
 
-    var merged = new THREE.Mesh(mergeGeos(parts), groundMat);
-    merged.receiveShadow = true;
-    group.add(merged);
-
+    if (parts.length) {
+      var merged = new THREE.Mesh(mergeGeos(parts), groundMat);
+      merged.receiveShadow = true;
+      group.add(merged);
+    }
     if (winParts.length) {
       var winGeo = mergeGeos(winParts.map(function (g) {
         return facetColors(g, '#ffb37a', '#ffd9a0', function () { return rnd(); });
       }));
-      var winMesh = new THREE.Mesh(winGeo, tileWinMat);
-      group.add(winMesh);
+      group.add(new THREE.Mesh(winGeo, tileWinMat));
     }
+    for (var gi = glowStart; gi < glowRecs.length; gi++) glowRecs[gi].ti = idx;
     return group;
   }
 
+  function clearTileDyn(idx) {
+    windmillRotors = windmillRotors.filter(function (r) { return r.userData.ti !== idx; });
+    boats = boats.filter(function (b) { return b.ti !== idx; });
+    chimneyWisps = chimneyWisps.filter(function (c) { return c.ti !== idx; });
+    riverMists = riverMists.filter(function (m) { return m.ti !== idx; });
+    skyLanterns = skyLanterns.filter(function (s) { return s.ti !== idx; });
+    reflStreaks = reflStreaks.filter(function (s) { return s.ti !== idx; });
+    tileGlows = tileGlows.filter(function (g) { return g.ti !== idx; });
+    boatGlows = boatGlows.filter(function (g) { return g.ti !== idx; });
+    beacons = beacons.filter(function (b) { return b.ti !== idx; });
+    foams = foams.filter(function (f) { return f.ti !== idx; });
+    glowRecs = glowRecs.filter(function (g) { return g.ti !== idx; });
+  }
+  function disposeGroup(group) {
+    group.traverse(function (o) {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && o.material !== stoneMat && o.material !== groundMat && o.material !== darkMat &&
+          o.material !== riverMat && o.material !== lampBulbMat && o.material !== sigRedMat &&
+          o.material !== foamMat && o.material !== villageWinMats[0] && o.material !== villageWinMats[1] &&
+          o.material !== villageWinMats[2] && o.material !== villageWinMats[3] && o.material !== villageWinMats[4] &&
+          o.material !== villageWinMats[5] && o.material !== villageWinMats[6] && o.material !== villageWinMats[7]) {
+        o.material.dispose();
+      }
+    });
+  }
+  function rebuildTile(rec) {
+    clearTileDyn(rec.idx);
+    scene.remove(rec.group);
+    disposeGroup(rec.group);
+    rec.group = buildTile(rec.idx, rec.w);
+    rec.group.position.x = rec.w - dist;
+    scene.add(rec.group);
+  }
+
   for (var ti = 0; ti < NTILE; ti++) {
-    var tile = buildTile(ti % 4, ti);
-    tile.position.x = ti * TILE - 192;
-    scene.add(tile);
-    tiles.push(tile);
+    var tw = ti * TILE - 192;
+    var tgroup = buildTile(ti, tw);
+    tgroup.position.x = tw;
+    scene.add(tgroup);
+    tiles.push({ group: tgroup, idx: ti, w: tw });
   }
 
   // mountain ridges (parallax)
@@ -1554,12 +2132,63 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     g.setIndex(indices);
     var mesh = new THREE.Mesh(g, ridgeMat);
     scene.add(mesh);
-    ridges.push({ mesh: mesh, speed: speed, offset: 0 });
+    ridges.push({ mesh: mesh, speed: speed, offset: 0, tops: tops, from: tops.slice(), to: tops.slice(), blend: 1, h: h, phase: phase });
   }
   makeRidge(-150, 30, '#2a1e40', 0.05, 1.3);
   makeRidge(-215, 46, '#221838', 0.025, 4.1);
   makeRidge(155, 26, '#2a1e40', 0.05, 2.6);
   makeRidge(220, 42, '#221838', 0.025, 5.7);
+  // silhouettes morph toward each biome's skyline (sea flattens to a horizon)
+  var ridgeTint = new THREE.Color(1, 1, 1), ridgeTintTarget = new THREE.Color(1, 1, 1);
+  var RIDGE_TINTS = { valley: [1, 1, 1], plains: [1.05, 1, 0.95], hills: [1, 1, 1.02], mountains: [0.95, 0.97, 1.08], forest: [0.92, 1.02, 0.98], lake: [0.95, 1, 1.06], beach: [1.05, 1.02, 0.98], ocean: [0.9, 0.98, 1.1] };
+  function setRidgeBiome(biome) {
+    var f = BIOMES[biome].ridge;
+    for (var i = 0; i < ridges.length; i++) {
+      var rd = ridges[i];
+      rd.from = rd.tops.slice();
+      rd.to = [];
+      var ph = rd.phase + rnd() * 6.28;
+      for (var j = 0; j <= 64; j++) {
+        var n = 0.5 + 0.5 * Math.sin(j * 0.55 + ph) * Math.cos(j * 0.23 + ph * 1.7);
+        n = n * 0.7 + rnd() * 0.3;
+        rd.to.push(-16 + rd.h * f * (0.3 + 0.7 * n));
+      }
+      rd.blend = 0;
+    }
+    var t = RIDGE_TINTS[biome];
+    ridgeTintTarget.setRGB(t[0], t[1], t[2]);
+  }
+  function updateRidges(dt) {
+    for (var i = 0; i < ridges.length; i++) {
+      var rd = ridges[i];
+      if (rd.blend >= 1) continue;
+      rd.blend = Math.min(1, rd.blend + dt / 6);
+      var k = rd.blend * rd.blend * (3 - 2 * rd.blend);
+      var pos = rd.mesh.geometry.attributes.position;
+      for (var j = 0; j <= 64; j++) {
+        rd.tops[j] = lerp(rd.from[j], rd.to[j], k);
+        pos.setY(j * 2, rd.tops[j]);
+      }
+      pos.needsUpdate = true;
+    }
+    ridgeTint.lerp(ridgeTintTarget, Math.min(1, dt / 3));
+  }
+  waveAmt = BIOMES[currentBiome].wave;
+  gustAmt = BIOMES[currentBiome].gust;
+  flyBiomeF = BIOMES[currentBiome].fly;
+  if (currentBiome !== 'valley') {
+    setRidgeBiome(currentBiome);
+    for (var rdi = 0; rdi < ridges.length; rdi++) {
+      var rd0 = ridges[rdi];
+      rd0.tops = rd0.to.slice(); rd0.blend = 1;
+      var rp0 = rd0.mesh.geometry.attributes.position;
+      for (var rj = 0; rj <= 64; rj++) rp0.setY(rj * 2, rd0.tops[rj]);
+      rp0.needsUpdate = true;
+    }
+    var rt0 = RIDGE_TINTS[currentBiome];
+    ridgeTint.setRGB(rt0[0], rt0[1], rt0[2]);
+    ridgeTintTarget.copy(ridgeTint);
+  }
 
   // drifting night cloud bands
   var clouds = [];
@@ -1688,7 +2317,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     add(box(1.6, 0.9, 1.0, 3.4, 1.35, -1.45), '#241a2e', '#322640');
     // headlight housing
     add(box(0.7, 0.7, 0.7, 5.3, 3.35, 0), '#241a2e', '#3a2c48');
-    var body = new THREE.Mesh(mergeGeos(parts), stoneMat);
+    var body = new THREE.Mesh(mergeGeos(parts), trainMat);
     body.castShadow = true;
     loco.add(body);
 
@@ -1757,7 +2386,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     coal.scale(2.9, 0.55, 1.25);
     coal.translate(0, 3.35, 0);
     parts.push(facetColors(coal, '#120e18', '#1e1626', function () { return rnd(); }));
-    var body = new THREE.Mesh(mergeGeos(parts), stoneMat);
+    var body = new THREE.Mesh(mergeGeos(parts), trainMat);
     body.castShadow = true;
     tender.add(body);
     [-2.2, 2.2].forEach(function (x) {
@@ -1828,11 +2457,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     [-4.2, 4.2].forEach(function (bx) {
       add(box(2.6, 0.35, 2.4, bx, 0.85, 0), '#241a2e', '#322640');
     });
-    var body = new THREE.Mesh(mergeGeos(parts), stoneMat);
+    var body = new THREE.Mesh(mergeGeos(parts), trainMat);
     body.castShadow = true;
     g.add(body);
     if (innerParts.length) {
-      var inner = new THREE.Mesh(mergeGeos(innerParts), stoneMat.clone());
+      var inner = new THREE.Mesh(mergeGeos(innerParts), trainMat.clone());
       inner.receiveShadow = true;
       g.add(inner);
     }
@@ -1862,7 +2491,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var door = { panels: [] };
       [-1, 1].forEach(function (side) {
         var pg = facetColors(box(1.24, 2.0, 0.06, 0, 0, 0), plumA, plumB, function () { return rnd(); });
-        var panel = new THREE.Mesh(pg, stoneMat);
+        var panel = new THREE.Mesh(pg, trainMat);
         panel.position.set(side * 0.63, 2.45, 1.6);
         panel.castShadow = true;
         var pw = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.6), carWinMat);
@@ -1972,6 +2601,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   var tunnelGroup = new THREE.Group();
   scene.add(tunnelGroup);
+  var tunnelMound = null;
   var tunnelBulbMat = new THREE.MeshStandardMaterial({ color: '#3a2410', emissive: '#ff9a5c', emissiveIntensity: 1.6 });
   var tunnelLight = null;
   (function () {
@@ -2016,7 +2646,43 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var mesh = new THREE.Mesh(mergeGeos(parts), stoneMat);
     mesh.receiveShadow = true;
     mesh.castShadow = true;
+    mesh.customDepthMaterial = worldDepthMat;
     tunnelGroup.add(mesh);
+    // earth cover over the bore when the tunnel sits on ground-level track
+    var mp = [], mc = [], mcol = new THREE.Color();
+    var mA = new THREE.Color('#2e2838'), mB = new THREE.Color('#3e3648');
+    var gA = new THREE.Color('#3c4634'), gB = new THREE.Color('#4c563e');
+    function msec(x) {
+      var t = clamp((40 - Math.abs(x)) / 10, 0, 1);
+      var pts = [[-22, -1.3], [-15, 1.2], [-10, 4.4], [-5.6, 7.95], [0, 8.4], [5.6, 7.95], [10, 4.4], [15, 1.2], [22, -1.3]];
+      return pts.map(function (q) { return [q[0], lerp(-1.3, q[1], t)]; });
+    }
+    var mprev = msec(-40);
+    for (var mx = -36; mx <= 40; mx += 4) {
+      var mcx = Math.min(mx, 40), mcur = msec(mcx);
+      for (var mb = 0; mb < 8; mb++) {
+        var a0 = mprev[mb], a1 = mprev[mb + 1], b0 = mcur[mb], b1 = mcur[mb + 1];
+        var top = mb >= 2 && mb <= 5;
+        mcol.copy(top ? gA : mA).lerp(top ? gB : mB, rnd());
+        var c0 = mcol.clone();
+        mcol.copy(top ? gA : mA).lerp(top ? gB : mB, rnd());
+        mp.push(mcx - 4, a0[1], a0[0], mcx, b1[1], b1[0], mcx, b0[1], b0[0]);
+        mp.push(mcx - 4, a0[1], a0[0], mcx - 4, a1[1], a1[0], mcx, b1[1], b1[0]);
+        for (var mv = 0; mv < 3; mv++) mc.push(c0.r, c0.g, c0.b);
+        for (mv = 0; mv < 3; mv++) mc.push(mcol.r, mcol.g, mcol.b);
+      }
+      mprev = mcur;
+    }
+    var mg = new THREE.BufferGeometry();
+    mg.setAttribute('position', new THREE.Float32BufferAttribute(mp, 3));
+    mg.setAttribute('color', new THREE.Float32BufferAttribute(mc, 3));
+    mg.computeVertexNormals();
+    tunnelMound = new THREE.Mesh(mg, groundMat);
+    tunnelMound.visible = false;
+    tunnelMound.castShadow = true;
+    tunnelMound.receiveShadow = true;
+    tunnelMound.customDepthMaterial = worldDepthMat;
+    tunnelGroup.add(tunnelMound);
     // dim maintenance bulbs along the ceiling
     for (var bx = -22; bx <= 22; bx += 11) {
       var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), tunnelBulbMat);
@@ -2035,11 +2701,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ------------------------------------------------------------------ */
 
   var glowBatchMat = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: glowTex } },
+    uniforms: { uMap: { value: glowTex }, uBend: uBend },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     vertexShader: [
+      'uniform float uBend;',
       'varying vec2 vUv;',
       'varying vec3 vCol;',
       'void main() {',
@@ -2048,7 +2715,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       '  #ifdef USE_INSTANCING_COLOR',
       '    vCol = instanceColor;',
       '  #endif',
-      '  vec4 mv = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);',
+      '  vec4 wp = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);',
+      '  float ax = abs(wp.x);',
+      '  wp.z += uBend * (ax < 200.0 ? wp.x * wp.x * 0.5 : 200.0 * ax - 20000.0);',
+      '  vec4 mv = viewMatrix * wp;',
       '  vec2 sc = vec2(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz));',
       '  mv.xy += position.xy * sc;',
       '  gl_Position = projectionMatrix * mv;',
@@ -2066,12 +2736,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       '}'
     ].join('\n')
   });
-  var glowBatch = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), glowBatchMat, glowRecs.length);
+  var glowBatch = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), glowBatchMat, glowRecs.length + 640);
   glowBatch.frustumCulled = false;
   glowBatch.renderOrder = 5;
   scene.add(glowBatch);
   var gbMat4 = new THREE.Matrix4(), gbQuat = new THREE.Quaternion(), gbScale = new THREE.Vector3(), gbPos = new THREE.Vector3(), gbCol = new THREE.Color();
   function updateGlowBatch() {
+    if (glowRecs.length > glowBatch.instanceMatrix.count) {
+      scene.remove(glowBatch);
+      glowBatch.dispose();
+      glowBatch = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), glowBatchMat, glowRecs.length + 256);
+      glowBatch.frustumCulled = false;
+      glowBatch.renderOrder = 5;
+      scene.add(glowBatch);
+    }
+    glowBatch.count = glowRecs.length;
     for (var i = 0; i < glowRecs.length; i++) {
       var r = glowRecs[i];
       r.parent.updateWorldMatrix(true, false);
@@ -2306,6 +2985,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* audio (procedural, off by default)                                  */
   /* ------------------------------------------------------------------ */
 
+  var aWaveG = null, aGustG = null;
   var aCtx = null, aMaster = null, aNoise = null, aOn = false;
   var aRainG = null, aHailG = null, aRumF = null, aWindG = null, aEchoWet = null;
   var aWxTimer = 0, aHailTimer = 0;
@@ -2380,6 +3060,32 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     delay.connect(fb); fb.connect(delay);
     delay.connect(wet); wet.connect(comp);
     aEchoWet = wet;
+
+    // ocean swell: low noise with a slow breathing gain
+    var wave = aCtx.createBufferSource();
+    wave.buffer = aNoise; wave.loop = true;
+    var waveF = aCtx.createBiquadFilter();
+    waveF.type = 'lowpass'; waveF.frequency.value = 420;
+    var waveG = aCtx.createGain(); waveG.gain.value = 0;
+    var wlfo = aCtx.createOscillator(); wlfo.frequency.value = 0.09;
+    var wlfoG = aCtx.createGain(); wlfoG.gain.value = 0.03;
+    wlfo.connect(wlfoG); wlfoG.connect(waveG.gain);
+    wave.connect(waveF); waveF.connect(waveG); waveG.connect(aMaster);
+    wave.start(); wlfo.start();
+    aWaveG = waveG;
+
+    // mountain gusts: brighter band, stronger LFO
+    var gust = aCtx.createBufferSource();
+    gust.buffer = aNoise; gust.loop = true;
+    var gustF = aCtx.createBiquadFilter();
+    gustF.type = 'bandpass'; gustF.frequency.value = 900; gustF.Q.value = 0.7;
+    var gustG = aCtx.createGain(); gustG.gain.value = 0;
+    var glfo = aCtx.createOscillator(); glfo.frequency.value = 0.17;
+    var glfoG = aCtx.createGain(); glfoG.gain.value = 0.02;
+    glfo.connect(glfoG); glfoG.connect(gustG.gain);
+    gust.connect(gustF); gustF.connect(gustG); gustG.connect(aMaster);
+    gust.start(); glfo.start();
+    aGustG = gustG;
     return true;
   }
 
@@ -2401,6 +3107,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     aWindG.gain.setTargetAtTime(0.02 * Math.max(0.15, muffle), t0, 0.4);
     aRumF.frequency.setTargetAtTime(130 - wx.snow * 40 - wx.fog * 20, t0, 0.4);
     aEchoWet.gain.setTargetAtTime(0.35 * tunnelViewF, t0, 0.25);
+    aWaveG.gain.setTargetAtTime(0.07 * waveAmt * (1 - tunnelViewF * 0.8), t0, 0.8);
+    aGustG.gain.setTargetAtTime(0.05 * gustAmt * (1 - tunnelViewF * 0.8), t0, 0.8);
   }
 
   function hailTick() {
@@ -2807,10 +3515,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var rippleGeo = new THREE.PlaneGeometry(1, 1);
   rippleGeo.rotateX(-Math.PI / 2);
   for (var rpi = 0; rpi < 14; rpi++) {
-    var rp = new THREE.Mesh(rippleGeo, new THREE.MeshBasicMaterial({
+    var rp = new THREE.Mesh(rippleGeo, bendify(new THREE.MeshBasicMaterial({
       map: ringTex, color: '#bcd2e8', transparent: true, opacity: 0,
       depthWrite: false, blending: THREE.AdditiveBlending, fog: true
-    }));
+    })));
     rp.position.set(rand(-176, 176), 0.27, rand(-2.8, 2.8));
     rp.visible = false;
     viaductGroup.add(rp);
@@ -3067,12 +3775,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     sunCore.material.opacity = dayF * (1 - wx.fog * 0.7) * smooth(-0.08, 0.05, sunElev);
     sunHalo.material.opacity = 0.22 * dayF * (1 - wx.fog * 0.6);
     moonCore.material.opacity = 0.95 * moonVis;
-    moonPath.material.opacity = 0.16 * moonVis;
-    riverMat.emissiveIntensity = 0.8 * nightF;
+    moonPath.material.opacity = moonPathO * moonVis;
+    riverMat.emissiveIntensity = 0.25 + 0.55 * nightF;
 
     // ridges brighten with daylight
     var rb = 1 + dayF * 1.3;
-    ridgeMat.color.setRGB(rb * (1 + duskF * 0.15), rb * (1 - duskF * 0.05), rb * (1 - duskF * 0.12));
+    ridgeMat.color.setRGB(rb * (1 + duskF * 0.15) * ridgeTint.r, rb * (1 - duskF * 0.05) * ridgeTint.g, rb * (1 - duskF * 0.12) * ridgeTint.b);
 
     // wet ground tint + normal-weighted snow accumulation (shader-driven)
     var gb = 1 + dayF * 1.7 + duskF * 0.35;
@@ -3082,6 +3790,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     groundMat.metalness = 0.05 * wetness * (1 - snowAcc);
     stoneMat.roughness = lerp(0.95, 0.6, wetness * 0.6);
     stoneMat.color.setScalar(1 + dayF * 0.85 + duskF * 0.15);
+    trainMat.color.copy(stoneMat.color);
+    trainMat.roughness = stoneMat.roughness;
     darkMat.color.setScalar(1 + dayF * 0.85 + duskF * 0.15);
     snowColU.value.copy(C_SNOW).multiplyScalar(1 + nightF * 1.5 + dayF * 0.4);
     groundSnowU.value = snowAcc * 0.85;
@@ -3232,8 +3942,48 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function update(dt, t) {
     var sway = reduceMotion ? 0 : 1;
 
+    dist += SPEED * speedF * dt;
+
+    // extend the region plan and detect boundary crossings
+    while (regions[regions.length - 1].end < dist + 420) planRegion(regions[regions.length - 1].end);
+    while (crossIdx + 1 < regions.length && dist >= regions[crossIdx + 1].start) {
+      crossIdx++;
+      var entered = regions[crossIdx];
+      currentBiome = entered.biome;
+      setRidgeBiome(currentBiome);
+      waveAmt = BIOMES[currentBiome].wave;
+      gustAmt = BIOMES[currentBiome].gust;
+      flyBiomeF = BIOMES[currentBiome].fly;
+      toast('驶入 · ' + BIOMES[currentBiome].name);
+    }
+    if (regions.length > 6) { var dropped = regions.length - 6; regions.splice(0, dropped); crossIdx = Math.max(0, crossIdx - dropped); }
+    // arm the next boundary's transition mechanism as it comes into view
+    for (var ri = 0; ri < regions.length; ri++) {
+      var rg = regions[ri];
+      if (!rg.scheduled && rg.start - dist < 200 && rg.start > dist - 80) {
+        rg.scheduled = true;
+        if (rg.mech === 'stop') { stopPending = true; haltTargetW = rg.start; }
+        else if (rg.mech === 'tunnel') { tunnelPending = true; tunnelTargetW = rg.start; tunnelMound.visible = trackAt(rg.start) === 'ground'; }
+        else if (rg.mech === 'curve') { curveArmed = true; curveTargetW = rg.start; }
+      }
+    }
+
+    // curve transition: bend the world around the train, bank the carriages
+    if (curveArmed && !curveActive && curveTargetW - dist < 6 && curveTargetW - dist > -10 && stopState === 'cruise' && tunnelF < 0.1) {
+      curveActive = true; curveT = 0;
+      curvePeak = (rnd() < 0.5 ? -1 : 1) * rand(0.0055, 0.007);
+    }
+    if (curveActive) {
+      curveT += dt;
+      var cp = clamp(curveT / CURVE_DUR, 0, 1);
+      uBend.value = curvePeak * Math.sin(Math.PI * cp);
+      trainGroup.rotation.x = -uBend.value * 16 * speedF;
+      if (cp >= 1) { curveActive = false; curveArmed = false; uBend.value = 0; trainGroup.rotation.x = 0; }
+    } else if (curveArmed && curveTargetW - dist <= -10) { curveArmed = false; }
+
     // tunnel presence (before environment so lights & audio can react)
-    var tunnelX = 280 + scroll.tunnel;
+    var tunnelX = tunnelPending ? tunnelTargetW - dist : 10000;
+    if (tunnelPending && tunnelX < -140) { tunnelPending = false; tunnelMound.visible = false; }
     // fraction of the train span (-24..24) covered by the bore (tunnelX +- 30)
     var ov = clamp((Math.min(tunnelX + 30, 24) - Math.max(tunnelX - 30, -24)) / 48, 0, 1);
     tunnelF = smooth(0.04, 0.5, ov);
@@ -3242,18 +3992,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     tunnelViewF = approach(tunnelViewF, camIn ? tunnelF : 0, dt / 0.6, dt / 0.6);
 
     // station-stop state machine: cruise -> brake -> dwell -> depart
-    var haltX = 324 + scroll.halt;
+    var haltX = stopPending ? haltTargetW - dist : -1000;
     if (stopState === 'cruise') {
-      stopCooldown -= dt;
-      if (stopCooldown <= 0 && tunnelF < 0.15 && haltX > -4 && haltX < 42) stopState = 'brake';
+      if (stopPending && !curveActive && tunnelF < 0.15 && haltX > -4 && haltX < 42) stopState = 'brake';
     } else if (stopState === 'brake') {
       var bk = clamp((haltX + 4) / 30, 0, 1);
       speedF = Math.max(Math.pow(bk, 0.6), 0.175);
       if (bk <= 0.005) {
-        scroll.halt = -328; haltX = -4; speedF = 0;
+        haltTargetW = dist - 4; haltX = -4; speedF = 0;
         stopState = 'dwell'; stopTimer = 6.5;
         bellSound();
-        toast('前方到站：暮溪站 · 短暂停靠');
+        toast('前方到站：' + STATIONS[regionAt(dist + 40).biome] + ' · 短暂停靠');
         for (var bdi = 0; bdi < boarders.length; bdi++) {
           boarders[bdi].mesh.visible = true;
           boarders[bdi].mesh.scale.set(1, 1, 1);
@@ -3284,7 +4033,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       speedF = dk2 * dk2 * (3 - 2 * dk2);
       if (stopTimer <= 0) {
         stopState = 'cruise'; speedF = 1; doorT = 0;
-        stopCooldown = rand(70, 110);
+        stopPending = false;
         whistleSound();
         for (var pf = 0; pf < 4; pf++) puff(true);
       }
@@ -3323,17 +4072,19 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (scroll.signal <= -96) scroll.signal += 96;
     signalGroup.position.x = scroll.signal;
 
-    scroll.halt -= v * dt;
-    if (scroll.halt <= -384) scroll.halt += 384;
-    haltGroup.position.x = 324 + scroll.halt;
+    maskTrackStructures();
 
-    scroll.tunnel -= v * dt;
-    if (scroll.tunnel <= -560) scroll.tunnel += 560;
-    tunnelGroup.position.x = 280 + scroll.tunnel;
+    haltGroup.position.x = stopPending || stopState !== 'cruise' ? haltTargetW - dist : -1000;
+    tunnelGroup.position.x = tunnelX;
 
     for (var i = 0; i < tiles.length; i++) {
-      tiles[i].position.x -= v * dt;
-      if (tiles[i].position.x < -192) tiles[i].position.x += NTILE * TILE;
+      var trec = tiles[i];
+      trec.group.position.x -= v * dt;
+      if (trec.group.position.x < -192) {
+        trec.group.position.x += NTILE * TILE;
+        trec.w = dist + trec.group.position.x;
+        rebuildTile(trec);
+      }
     }
     for (var r = 0; r < ridges.length; r++) {
       var rd = ridges[r];
@@ -3341,6 +4092,26 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       if (rd.offset <= -400) rd.offset += 800;
       rd.mesh.position.x = rd.offset;
     }
+    updateRidges(dt);
+    // lighthouse beams sweep; foam lines breathe along the shore
+    for (var bc = 0; bc < beacons.length; bc++) {
+      beacons[bc].group.rotation.y += dt * 0.5 * sway;
+      beacons[bc].mat.opacity = 0.05 + nightF * 0.05;
+    }
+    for (var fm = 0; fm < foams.length; fm++) {
+      var fo = foams[fm];
+      fo.mesh.material.opacity = 0.16 + 0.12 * (0.5 + 0.5 * Math.sin(t * 1.3 + fo.phase));
+      fo.mesh.position.z = fo.z + Math.sin(t * 0.9 + fo.phase) * 0.5;
+    }
+    // moon glint & train reflection follow the water of the current biome
+    var mpT = currentBiome === 'ocean' ? [-30, 0.26, 2.6] : currentBiome === 'beach' ? [-52, 0.2, 1.8] : currentBiome === 'lake' ? [-45, 0.2, 1.7] : currentBiome === 'valley' ? [-26, 0.16, 1] : [-26, 0, 1];
+    moonPathZ = approach(moonPathZ, mpT[0], dt / 2, dt / 2);
+    moonPathO = approach(moonPathO, mpT[1], dt / 2, dt / 2);
+    moonPathSX = approach(moonPathSX, mpT[2], dt / 2, dt / 2);
+    moonPath.position.z = moonPathZ;
+    moonPath.scale.x = moonPathSX;
+    reflBiomeF = approach(reflBiomeF, (currentBiome === 'valley' || currentBiome === 'lake' || currentBiome === 'ocean' || currentBiome === 'beach') ? 1 : 0, dt / 2, dt / 2);
+    trainReflection.position.z = currentBiome === 'ocean' ? -10 : moonPathZ + 2;
     riverTex.offset.x -= dt * 0.018;
 
     // valley life: windmill, boat, chimney wisps, mist, lanterns, reflections
@@ -3379,7 +4150,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var tge = tileGlows[tg];
       tge.rec.opacity = tileLightCfg[tge.ti].f * 0.38 * (1 + 0.14 * Math.sin(t * 3 + tge.phase) * sway);
     }
-    trainReflection.material.opacity = carriageF * 0.12 * (1 + 0.2 * Math.sin(t * 2.3) * sway);
+    trainReflection.material.opacity = carriageF * 0.12 * reflBiomeF * (1 + 0.2 * Math.sin(t * 2.3) * sway);
 
     // drifting clouds
     for (var cl = 0; cl < clouds.length; cl++) {
@@ -3525,7 +4296,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // fireflies over the river on clear deep nights
     var clearF = clamp(1 - wx.rain - wx.snow - wx.hail - wx.fog, 0, 1);
     var deepNight = hour > 21.5 || hour < 4.5 ? 1 : 0;
-    var flyAmt = nightF * nightF * clearF * deepNight * (1 - tunnelViewF);
+    var flyAmt = nightF * nightF * clearF * deepNight * (1 - tunnelViewF) * flyBiomeF;
     fireflies.visible = flyAmt > 0.02;
     if (fireflies.visible) {
       flyMat.opacity = flyAmt * (0.6 + 0.3 * Math.sin(t * 1.7));
@@ -3583,6 +4354,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     sunCore.position.copy(camera.position).add(sunPos);
     sunHalo.position.copy(camera.position).add(sunPos);
   }
+
+  // world materials bend during curve transitions (train materials do not)
+  [railMat, lampBulbMat, sigRedMat, sigGreenMat, riverMat, ridgeMat, villageWinMat, puddleMat, hailSpeckMat, litterMat].forEach(bendify);
 
   function animate() {
     if (document.hidden) { rafId = 0; return; }

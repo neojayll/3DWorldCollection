@@ -65,7 +65,7 @@
       "id": "dusk-express",
       "name": "暮行灯列",
       "nameEn": "Dusk Express",
-      "description": "星夜的高架桥上，一列亮着暖窗的慢车驶过河谷，可伴飞，也可坐进车厢看风景。",
+      "description": "星夜的慢车驶过河谷与平原，时而上拱桥、时而贴地路堤，可伴飞，也可坐进车厢看风景。",
       "entry": "worlds/dusk-express/index.html",
       "cover": "worlds/dusk-express/preview.jpg",
       "tags": ["星夜", "列车", "可乘坐"],
