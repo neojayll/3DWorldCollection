@@ -1063,41 +1063,60 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var rideGlass = [];
   var doors = [], boarders = [];
 
-  var _tm4 = new THREE.Matrix4(), _tzero = new THREE.Vector3(0, 0, 0);
-  // hide viaduct segments over ground-track regions; settle trackside furniture onto the bed
+  var _tm4 = new THREE.Matrix4(), _tzero = new THREE.Vector3(0, 0, 0), _tscl = new THREE.Vector3();
+  // hide viaduct segments over ground-track regions; settle trackside furniture onto the bed.
+  // instance matrices stay in LOCAL grid coordinates — the parent group already carries the
+  // dist scroll, so adding it here again would slide structures at double speed.
   function maskTrackStructures() {
-    var i, x, dy;
+    var i, x, lx, dy;
     for (i = 0; i < NSEG; i++) {
-      x = i * SEG - 176 + scroll.viaduct;
-      var g = trackAt(dist + x) === 'ground';
-      _tm4.makeTranslation(x, 0, 0);
-      if (g) _tm4.scale(_tzero);
+      lx = i * SEG - 176;
+      x = lx + scroll.viaduct;
+      var a = dist + x - 8.2, b = dist + x + 8.2;
+      var ta = trackAt(a), tb = trackAt(b);
+      if (ta === 'ground' && tb === 'ground') {
+        _tm4.makeTranslation(lx, 0, 0); _tm4.scale(_tzero);
+      } else if (ta !== 'ground' && tb !== 'ground') {
+        _tm4.makeTranslation(lx, 0, 0);
+      } else {
+        // straddling a bridge↔ground boundary: clip the deck exactly at the boundary
+        // so the bridge end meets the abutment continuously instead of popping 16 m
+        var B = regionAt(b).start;
+        var len = ta !== 'ground' ? B - a : b - B;
+        var cx = (ta !== 'ground' ? (a + B) / 2 : (B + b) / 2) - dist - scroll.viaduct;
+        _tm4.makeTranslation(cx, 0, 0);
+        _tscl.set(Math.max(0.001, len / 16.4), 1, 1);
+        _tm4.scale(_tscl);
+      }
       viaduct.setMatrixAt(i, _tm4);
       deckCaps.setMatrixAt(i, _tm4);
     }
     viaduct.instanceMatrix.needsUpdate = true;
     deckCaps.instanceMatrix.needsUpdate = true;
     for (i = 0; i < 12; i++) {
-      x = i * 32 - 176 + scroll.lamps;
+      lx = i * 32 - 176;
+      x = lx + scroll.lamps;
       dy = 0.78 * trackF(dist + x, 6);
-      _tm4.makeTranslation(x, -dy, 3.62); lampPosts.setMatrixAt(i, _tm4);
-      _tm4.makeTranslation(x - 0.42, 2.24 - dy, 3.62); lampBulbs.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(lx, -dy, 3.62); lampPosts.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(lx - 0.42, 2.24 - dy, 3.62); lampBulbs.setMatrixAt(i, _tm4);
       lampGlows[i].y = 2.24 - dy;
     }
     lampPosts.instanceMatrix.needsUpdate = true;
     lampBulbs.instanceMatrix.needsUpdate = true;
     for (i = 0; i < 16; i++) {
-      x = i * 24 - 192 + scroll.side;
-      _tm4.makeTranslation(x, -0.28 * trackF(dist + x, 6), -3.62);
+      lx = i * 24 - 192;
+      x = lx + scroll.side;
+      _tm4.makeTranslation(lx, -0.28 * trackF(dist + x, 6), -3.62);
       telegraph.setMatrixAt(i, _tm4);
     }
     telegraph.instanceMatrix.needsUpdate = true;
     for (i = 0; i < 4; i++) {
-      x = i * 96 - 160 + scroll.signal;
+      lx = i * 96 - 160;
+      x = lx + scroll.signal;
       dy = 0.28 * trackF(dist + x, 6);
-      _tm4.makeTranslation(x, -dy, 3.62); signalPosts.setMatrixAt(i, _tm4);
-      _tm4.makeTranslation(x, 3.45 - dy, 3.7); sigRed.setMatrixAt(i, _tm4);
-      _tm4.makeTranslation(x, 3.16 - dy, 3.7); sigGreen.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(lx, -dy, 3.62); signalPosts.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(lx, 3.45 - dy, 3.7); sigRed.setMatrixAt(i, _tm4);
+      _tm4.makeTranslation(lx, 3.16 - dy, 3.7); sigGreen.setMatrixAt(i, _tm4);
       sigGlows[i * 2].y = 3.45 - dy;
       sigGlows[i * 2 + 1].y = 3.16 - dy;
     }
@@ -1114,15 +1133,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     function add(g, a, b, pick) { parts.push(facetColors(g, a, b, pick)); }
     var stonePick = function (x, y) { return clamp((y + 14) / 14, 0, 1) * 0.55 + rnd() * 0.3; };
     // deck + cornice + ballast + parapets (x-subdivided so the curve bend stays smooth)
-    add(box(16.4, 1.0, 7.6, 0, -0.5, 0, 8), '#3f3148', '#5c4a63', stonePick);
-    add(box(16.4, 0.26, 8.2, 0, -0.13, 0, 8), '#463852', '#63506c', stonePick);
-    add(box(16.4, 0.22, 4.8, 0, 0.11, 0, 8), '#2c2338', '#382c44', function () { return rnd(); });
-    add(box(16.4, 0.9, 0.35, 0, 0.55, 3.62, 8), '#463852', '#6a5670', stonePick);
-    add(box(16.4, 0.9, 0.35, 0, 0.55, -3.62, 8), '#463852', '#6a5670', stonePick);
+    add(box(16.4, 1.0, 7.6, 0, -0.5, 0, 8), '#5a5a62', '#6e6e76', stonePick);
+    add(box(16.4, 0.26, 8.2, 0, -0.13, 0, 8), '#62626a', '#76767e', stonePick);
+    add(box(16.4, 0.22, 4.8, 0, 0.11, 0, 8), '#4a4a50', '#56565e', function () { return rnd(); });
+    add(box(16.4, 0.9, 0.35, 0, 0.55, 3.62, 8), '#62626a', '#7a7a82', stonePick);
+    add(box(16.4, 0.9, 0.35, 0, 0.55, -3.62, 8), '#62626a', '#7a7a82', stonePick);
     // pier (left edge of each segment)
-    add(box(3.4, 13.2, 6.8, -8, -7.5, 0), '#382c44', '#544260', stonePick);
-    add(box(4.0, 0.5, 7.4, -8, -1.15, 0), '#463852', '#63506c', stonePick);
-    add(box(4.4, 1.2, 7.8, -8, -13.6, 0), '#302640', '#463852', stonePick);
+    add(box(3.4, 13.2, 6.8, -8, -7.5, 0), '#56565e', '#5c5c64', stonePick);
+    add(box(4.0, 0.5, 7.4, -8, -1.15, 0), '#62626a', '#76767e', stonePick);
+    add(box(4.4, 1.2, 7.8, -8, -13.6, 0), '#44444c', '#62626a', stonePick);
     // spandrel walls with arch opening
     var shape = new THREE.Shape();
     shape.moveTo(-6.3, -14);
@@ -1145,14 +1164,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     wallGeo.translate(0, 0, -0.5);
     var w1 = wallGeo.clone(); w1.translate(0, 0, 2.9);
     var w2 = wallGeo.clone(); w2.translate(0, 0, -2.9);
-    add(w1, '#3f3148', '#5c4a63', stonePick);
-    add(w2, '#3f3148', '#5c4a63', stonePick);
+    add(w1, '#5a5a62', '#6e6e76', stonePick);
+    add(w2, '#5a5a62', '#6e6e76', stonePick);
     // arch rings
     var ring = new THREE.TorusGeometry(5.0, 0.28, 5, 14, Math.PI);
     var r1 = ring.clone(); r1.translate(0, -8.5, 3.42);
     var r2 = ring.clone(); r2.translate(0, -8.5, -3.42);
-    add(r1, '#544260', '#6a5670', function () { return 0.4 + rnd() * 0.4; });
-    add(r2, '#544260', '#6a5670', function () { return 0.4 + rnd() * 0.4; });
+    add(r1, '#5c5c64', '#7a7a82', function () { return 0.4 + rnd() * 0.4; });
+    add(r2, '#5c5c64', '#7a7a82', function () { return 0.4 + rnd() * 0.4; });
     return mergeGeos(parts);
   })();
 
@@ -1179,7 +1198,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // sleepers
   var sleeperGroup = new THREE.Group();
   scene.add(sleeperGroup);
-  var sleeperGeo = facetColors(new THREE.BoxGeometry(0.55, 0.14, 2.7), '#241c30', '#322640', function () { return rnd(); });
+  var sleeperGeo = facetColors(new THREE.BoxGeometry(0.55, 0.14, 2.7), '#2e241c', '#3c3026', function () { return rnd(); });
   var sleepers = new THREE.InstancedMesh(sleeperGeo, darkMat, 320);
   (function () {
     var m = new THREE.Matrix4();
@@ -1195,8 +1214,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   scene.add(lampGroup);
   var lampPostGeo = (function () {
     var parts = [];
-    parts.push(facetColors(cylY(0.05, 0.07, 1.3, 0, 1.65, 0, 6), '#2a2032', '#3a2c44', function () { return rnd(); }));
-    parts.push(facetColors(box(0.5, 0.06, 0.06, -0.2, 2.28, 0), '#2a2032', '#3a2c44', function () { return rnd(); }));
+    parts.push(facetColors(cylY(0.05, 0.07, 1.3, 0, 1.65, 0, 6), '#2a2a30', '#3a3a42', function () { return rnd(); }));
+    parts.push(facetColors(box(0.5, 0.06, 0.06, -0.2, 2.28, 0), '#2a2a30', '#3a3a42', function () { return rnd(); }));
     return mergeGeos(parts);
   })();
   var lampPosts = new THREE.InstancedMesh(lampPostGeo, darkMat, 12);
@@ -1224,9 +1243,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var telegraphGeo = (function () {
     var parts = [];
     function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
-    add(cylY(0.06, 0.1, 3.4, 0, 2.2, 0, 6), '#2a2032', '#3a2c44');
-    add(box(0.09, 0.09, 1.9, 0, 3.72, 0), '#2a2032', '#3a2c44');
-    add(box(0.07, 0.07, 1.5, 0, 3.3, 0), '#2a2032', '#3a2c44');
+    add(cylY(0.06, 0.1, 3.4, 0, 2.2, 0, 6), '#2a2a30', '#3a3a42');
+    add(box(0.09, 0.09, 1.9, 0, 3.72, 0), '#2a2a30', '#3a3a42');
+    add(box(0.07, 0.07, 1.5, 0, 3.3, 0), '#2a2a30', '#3a3a42');
     [-0.7, 0.7].forEach(function (z) {
       add(cylY(0.05, 0.06, 0.16, 0, 3.85, z, 5), '#3a4a44', '#4a5a54');
     });
@@ -1236,7 +1255,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         new THREE.Vector3(12, 3.5, z),
         new THREE.Vector3(24, 3.86, z)
       ]);
-      parts.push(facetColors(new THREE.TubeGeometry(curve, 10, 0.022, 4), '#1c1626', '#241c30', function () { return rnd(); }));
+      parts.push(facetColors(new THREE.TubeGeometry(curve, 10, 0.022, 4), '#1c1c22', '#26262c', function () { return rnd(); }));
     });
     return mergeGeos(parts);
   })();
@@ -1253,9 +1272,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var signalPostGeo = (function () {
     var parts = [];
     function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
-    add(cylY(0.05, 0.08, 2.7, 0, 1.85, 0, 6), '#241c30', '#322640');
-    add(box(0.34, 0.62, 0.14, 0, 3.3, 0), '#241c30', '#322640');
-    add(box(0.6, 0.09, 0.09, 0.3, 3.05, 0), '#3a2c44', '#4a3a54');
+    add(cylY(0.05, 0.08, 2.7, 0, 1.85, 0, 6), '#2a2a30', '#3a3a42');
+    add(box(0.34, 0.62, 0.14, 0, 3.3, 0), '#2a2a30', '#3a3a42');
+    add(box(0.6, 0.09, 0.09, 0.3, 3.05, 0), '#6a4a3a', '#7a5a48');
     return mergeGeos(parts);
   })();
   var signalPosts = new THREE.InstancedMesh(signalPostGeo, darkMat, 4);
@@ -1282,24 +1301,24 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   (function () {
     var parts = [];
     function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
-    add(box(16, 0.5, 2.6, 0, 0.55, 5.4), '#3f3148', '#5c4a63');
-    add(box(16, 0.12, 2.7, 0, 0.84, 5.4), '#463852', '#63506c');
+    add(box(16, 0.5, 2.6, 0, 0.55, 5.4), '#5a5a62', '#6e6e76');
+    add(box(16, 0.12, 2.7, 0, 0.84, 5.4), '#62626a', '#76767e');
     add(box(16, 0.1, 0.16, 0, 0.9, 4.15), '#d99a55', '#b07a42');
     // lamp
-    add(cylY(0.05, 0.08, 2.4, -5, 2.0, 5.6, 6), '#241c30', '#322640');
-    add(box(0.4, 0.06, 0.06, -5.18, 3.16, 5.6), '#241c30', '#322640');
+    add(cylY(0.05, 0.08, 2.4, -5, 2.0, 5.6, 6), '#2a2a30', '#3a3a42');
+    add(box(0.4, 0.06, 0.06, -5.18, 3.16, 5.6), '#2a2a30', '#3a3a42');
     // sign board
-    add(box(0.08, 1.2, 0.08, 2.6, 1.5, 5.9), '#241c30', '#322640');
-    add(box(2.4, 0.7, 0.1, 2.6, 2.2, 5.9), '#3a2c44', '#4a3a54');
+    add(box(0.08, 1.2, 0.08, 2.6, 1.5, 5.9), '#2a2a30', '#3a3a42');
+    add(box(2.4, 0.7, 0.1, 2.6, 2.2, 5.9), '#6a4a3a', '#7a5a48');
     // bench
-    add(box(2.6, 0.12, 0.5, -1, 1.25, 5.9), '#4a3040', '#5a3c4c');
-    add(box(0.12, 0.4, 0.4, -2.1, 1.05, 5.9), '#241c30', '#322640');
-    add(box(0.12, 0.4, 0.4, 0.1, 1.05, 5.9), '#241c30', '#322640');
+    add(box(2.6, 0.12, 0.5, -1, 1.25, 5.9), '#5a4632', '#6a5640');
+    add(box(0.12, 0.4, 0.4, -2.1, 1.05, 5.9), '#2a2a30', '#3a3a42');
+    add(box(0.12, 0.4, 0.4, 0.1, 1.05, 5.9), '#2a2a30', '#3a3a42');
     // waiting figures (silhouettes)
     [[0.9, 5.5], [4.6, 5.7]].forEach(function (p) {
-      add(cylY(0.16, 0.22, 1.0, p[0], 1.4, p[1], 6), '#241a2e', '#322640');
+      add(cylY(0.16, 0.22, 1.0, p[0], 1.4, p[1], 6), '#2a2a30', '#3a3a42');
       var head = new THREE.SphereGeometry(0.16, 8, 6); head.translate(p[0], 2.05, p[1]);
-      add(head, '#3a2c44', '#4a3a54');
+      add(head, '#6a4a3a', '#7a5a48');
     });
     // crates
     add(box(0.7, 0.7, 0.7, 6.2, 1.25, 5.6), '#4a3a2c', '#5a4a3c');
@@ -1320,7 +1339,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var parts = [];
       parts.push(facetColors(cylY(0.16, 0.22, 1.0, 0, 0.5, 0, 6), ca, cb, function () { return rnd(); }));
       var head = new THREE.SphereGeometry(0.16, 8, 6); head.translate(0, 1.15, 0);
-      parts.push(facetColors(head, '#3a2c44', '#4a3a54', function () { return rnd(); }));
+      parts.push(facetColors(head, '#6a4a3a', '#7a5a48', function () { return rnd(); }));
       var m = new THREE.Mesh(mergeGeos(parts), stoneMat);
       m.castShadow = true;
       m.customDepthMaterial = worldDepthMat;
@@ -1411,14 +1430,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ------------------------------------------------------------------ */
 
   var BIOMES = {
-    valley:    { track: 'bridge', base: -14, name: '河谷', hFar: 12, hNear: 0,  und: 0.5,  sub: 0,    colA: '#20182c', colB: '#2c2438', water: [[-32.5, -19.5]], ridge: 1,    fly: 1,   wave: 0,    gust: 0 },
-    plains:    { track: 'ground', base: -1, name: '平原', hFar: 2,  hNear: 1,  und: 0.35, sub: 0,    colA: '#262030', colB: '#362e3c', water: [],               ridge: 0.5,  fly: 0.8, wave: 0,    gust: 0 },
-    hills:     { track: 'ground', base: -1, name: '丘陵', hFar: 9,  hNear: 6,  und: 2.2,  sub: 0,    colA: '#221c2e', colB: '#2e2a38', water: [],               ridge: 1.3,  fly: 0.6, wave: 0,    gust: 0.3 },
-    mountains: { track: 'bridge', base: -14, name: '山岭', hFar: 30, hNear: 26, und: 2.6,  sub: 0,    colA: '#2a2236', colB: '#3c3248', water: [],               ridge: 2.2,  fly: 0.15, wave: 0,   gust: 1 },
-    forest:    { track: 'ground', base: -1, name: '森林', hFar: 7,  hNear: 3,  und: 0.8,  sub: 0,    colA: '#1a2026', colB: '#26302a', water: [],               ridge: 1.2,  fly: 1,   wave: 0,    gust: 0.1 },
-    lake:      { track: 'bridge', base: -14, name: '湖泊', hFar: 3,  hNear: 1,  und: 0.4,  sub: 0,    colA: '#20182c', colB: '#2c2438', water: [[-85, -18]],     ridge: 0.7,  fly: 0.9, wave: 0.3,  gust: 0 },
-    beach:     { track: 'bridge', base: -14, name: '海滩', hFar: 1,  hNear: 1,  und: 0.25, sub: 0.9,  colA: '#46403a', colB: '#585044', water: [[-90, -26], [30, 85]], ridge: 0.3, fly: 0.3, wave: 0.65, gust: 0.15 },
-    ocean:     { track: 'bridge', base: -14, name: '海洋', hFar: 0,  hNear: 0,  und: 0,    sub: -0.8, colA: '#141e2c', colB: '#1c2a3a', water: [[-90, 85]],      ridge: 0.1,  fly: 0,   wave: 1,    gust: 0.2 }
+    valley:    { track: 'bridge', base: -14, name: '河谷', hFar: 12, hNear: 0,  und: 0.5,  sub: 0,    colA: '#3f6a30', colB: '#557a3c', water: [[-32.5, -19.5]], ridge: 1,    fly: 1,   wave: 0,    gust: 0 },
+    plains:    { track: 'ground', base: -1, name: '平原', hFar: 2,  hNear: 1,  und: 0.35, sub: 0,    colA: '#456f2c', colB: '#588334', water: [],               ridge: 0.5,  fly: 0.8, wave: 0,    gust: 0 },
+    hills:     { track: 'ground', base: -1, name: '丘陵', hFar: 9,  hNear: 6,  und: 2.2,  sub: 0,    colA: '#47702e', colB: '#5c8438', water: [],               ridge: 1.3,  fly: 0.6, wave: 0,    gust: 0.3 },
+    mountains: { track: 'bridge', base: -14, name: '山岭', hFar: 30, hNear: 26, und: 2.6,  sub: 0,    colA: '#2e2e36', colB: '#40404a', water: [],               ridge: 2.2,  fly: 0.15, wave: 0,   gust: 1 },
+    forest:    { track: 'ground', base: -1, name: '森林', hFar: 7,  hNear: 3,  und: 0.8,  sub: 0,    colA: '#2c5228', colB: '#3c6432', water: [],               ridge: 1.2,  fly: 1,   wave: 0,    gust: 0.1 },
+    lake:      { track: 'bridge', base: -14, name: '湖泊', hFar: 3,  hNear: 1,  und: 0.4,  sub: 0,    colA: '#3f6a30', colB: '#557a3c', water: [[-85, -18]],     ridge: 0.7,  fly: 0.9, wave: 0.3,  gust: 0 },
+    beach:     { track: 'bridge', base: -14, name: '海滩', hFar: 1,  hNear: 1,  und: 0.25, sub: 0.9,  colA: '#8a7650', colB: '#a08a60', water: [[-90, -26], [30, 85]], ridge: 0.3, fly: 0.3, wave: 0.65, gust: 0.15 },
+    ocean:     { track: 'bridge', base: -14, name: '海洋', hFar: 0,  hNear: 0,  und: 0,    sub: -0.8, colA: '#2a4a58', colB: '#34566a', water: [[-90, 85]],      ridge: 0.1,  fly: 0,   wave: 1,    gust: 0.2 }
   };
   Object.keys(BIOMES).forEach(function (k) {
     BIOMES[k].cA = new THREE.Color(BIOMES[k].colA);
@@ -1548,9 +1567,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var roof = new THREE.ConeGeometry(w * 0.78, 1.5 * s, 4);
     roof.rotateY(Math.PI / 4);
     roof.translate(x, y + h + 0.72 * s, z);
-    parts.push(facetColors(roof, '#33203a', '#42284a', function () { return rnd(); }));
+    parts.push(facetColors(roof, '#4a4048', '#5a5058', function () { return rnd(); }));
     if (rnd() < 0.6) {
-      parts.push(facetColors(box(0.4 * s, 1.0 * s, 0.4 * s, x + w * 0.26, y + h + 0.9 * s, z + d * 0.18), '#3a2c44', '#4a3a54', function () { return rnd(); }));
+      parts.push(facetColors(box(0.4 * s, 1.0 * s, 0.4 * s, x + w * 0.26, y + h + 0.9 * s, z + d * 0.18), '#6a4a3a', '#7a5a48', function () { return rnd(); }));
     }
     var n = rnd() < 0.5 ? 1 : 2;
     for (var i = 0; i < n; i++) {
@@ -1568,40 +1587,40 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var s = rand(0.7, 1.5);
     var kind = rnd();
     if (kind < 0.5) {
-      parts.push(facetColors(cylY(0.1 * s, 0.15 * s, 0.7 * s, x, y + 0.35 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
+      parts.push(facetColors(cylY(0.1 * s, 0.15 * s, 0.7 * s, x, y + 0.35 * s, z, 5), '#3a2a1c', '#4a3626', function () { return rnd(); }));
       var c1 = new THREE.ConeGeometry(1.05 * s, 2.1 * s, 6);
       c1.translate(x, y + 1.6 * s, z);
-      parts.push(facetColors(c1, '#1c2a24', '#28382e', function () { return rnd(); }));
+      parts.push(facetColors(c1, '#244a2a', '#305a34', function () { return rnd(); }));
       var c2 = new THREE.ConeGeometry(0.72 * s, 1.6 * s, 6);
       c2.translate(x, y + 2.7 * s, z);
-      parts.push(facetColors(c2, '#20302a', '#2e4034', function () { return rnd(); }));
+      parts.push(facetColors(c2, '#2e5432', '#3a6238', function () { return rnd(); }));
     } else if (kind < 0.8) {
-      parts.push(facetColors(cylY(0.12 * s, 0.16 * s, 0.9 * s, x, y + 0.45 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
+      parts.push(facetColors(cylY(0.12 * s, 0.16 * s, 0.9 * s, x, y + 0.45 * s, z, 5), '#3a2a1c', '#4a3626', function () { return rnd(); }));
       var blob = new THREE.IcosahedronGeometry(0.95 * s, 0);
       blob.scale(1, 0.85, 1);
       blob.translate(x, y + 1.5 * s, z);
-      parts.push(facetColors(blob, '#22302a', '#2c3c32', function () { return rnd(); }));
+      parts.push(facetColors(blob, '#3a5a2e', '#4a6a38', function () { return rnd(); }));
     } else {
-      parts.push(facetColors(cylY(0.08 * s, 0.12 * s, 1.0 * s, x, y + 0.5 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
+      parts.push(facetColors(cylY(0.08 * s, 0.12 * s, 1.0 * s, x, y + 0.5 * s, z, 5), '#3a2a1c', '#4a3626', function () { return rnd(); }));
       var pop = new THREE.ConeGeometry(0.5 * s, 3.4 * s, 6);
       pop.translate(x, y + 2.4 * s, z);
-      parts.push(facetColors(pop, '#1e2c26', '#2a3a30', function () { return rnd(); }));
+      parts.push(facetColors(pop, '#2a4a28', '#365a32', function () { return rnd(); }));
     }
   }
   function pineParts(parts, x, z, s) {
     var y = baseY(z);
-    parts.push(facetColors(cylY(0.1 * s, 0.16 * s, 0.9 * s, x, y + 0.45 * s, z, 5), '#241a28', '#2e2234', function () { return rnd(); }));
+    parts.push(facetColors(cylY(0.1 * s, 0.16 * s, 0.9 * s, x, y + 0.45 * s, z, 5), '#3a2a1c', '#4a3626', function () { return rnd(); }));
     for (var i = 0; i < 3; i++) {
       var c = new THREE.ConeGeometry((1.15 - i * 0.3) * s, 1.7 * s, 6);
       c.translate(x, y + (1.3 + i * 1.05) * s, z);
-      parts.push(facetColors(c, '#182620', '#243428', function () { return rnd(); }));
+      parts.push(facetColors(c, '#1e4024', '#2a502c', function () { return rnd(); }));
     }
   }
   function rockParts(parts, x, z, s, ca, cb) {
     var rock = new THREE.IcosahedronGeometry(s, 0);
     rock.scale(1, rand(0.5, 0.85), 1);
     rock.translate(x, baseY(z) + s * 0.2, z);
-    parts.push(facetColors(rock, ca || '#322842', cb || '#443654', function () { return rnd(); }));
+    parts.push(facetColors(rock, ca || '#5c5c64', cb || '#6e6e76', function () { return rnd(); }));
   }
   function fieldParts(parts, gH, fx, fz, w, d, ca, cb) {
     var fg = new THREE.PlaneGeometry(w, d, 3, 3);
@@ -1615,8 +1634,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var body2 = new THREE.IcosahedronGeometry(0.34, 0);
     body2.scale(1.25, 0.85, 0.85);
     body2.translate(x, gH(x, z) + 0.32, z);
-    parts.push(facetColors(body2, '#cfc4d4', '#e0d6e4', function () { return rnd(); }));
+    parts.push(facetColors(body2, '#e6e2d8', '#f0ece2', function () { return rnd(); }));
     parts.push(facetColors(box(0.16, 0.16, 0.16, x + 0.4, gH(x, z) + 0.4, z), '#3a2c34', '#4a3c44', function () { return rnd(); }));
+  }
+  // wildflower patches: bright heads on short stems scattered over the grass
+  var FLOWER_COLS = ['#e0483a', '#f0c028', '#f2f0e6', '#d050a0', '#5878e0', '#f08030', '#e8608a', '#f8e050'];
+  function flowerParts(parts, gH, x, z, n) {
+    for (var i = 0; i < n; i++) {
+      var fx = x + rand(-1.3, 1.3), fz = z + rand(-1.0, 1.0);
+      var fy = gH(fx, fz), h = rand(0.16, 0.3);
+      parts.push(facetColors(box(0.025, h, 0.025, fx, fy + h / 2, fz), '#3a5a28', '#4a6a32', function () { return rnd(); }));
+      var head = new THREE.IcosahedronGeometry(rand(0.06, 0.1), 0);
+      head.translate(fx, fy + h + 0.04, fz);
+      var hc = FLOWER_COLS[Math.floor(rnd() * FLOWER_COLS.length)];
+      parts.push(facetColors(head, hc, hc, function () { return rnd(); }));
+    }
   }
   function reedParts(parts, gH, x, z) {
     var reed = new THREE.ConeGeometry(0.06, rand(0.7, 1.2), 4);
@@ -1624,14 +1656,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     parts.push(facetColors(reed, '#2a3226', '#36402c', function () { return rnd(); }));
   }
   function wispAt(ctx, x, y, z) {
-    var ws = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#cbb8c4', transparent: true, opacity: 0, depthWrite: false, fog: true }));
+    var ws = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#c8ccd4', transparent: true, opacity: 0, depthWrite: false, fog: true }));
     ws.position.set(x, y, z);
     ctx.group.add(ws);
     chimneyWisps.push({ sprite: ws, x: x, y0: y, phase: rnd(), ti: ctx.idx });
   }
   function houseAt(ctx, x, z, s, face, wallA, wallB) {
     _px = x;
-    var w = houseParts(ctx.parts, ctx.winParts, x, z, s, wallA || '#3e3050', wallB || '#4e3c5c', face);
+    var w = houseParts(ctx.parts, ctx.winParts, x, z, s, wallA || '#7a6c5a', wallB || '#8a7c68', face);
     var hg = addBGlow(w.x, w.y, w.z, 3.4, 0.4, '#ffb37a', ctx.group);
     tileGlows.push({ rec: hg, phase: rnd() * 6.28, ti: ctx.idx });
     if (rnd() < 0.6) wispAt(ctx, x + 0.8, baseY(z) + 3.4, z);
@@ -1659,10 +1691,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function windmillAt(ctx, x, z) {
     _px = x;
     var wy = baseY(z);
-    ctx.parts.push(facetColors(cylY(1.0, 1.6, 5.0, x, wy + 2.5, z, 8), '#463650', '#564262', function () { return rnd(); }));
+    ctx.parts.push(facetColors(cylY(1.0, 1.6, 5.0, x, wy + 2.5, z, 8), '#6e6258', '#7e7268', function () { return rnd(); }));
     var cap = new THREE.ConeGeometry(1.25, 1.3, 6);
     cap.translate(x, wy + 5.6, z);
-    ctx.parts.push(facetColors(cap, '#33203a', '#42284a', function () { return rnd(); }));
+    ctx.parts.push(facetColors(cap, '#4a4048', '#5a5058', function () { return rnd(); }));
     var rotor = new THREE.Group();
     rotor.position.set(x, wy + 5.0, z + 1.35);
     rotor.userData.ti = ctx.idx;
@@ -1671,9 +1703,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var bl = new THREE.BoxGeometry(0.3, 3.4, 0.06);
       bl.translate(0, 1.8, 0);
       bl.rotateZ(b * Math.PI / 2);
-      blades.push(facetColors(bl, '#3a2c44', '#4a3a54', function () { return rnd(); }));
+      blades.push(facetColors(bl, '#6a4a3a', '#7a5a48', function () { return rnd(); }));
     }
-    blades.push(facetColors(new THREE.SphereGeometry(0.22, 8, 6), '#241c30', '#322640', function () { return rnd(); }));
+    blades.push(facetColors(new THREE.SphereGeometry(0.22, 8, 6), '#2a2a30', '#3a3a42', function () { return rnd(); }));
     rotor.add(new THREE.Mesh(mergeGeos(blades), stoneMat));
     ctx.group.add(rotor);
     windmillRotors.push(rotor);
@@ -1709,10 +1741,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       cluster(4, -72, -46, 1);
       var cx = rx(), cz = rand(-64, -50); _px = cx;
       var by = baseY(cz);
-      parts.push(facetColors(box(2.2, 6.5, 2.2, cx, by + 3.25, cz), '#463650', '#564262', function () { return rnd(); }));
+      parts.push(facetColors(box(2.2, 6.5, 2.2, cx, by + 3.25, cz), '#6a6a72', '#7c7c84', function () { return rnd(); }));
       var spire = new THREE.ConeGeometry(1.7, 2.4, 4);
       spire.rotateY(Math.PI / 4); spire.translate(cx, by + 7.7, cz);
-      parts.push(facetColors(spire, '#33203a', '#42284a', function () { return rnd(); }));
+      parts.push(facetColors(spire, '#4a4048', '#5a5058', function () { return rnd(); }));
       var clock = new THREE.CircleGeometry(0.5, 12);
       clock.translate(cx, by + 4.8, cz + 1.13);
       ctx.winParts.push(clock);
@@ -1721,31 +1753,32 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     else if (variant === 2) { cluster(2, -58, -46, 1); cluster(1, 20, 28, -1); }
     else cluster(3, -70, -50, 1);
-    fieldParts(parts, gH, rand(x0 + 4, x0 + 14), rand(18, 30), rand(7, 11), rand(5, 8), '#3a3226', '#4a4030');
-    fieldParts(parts, gH, rand(x1 - 14, x1 - 4), rand(20, 34), rand(6, 10), rand(5, 8), '#2a3226', '#36402c');
+    fieldParts(parts, gH, rand(x0 + 4, x0 + 14), rand(18, 30), rand(7, 11), rand(5, 8), '#7a6a30', '#8a7a3c');
+    fieldParts(parts, gH, rand(x1 - 14, x1 - 4), rand(20, 34), rand(6, 10), rand(5, 8), '#4a6a2c', '#5a7a36');
     for (var hs = 0; hs < Math.round(2 * k); hs++) {
       var hx2 = rx(), hz2 = rand(14, 36);
       var hay = new THREE.ConeGeometry(0.7, 1.1, 6);
       hay.translate(hx2, gH(hx2, hz2) + 0.5, hz2);
-      parts.push(facetColors(hay, '#4a3c28', '#5a4c34', function () { return rnd(); }));
+      parts.push(facetColors(hay, '#8a7434', '#9a8440', function () { return rnd(); }));
     }
     if (variant === 0 || variant === 3) for (var sh = 0; sh < Math.round(4 * k); sh++) sheepParts(parts, gH, rx(), rand(-58, -42));
     for (var rd2 = 0; rd2 < Math.round(12 * k); rd2++) reedParts(parts, gH, rx(), rnd() < 0.5 ? -19.5 + rand(-0.6, 0.6) : -32.5 + rand(-0.6, 0.6));
     if ((variant === 1 || variant === 3) && k > 0.6) windmillAt(ctx, rx(), rand(-70, -56));
     if ((variant === 0 || variant === 2) && k > 0.6) {
       var bx = rx();
-      parts.push(facetColors(box(1.6, 0.2, 15, bx, -12.6, -26), '#3f3148', '#5c4a63', function () { return rnd(); }));
+      parts.push(facetColors(box(1.6, 0.2, 15, bx, -12.6, -26), '#5a5a62', '#6e6e76', function () { return rnd(); }));
       var bArch = new THREE.TorusGeometry(6.2, 0.22, 5, 12, Math.PI);
       bArch.rotateY(Math.PI / 2); bArch.translate(bx, -13.4, -26);
-      parts.push(facetColors(bArch, '#544260', '#6a5670', function () { return rnd(); }));
+      parts.push(facetColors(bArch, '#5c5c64', '#7a7a82', function () { return rnd(); }));
       parts.push(facetColors(box(3, 0.2, 2.4, bx + 4, -13.3, -19.5), '#3a2c24', '#4a3c34', function () { return rnd(); }));
       boatAt(ctx, bx - 4, -13.7, -27);
     }
-    var ms = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#8a7a9a', transparent: true, opacity: 0.1, depthWrite: false, fog: true }));
+    var ms = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#9aa4b0', transparent: true, opacity: 0.1, depthWrite: false, fog: true }));
     ms.position.set(rx(), -13.2, -26 + rand(-4, 4));
     ms.scale.set(14, 4, 1);
     ctx.group.add(ms);
     riverMists.push({ sprite: ms, phase: rnd() * 6.28, ti: ctx.idx });
+    for (var fl = 0; fl < Math.round(7 * k); fl++) flowerParts(parts, gH, rx(), rnd() < 0.5 ? rand(14, 58) : rand(-70, -38), Math.round(rand(4, 7)));
     if (variant !== 2 && k > 0.5) {
       var sl = addBGlow(rx(), 0, rand(-64, -44), 2.0, 0.5, '#ffb37a', ctx.group);
       skyLanterns.push({ rec: sl, x0: sl.x, phase: rnd(), ti: ctx.idx });
@@ -1755,7 +1788,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function propsPlains(ctx, x0, x1) {
     var k = (x1 - x0) / 48, parts = ctx.parts, gH = ctx.gH;
     function rx() { return rand(x0 + 2, x1 - 2); }
-    var cols = ['#3a3226', '#4a4030', '#2a3226', '#36402c', '#443a24', '#52462e'];
+    var cols = ['#7a6a30', '#8a7a3c', '#4a6a2c', '#5a7a36', '#6e6228', '#84743a'];
     for (var f = 0; f < Math.round(10 * k); f++) {
       var fz = rnd() < 0.65 ? rand(-66, -16) : rand(14, 66);
       fieldParts(parts, gH, rx(), fz, rand(8, 15), rand(6, 12), cols[Math.floor(rnd() * 6)], cols[Math.floor(rnd() * 6)]);
@@ -1764,19 +1797,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var hx = rx(), hz = rnd() < 0.65 ? rand(-60, -16) : rand(14, 60);
       var hay = new THREE.ConeGeometry(rand(0.6, 0.9), rand(1.0, 1.4), 6);
       hay.translate(hx, gH(hx, hz) + 0.55, hz);
-      parts.push(facetColors(hay, '#4a3c28', '#5a4c34', function () { return rnd(); }));
+      parts.push(facetColors(hay, '#8a7434', '#9a8440', function () { return rnd(); }));
     }
     for (var t = 0; t < Math.round(8 * k); t++) { _px = rx(); treeParts(parts, _px, rnd() < 0.6 ? rand(-72, -18) : rand(16, 70)); }
     for (var sh = 0; sh < Math.round(8 * k); sh++) sheepParts(parts, gH, rx(), rnd() < 0.65 ? rand(-60, -20) : rand(16, 60));
     if (rnd() < 0.7 && k > 0.5) houseAt(ctx, rx(), rand(20, 40), rand(0.8, 1.1), -1);
     if (rnd() < 0.55 && k > 0.6) windmillAt(ctx, rx(), rand(-64, -30));
+    for (var fl = 0; fl < Math.round(11 * k); fl++) flowerParts(parts, gH, rx(), rnd() < 0.6 ? rand(-64, -18) : rand(14, 64), Math.round(rand(5, 9)));
     // fence line along a field
     var fz0 = rand(15, 30), fx0 = rand(x0 + 3, x1 - 12);
     for (var fp2 = 0; fp2 < 8; fp2++) {
       var px = fx0 + fp2 * 1.3;
-      parts.push(facetColors(box(0.08, 0.7, 0.08, px, gH(px, fz0) + 0.35, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
+      parts.push(facetColors(box(0.08, 0.7, 0.08, px, gH(px, fz0) + 0.35, fz0), '#3a2e22', '#4a3e30', function () { return rnd(); }));
     }
-    parts.push(facetColors(box(9.2, 0.06, 0.05, fx0 + 4.5, gH(fx0 + 4.5, fz0) + 0.55, fz0), '#2e2434', '#3a2e40', function () { return rnd(); }));
+    parts.push(facetColors(box(9.2, 0.06, 0.05, fx0 + 4.5, gH(fx0 + 4.5, fz0) + 0.55, fz0), '#3a2e22', '#4a3e30', function () { return rnd(); }));
   }
 
   function propsHills(ctx, x0, x1) {
@@ -1788,14 +1822,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // terraced strips on the far slope
     for (var te = 0; te < Math.round(3 * k); te++) {
       var tz = -34 - te * 7;
-      fieldParts(parts, gH, rx(), tz, rand(8, 14), 3.2, '#2a3226', '#36402c');
+      fieldParts(parts, gH, rx(), tz, rand(8, 14), 3.2, '#4a6a2c', '#5a7a36');
     }
     // dry stone wall
     var wz = rand(16, 30), wx0 = rand(x0 + 3, x1 - 10);
     for (var wi = 0; wi < 7; wi++) {
       var wx = wx0 + wi * 1.1;
-      parts.push(facetColors(box(1.0, rand(0.5, 0.7), 0.5, wx, gH(wx, wz) + 0.3, wz), '#322842', '#443654', function () { return rnd(); }));
+      parts.push(facetColors(box(1.0, rand(0.5, 0.7), 0.5, wx, gH(wx, wz) + 0.3, wz), '#5c5c64', '#5e5e66', function () { return rnd(); }));
     }
+    for (var fl = 0; fl < Math.round(7 * k); fl++) flowerParts(parts, gH, rx(), rnd() < 0.6 ? rand(-58, -20) : rand(14, 56), Math.round(rand(4, 7)));
     if (rnd() < 0.6 && k > 0.5) houseAt(ctx, rx(), rand(-52, -30), rand(0.7, 1.0), 1);
   }
 
@@ -1809,11 +1844,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var by = baseY(sz), h = rand(8, 24), rw = rand(1.6, 3.4);
       var spire = new THREE.ConeGeometry(rw, h, 5);
       spire.translate(sx, by + h / 2 - 1, sz);
-      parts.push(facetColors(spire, '#2c2438', '#443654', function () { return rnd(); }));
+      parts.push(facetColors(spire, '#4a4a54', '#5e5e66', function () { return rnd(); }));
       var base = new THREE.IcosahedronGeometry(rw * 1.3, 0);
       base.scale(1, 0.6, 1);
       base.translate(sx, by + 0.5, sz);
-      parts.push(facetColors(base, '#282034', '#3a3048', function () { return rnd(); }));
+      parts.push(facetColors(base, '#42424c', '#565660', function () { return rnd(); }));
       // permanent snow cap on the tallest peaks
       if (h > 15) {
         var cap = new THREE.ConeGeometry(rw * 0.34, h * 0.22, 5);
@@ -1822,8 +1857,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       }
     }
     for (var t = 0; t < Math.round(14 * k); t++) { _px = rx(); pineParts(parts, _px, (rnd() < 0.5 ? -1 : 1) * rand(14, 50), rand(0.7, 1.4)); }
-    for (var r = 0; r < Math.round(10 * k); r++) { _px = rx(); rockParts(parts, _px, (rnd() < 0.5 ? -1 : 1) * rand(13, 55), rand(0.4, 1.4), '#2c2438', '#3e3450'); }
-    if (rnd() < 0.4 && k > 0.6) houseAt(ctx, rx(), (rnd() < 0.5 ? -1 : 1) * rand(20, 30), rand(0.7, 0.9), rnd() < 0.5 ? 1 : -1, '#3a3044', '#4a3c54');
+    for (var r = 0; r < Math.round(10 * k); r++) { _px = rx(); rockParts(parts, _px, (rnd() < 0.5 ? -1 : 1) * rand(13, 55), rand(0.4, 1.4), '#4a4a54', '#5e5e68'); }
+    if (rnd() < 0.4 && k > 0.6) houseAt(ctx, rx(), (rnd() < 0.5 ? -1 : 1) * rand(20, 30), rand(0.7, 0.9), rnd() < 0.5 ? 1 : -1, '#6a6a72', '#7a7a82');
   }
 
   function propsForest(ctx, x0, x1) {
@@ -1839,12 +1874,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // logging cabin + log pile
     if (rnd() < 0.6 && k > 0.55) {
       var lx = rx(), lz = rand(18, 34);
-      houseAt(ctx, lx, lz, rand(0.8, 1.0), -1, '#33283c', '#42344a');
+      houseAt(ctx, lx, lz, rand(0.8, 1.0), -1, '#4a3a2c', '#5a4836');
       for (var lg = 0; lg < 4; lg++) {
         var log = cylX(0.22, 2.4, lx + 3.2, gH(lx + 3.2, lz) + 0.24 + (lg > 1 ? 0.4 : 0), lz + (lg % 2) * 0.5 - 0.25, 6);
         parts.push(facetColors(log, '#3a2c24', '#4a3c34', function () { return rnd(); }));
       }
     }
+    for (var fl = 0; fl < Math.round(4 * k); fl++) flowerParts(parts, gH, rx(), rnd() < 0.5 ? rand(14, 60) : rand(-64, -18), Math.round(rand(3, 6)));
     for (var st = 0; st < Math.round(3 * k); st++) {
       var sx = rx(), sz = rand(14, 60);
       parts.push(facetColors(cylY(0.25, 0.32, 0.3, sx, gH(sx, sz) + 0.15, sz, 6), '#3a2c24', '#4a3c34', function () { return rnd(); }));
@@ -1862,14 +1898,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var bx = rx();
       parts.push(facetColors(box(2.2, 0.18, 12, bx, -13.1, -24), '#3a2c24', '#4a3c34', function () { return rnd(); }));
       [[bx - 0.9, -19], [bx + 0.9, -19], [bx - 0.9, -29], [bx + 0.9, -29]].forEach(function (p) {
-        parts.push(facetColors(cylY(0.08, 0.1, 1.4, p[0], -13.6, p[1], 5), '#241c30', '#322640', function () { return rnd(); }));
+        parts.push(facetColors(cylY(0.08, 0.1, 1.4, p[0], -13.6, p[1], 5), '#2e241c', '#3c3026', function () { return rnd(); }));
       });
       boatAt(ctx, bx + 2.4, -13.7, -26);
       var rs = addBGlow(bx, -13.5, -30, 1, 0.12, '#ffb37a', ctx.group, 1.4, 7);
       reflStreaks.push({ rec: rs, phase: rnd() * 6.28, ti: ctx.idx });
     }
     for (var r = 0; r < Math.round(4 * k); r++) { _px = rx(); rockParts(parts, _px, rand(14, 50), rand(0.3, 0.7)); }
-    var ms = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#8a7a9a', transparent: true, opacity: 0.1, depthWrite: false, fog: true }));
+    for (var fl = 0; fl < Math.round(6 * k); fl++) flowerParts(parts, gH, rx(), rand(14, 62), Math.round(rand(4, 8)));
+    var ms = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: '#9aa4b0', transparent: true, opacity: 0.1, depthWrite: false, fog: true }));
     ms.position.set(rx(), -13.2, -40 + rand(-8, 8));
     ms.scale.set(18, 4, 1);
     ctx.group.add(ms);
@@ -1899,10 +1936,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     for (var h = 0; h < Math.round(2 * k); h++) {
       var hx = rx(), hz = rand(-16, 20); _px = hx;
       var hy = baseY(hz);
-      parts.push(facetColors(box(1.6, 1.5, 1.6, hx, hy + 0.75, hz), '#4e4048', '#5e4c54', function () { return rnd(); }));
+      parts.push(facetColors(box(1.6, 1.5, 1.6, hx, hy + 0.75, hz), '#6a5a48', '#7a6a56', function () { return rnd(); }));
       var roof = new THREE.ConeGeometry(1.3, 0.9, 4);
       roof.rotateY(Math.PI / 4); roof.translate(hx, hy + 1.95, hz);
-      parts.push(facetColors(roof, '#3a3040', '#4a3c4c', function () { return rnd(); }));
+      parts.push(facetColors(roof, '#4a4048', '#5a5058', function () { return rnd(); }));
       var wg = new THREE.PlaneGeometry(0.4, 0.5);
       wg.translate(hx, hy + 0.8, hz + 0.82);
       ctx.winParts.push(wg);
@@ -1917,7 +1954,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         var r0 = 1.0 - band * 0.12;
         parts.push(facetColors(cylY(r0 - 0.1, r0, 1.7, lx, ly + 0.85 + band * 1.7, lz, 8), band % 2 ? '#8a3a3a' : '#d8d0c8', band % 2 ? '#9a4a4a' : '#e8e0d8', function () { return rnd(); }));
       }
-      parts.push(facetColors(cylY(0.55, 0.55, 0.9, lx, ly + 9.0, lz, 8), '#2a2234', '#3a3044', function () { return rnd(); }));
+      parts.push(facetColors(cylY(0.55, 0.55, 0.9, lx, ly + 9.0, lz, 8), '#2a2a30', '#3a3a42', function () { return rnd(); }));
       var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), lampBulbMat);
       lamp.position.set(lx, ly + 9.0, lz);
       ctx.group.add(lamp);
@@ -1965,7 +2002,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       buoy.position.set(rx(), -13.6, (rnd() < 0.5 ? -1 : 1) * rand(16, 40));
       var bh = [];
       bh.push(facetColors(cylY(0.3, 0.5, 1.0, 0, 0.5, 0, 6), '#6a2a2a', '#8a3a3a', function () { return rnd(); }));
-      bh.push(facetColors(cylY(0.05, 0.05, 0.8, 0, 1.3, 0, 4), '#2a2234', '#3a3044', function () { return rnd(); }));
+      bh.push(facetColors(cylY(0.05, 0.05, 0.8, 0, 1.3, 0, 4), '#2a2a30', '#3a3a42', function () { return rnd(); }));
       buoy.add(new THREE.Mesh(mergeGeos(bh), stoneMat));
       var bb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), sigRedMat);
       bb.position.set(0, 1.75, 0); buoy.add(bb);
@@ -1999,7 +2036,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var y0 = 0.2, step = 4;
     var pos = [], col = [];
     var cc = new THREE.Color();
-    var ballA = new THREE.Color('#2c2338'), ballB = new THREE.Color('#382c44');
+    var ballA = new THREE.Color('#4a4a50'), ballB = new THREE.Color('#56565e');
     function sec(x) {
       var p = paramsAt(w + x), toes = [];
       for (var sg = -1; sg <= 1; sg += 2) {
@@ -2113,23 +2150,21 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     if (wq.length) group.add(new THREE.Mesh(mergeGeos(wq), riverMat));
 
-    // ground-level track: embankment spans and masonry abutments at structure changes
-    var spans = [], curSpan = null;
-    for (var sx = -24; sx < 24; sx += 16) {
-      var gt = trackAt(w + sx + 8) === 'ground';
-      if (gt && !curSpan) curSpan = [sx, sx + 16];
-      else if (gt && curSpan) curSpan[1] = sx + 16;
-      else if (!gt && curSpan) { spans.push(curSpan); curSpan = null; }
-    }
-    if (curSpan) spans.push(curSpan);
-    for (var sp = 0; sp < spans.length; sp++) embankmentParts(parts, w, spans[sp][0], spans[sp][1]);
+    // ground-level track: embankment spans clipped to exact region boundaries, and a
+    // masonry abutment precisely at each bridge↔ground flip so deck and bed meet flush
     var stonePickT = function (x, y) { return clamp((y + 14) / 14, 0, 1) * 0.55 + rnd() * 0.3; };
-    for (var E = Math.ceil((w - 24 - 0.01) / 16) * 16; E < w + 24 - 0.01; E += 16) {
-      if (trackAt(E - 1) !== trackAt(E + 1)) {
-        var lx = E - w, bot = Math.min(gH(lx, 0), -2) - 1.2;
-        parts.push(facetColors(box(2.4, 1.3 - bot, 8.8, lx, (1.3 + bot) / 2, 0), '#3f3148', '#5c4a63', stonePickT));
-        parts.push(facetColors(box(2.8, 0.3, 9.2, lx, 1.15, 0), '#463852', '#63506c', stonePickT));
+    var rScan = regionAt(w - 24);
+    for (;;) {
+      var s0 = Math.max(rScan.start, w - 24), s1 = Math.min(rScan.end, w + 24);
+      if (s1 > s0 && trackAt(rScan.start + 0.01) === 'ground') embankmentParts(parts, w, s0 - w, s1 - w);
+      var B = rScan.end;
+      if (B > w - 24 && B < w + 24 && trackAt(B - 1) !== trackAt(B + 1)) {
+        var lx = B - w, bot = Math.min(gH(lx, 0), -2) - 1.2;
+        parts.push(facetColors(box(2.4, 1.3 - bot, 8.8, lx, (1.3 + bot) / 2, 0), '#5a5a62', '#6e6e76', stonePickT));
+        parts.push(facetColors(box(2.8, 0.3, 9.2, lx, 1.15, 0), '#62626a', '#76767e', stonePickT));
       }
+      if (rScan.end >= w + 24) break;
+      rScan = regionAt(rScan.end + 0.01);
     }
 
     // props: each biome decorates its own side of the boundary
@@ -2206,7 +2241,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var len = 800, segs = 64;
     var positions = [], colors = [];
     var cTop = new THREE.Color(color);
-    var cBot = new THREE.Color('#150e20');
+    var cBot = new THREE.Color('#1a2230');
     var c = new THREE.Color();
     var tops = [];
     for (var i = 0; i <= segs; i++) {
@@ -2235,10 +2270,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     scene.add(mesh);
     ridges.push({ mesh: mesh, speed: speed, offset: 0, tops: tops, from: tops.slice(), to: tops.slice(), blend: 1, h: h, phase: phase });
   }
-  makeRidge(-150, 30, '#2a1e40', 0.05, 1.3);
-  makeRidge(-215, 46, '#221838', 0.025, 4.1);
-  makeRidge(155, 26, '#2a1e40', 0.05, 2.6);
-  makeRidge(220, 42, '#221838', 0.025, 5.7);
+  makeRidge(-150, 30, '#42546c', 0.05, 1.3);
+  makeRidge(-215, 46, '#38485e', 0.025, 4.1);
+  makeRidge(155, 26, '#42546c', 0.05, 2.6);
+  makeRidge(220, 42, '#38485e', 0.025, 5.7);
   // silhouettes morph toward each biome's skyline (sea flattens to a horizon)
   var ridgeTint = new THREE.Color(1, 1, 1), ridgeTintTarget = new THREE.Color(1, 1, 1);
   var RIDGE_TINTS = { valley: [1, 1, 1], plains: [1.05, 1, 0.95], hills: [1, 1, 1.02], mountains: [0.95, 0.97, 1.08], forest: [0.92, 1.02, 0.98], lake: [0.95, 1, 1.06], beach: [1.05, 1.02, 0.98], ocean: [0.9, 0.98, 1.1] };
@@ -2543,7 +2578,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       addI(box(1.6, 0.45, 0.8, 1, 1.85, -0.95), '#5a3040', '#6c3c4e');
       addI(box(1.6, 0.5, 0.14, 1, 2.0, -1.28), '#5a3040', '#6c3c4e');
       addI(box(1.3, 0.08, 0.9, 0, 2.2, 0), '#4a3040', '#5a3c4c');
-      addI(cylY(0.04, 0.05, 0.7, 0, 1.85, 0, 6), '#3a2c44', '#4a3a54');
+      addI(cylY(0.04, 0.05, 0.7, 0, 1.85, 0, 6), '#6a4a3a', '#7a5a48');
     }
     add(box(12.6, 0.09, 0.16, 0, 2.28, 1.5), brassA, brassB);
     add(box(12.6, 0.09, 0.16, 0, 2.28, -1.5), brassA, brassB);
@@ -2712,17 +2747,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var parts = [];
     function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
     // bore shell: ceiling + side walls (x-subdivided to follow the curve bend)
-    add(box(60, 0.7, 9.8, 0, 7.1, 0, 16), '#332840', '#443654');
-    add(box(60, 7.4, 0.7, 0, 3.4, 4.55, 16), '#332840', '#443654');
-    add(box(60, 7.4, 0.7, 0, 3.4, -4.55, 16), '#332840', '#443654');
+    add(box(60, 0.7, 9.8, 0, 7.1, 0, 16), '#4a4a52', '#5e5e66');
+    add(box(60, 7.4, 0.7, 0, 3.4, 4.55, 16), '#4a4a52', '#5e5e66');
+    add(box(60, 7.4, 0.7, 0, 3.4, -4.55, 16), '#4a4a52', '#5e5e66');
     // cornice along the bore top
-    add(box(60.6, 0.35, 10.4, 0, 7.55, 0, 16), '#463852', '#63506c');
+    add(box(60.6, 0.35, 10.4, 0, 7.55, 0, 16), '#62626a', '#76767e');
     // rib arches inside the bore
     for (var rx = -24; rx <= 24; rx += 8) {
       var rib = new THREE.TorusGeometry(4.5, 0.22, 5, 12, Math.PI);
       rib.rotateY(Math.PI / 2);
       rib.translate(rx, 0.3, 0);
-      add(rib, '#2a2032', '#3a2c44');
+      add(rib, '#2a2a30', '#3a3a42');
     }
     // portal facades with an arch opening
     [-30, 30].forEach(function (px) {
@@ -2742,10 +2777,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var fg = new THREE.ExtrudeGeometry(shape, { depth: 1.4, bevelEnabled: false, curveSegments: 12 });
       fg.rotateY(Math.PI / 2);
       fg.translate(px + (px > 0 ? 0 : -1.4), 0, 0);
-      parts.push(facetColors(fg, '#3f3148', '#5c4a63', function (cx, cy) { return clamp(cy / 10, 0, 1) * 0.6 + rnd() * 0.15; }));
+      parts.push(facetColors(fg, '#5a5a62', '#6e6e76', function (cx, cy) { return clamp(cy / 10, 0, 1) * 0.6 + rnd() * 0.15; }));
       // lintel band + keystone
-      add(box(1.6, 1.1, 15.2, px + (px > 0 ? 0.7 : -0.7), 10.9, 0), '#463852', '#63506c');
-      add(box(1.8, 1.3, 1.4, px + (px > 0 ? 0.7 : -0.7), 8.2, 0), '#544260', '#6a5670');
+      add(box(1.6, 1.1, 15.2, px + (px > 0 ? 0.7 : -0.7), 10.9, 0), '#62626a', '#76767e');
+      add(box(1.8, 1.3, 1.4, px + (px > 0 ? 0.7 : -0.7), 8.2, 0), '#5c5c64', '#7a7a82');
     });
     var mesh = new THREE.Mesh(mergeGeos(parts), stoneMat);
     mesh.receiveShadow = true;
@@ -2883,7 +2918,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   scene.add(smokeGroup);
   for (var si = 0; si < 30; si++) {
     var sm = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: mistTex, color: '#cbb8c4', transparent: true, opacity: 0,
+      map: mistTex, color: '#c8ccd4', transparent: true, opacity: 0,
       depthWrite: false, fog: true
     }));
     sm.visible = false;
@@ -3455,9 +3490,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var SKY_N = pal({ top: '#0b0718', mid: '#241430', hor: '#40243c', glow: '#a34a2e', below: '#160e20' });
   var SKY_D = pal({ top: '#3a6ab0', mid: '#7aa2cc', hor: '#c4d6e2', glow: '#ffe9b8', below: '#7a8aa0' });
   var SKY_K = pal({ top: '#241440', mid: '#5c3058', hor: '#c86a44', glow: '#ff9a5c', below: '#2c1a30' });
-  var FOG_N = new THREE.Color('#1a1128'), FOG_D = new THREE.Color('#b6c6d6'), FOG_K = new THREE.Color('#6a4458');
-  var HEMI_SN = new THREE.Color('#4a3a6e'), HEMI_SD = new THREE.Color('#bccfe8');
-  var HEMI_GN = new THREE.Color('#1a1226'), HEMI_GD = new THREE.Color('#8a9078');
+  var FOG_N = new THREE.Color('#161a28'), FOG_D = new THREE.Color('#b6c6d6'), FOG_K = new THREE.Color('#6a4458');
+  var HEMI_SN = new THREE.Color('#3c4a70'), HEMI_SD = new THREE.Color('#bccfe8');
+  var HEMI_GN = new THREE.Color('#161c26'), HEMI_GD = new THREE.Color('#8a9078');
   var CLOUD_N = new THREE.Color('#4a3a5e'), CLOUD_D = new THREE.Color('#dfe4ee'), CLOUD_K = new THREE.Color('#c99a8a');
   var SUN_LOW = new THREE.Color('#ff9a5c'), SUN_HIGH = new THREE.Color('#fff0d8');
   var C_WET = new THREE.Color('#6a6a74'), C_SNOW = new THREE.Color('#dfe6f2');
@@ -3908,14 +3943,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     ridgeMat.color.setRGB(rb * (1 + duskF * 0.15) * ridgeTint.r, rb * (1 - duskF * 0.05) * ridgeTint.g, rb * (1 - duskF * 0.12) * ridgeTint.b);
 
     // wet ground tint + normal-weighted snow accumulation (shader-driven)
-    var gb = 1 + dayF * 1.7 + duskF * 0.35;
-    groundMat.color.setRGB(gb, gb, gb * 1.04);
+    var gb = 1 + dayF * 0.55 + duskF * 0.15;
+    groundMat.color.setRGB(gb, gb, gb);
     if (wetness > 0.01) groundMat.color.lerp(C_WET, wetness * 0.55 * (1 - snowAcc));
     groundMat.roughness = lerp(0.95, 0.8, wetness * (1 - snowAcc));
     groundMat.metalness = 0.05 * wetness * (1 - snowAcc);
     stoneMat.roughness = lerp(0.95, 0.6, wetness * 0.6);
-    stoneMat.color.setScalar(1 + dayF * 0.85 + duskF * 0.15);
-    trainMat.color.copy(stoneMat.color);
+    stoneMat.color.setScalar(1 + dayF * 0.5 + duskF * 0.1);
+    trainMat.color.setScalar(1 + dayF * 0.85 + duskF * 0.15);
     trainMat.roughness = stoneMat.roughness;
     darkMat.color.setScalar(1 + dayF * 0.85 + duskF * 0.15);
     snowColU.value.copy(C_SNOW).multiplyScalar(1 + nightF * 1.5 + dayF * 0.4);
