@@ -677,17 +677,50 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // normal-weighted snow: upward faces collect snow, walls stay bare
   var groundSnowU = { value: 0 }, stoneSnowU = { value: 0 };
   var snowColU = { value: new THREE.Color('#dfe6f2') };
-  // track curvature: the whole world bends around the train during a curve
-  // transition (quadratic near the train, linear far away so ridges swing too)
-  var uBend = { value: 0 };
-  // JS twin of the shader bend, for rigid bodies that ride the curved centreline
-  function bendF(x) { var ax = Math.abs(x); return ax < 200 ? x * x * 0.5 : 200 * ax - 20000; }
-  var BEND_FN = [
-    'uniform float uBend;',
+  // track curvature: a bend fixed in WORLD space at the region boundary. The
+  // centreline bows aside ahead of the train and straightens again after it, so
+  // the curve is rendered first and then driven through — the scene never warps.
+  var uDist = { value: 0 };
+  // two alternating world slots: the next boundary's bend is baked in at plan
+  // time (~300m out, hidden in fog) while the current one is still being driven
+  var uCurve = { value: [new THREE.Vector4(0, 0, 0, 0), new THREE.Vector4(0, 0, 0, 0)] };
+  function curveSlot(w, fn) {
+    var s = 0;
+    for (var i = 0; i < 2; i++) {
+      var c = uCurve.value[i];
+      if (c.z === 0 || w <= c.x || w >= c.y) continue;
+      var t = (w - c.x) / (c.y - c.x);
+      s += fn(c, t);
+    }
+    return s;
+  }
+  // JS twins of the shader centreline, for rigid bodies riding the curve
+  function curveG(w) {
+    return curveSlot(w, function (c, t) { var sn = Math.sin(t * Math.PI); return c.z * sn * sn; });
+  }
+  function curveSlope(w) {
+    return curveSlot(w, function (c, t) { return c.z * Math.PI / (c.y - c.x) * Math.sin(2 * t * Math.PI); });
+  }
+  function curveCurv(w) {
+    return curveSlot(w, function (c, t) { return c.z * 2 * Math.PI * Math.PI / ((c.y - c.x) * (c.y - c.x)) * Math.cos(2 * t * Math.PI); });
+  }
+  var CURVE_GLSL = [
+    'uniform float uDist;',
+    'uniform vec4 uCurve[2];',
+    'float curveG(float w) {',
+    '  float s = 0.0;',
+    '  for (int i = 0; i < 2; i++) {',
+    '    vec4 c = uCurve[i];',
+    '    if (c.z == 0.0 || w <= c.x || w >= c.y) continue;',
+    '    float k = sin((w - c.x) / (c.y - c.x) * 3.14159265);',
+    '    s += c.z * k * k;',
+    '  }',
+    '  return s;',
+    '}'
+  ].join('\n');
+  var BEND_FN = CURVE_GLSL + '\n' + [
     'vec3 bendWorld(vec3 p) {',
-    '  float ax = abs(p.x);',
-    '  float f = ax < 200.0 ? p.x * p.x * 0.5 : 200.0 * ax - 20000.0;',
-    '  p.z += uBend * f;',
+    '  p.z += curveG(p.x + uDist) - curveG(uDist);',
     '  return p;',
     '}'
   ].join('\n');
@@ -725,7 +758,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var SNOW_FRAG = '#include <normal_fragment_begin>\nif (uSnow > 0.001) {\n  diffuseColor.rgb = mix(diffuseColor.rgb, uSnowCol, uSnow * smoothstep(0.25, 0.75, normal.y));\n}';
   function bendify(mat) {
     mat.onBeforeCompile = function (shader) {
-      shader.uniforms.uBend = uBend;
+      shader.uniforms.uDist = uDist;
+      shader.uniforms.uCurve = uCurve;
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\n' + BEND_FN)
         .replace('#include <project_vertex>', BEND_PROJECT)
@@ -1053,8 +1087,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // boundary-driven events: a stop, tunnel or curve is armed at each region edge
   var stopPending = false, haltTargetW = 0;
   var tunnelPending = false, tunnelTargetW = 0;
-  var curveArmed = false, curveTargetW = 0, curveActive = false, curveT = 0, curvePeak = 0;
-  var CURVE_DUR = 13;
   var waveAmt = 0, gustAmt = 0, flyBiomeF = 1, reflBiomeF = 1;
   var moonPathZ = -26, moonPathO = 0.16, moonPathSX = 1;
   // lights that follow the day/night schedule
@@ -1366,7 +1398,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return Math.sin(x * 0.3927 + tm * 1.05) * 0.5 + Math.sin(z * 0.23 + x * 0.1309 - tm * 0.8) * 0.32 + Math.sin(x * 0.2618 - z * 0.19 + tm * 1.6) * 0.22;
   }
   riverMat.onBeforeCompile = function (shader) {
-    shader.uniforms.uBend = uBend;
+    shader.uniforms.uDist = uDist;
+    shader.uniforms.uCurve = uCurve;
     shader.uniforms.uTime = waveTimeU;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + BEND_FN + '\nuniform float uTime;\nattribute float aWave;\nvarying float vWaveH;\nvarying float vWaveA;')
@@ -1418,7 +1451,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   trainReflection.position.set(0, -13.0, -26);
   scene.add(trainReflection);
 
-  var TILE = 48, NTILE = 8;
+  var TILE = 48, NTILE = 14;
   var tiles = [];
   var windmillRotors = [], chimneyWisps = [], boats = [], riverMists = [];
   var skyLanterns = [], reflStreaks = [], tileGlows = [];
@@ -1435,9 +1468,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     hills:     { track: 'ground', base: -1, name: '丘陵', hFar: 9,  hNear: 6,  und: 2.2,  sub: 0,    colA: '#47702e', colB: '#5c8438', water: [],               ridge: 1.3,  fly: 0.6, wave: 0,    gust: 0.3 },
     mountains: { track: 'bridge', base: -14, name: '山岭', hFar: 30, hNear: 26, und: 2.6,  sub: 0,    colA: '#2e2e36', colB: '#40404a', water: [],               ridge: 2.2,  fly: 0.15, wave: 0,   gust: 1 },
     forest:    { track: 'ground', base: -1, name: '森林', hFar: 7,  hNear: 3,  und: 0.8,  sub: 0,    colA: '#2c5228', colB: '#3c6432', water: [],               ridge: 1.2,  fly: 1,   wave: 0,    gust: 0.1 },
-    lake:      { track: 'bridge', base: -14, name: '湖泊', hFar: 3,  hNear: 1,  und: 0.4,  sub: 0,    colA: '#3f6a30', colB: '#557a3c', water: [[-85, -18]],     ridge: 0.7,  fly: 0.9, wave: 0.3,  gust: 0 },
-    beach:     { track: 'bridge', base: -14, name: '海滩', hFar: 1,  hNear: 1,  und: 0.25, sub: 0.9,  colA: '#8a7650', colB: '#a08a60', water: [[-90, -26], [30, 85]], ridge: 0.3, fly: 0.3, wave: 0.65, gust: 0.15 },
-    ocean:     { track: 'bridge', base: -14, name: '海洋', hFar: 0,  hNear: 0,  und: 0,    sub: -0.8, colA: '#2a4a58', colB: '#34566a', water: [[-90, 85]],      ridge: 0.1,  fly: 0,   wave: 1,    gust: 0.2 }
+    lake:      { track: 'bridge', base: -14, name: '湖泊', hFar: 3,  hNear: 1,  und: 0.4,  sub: 0,    colA: '#3f6a30', colB: '#557a3c', water: [[-175, -18]],   ridge: 0.7,  fly: 0.9, wave: 0.3,  gust: 0 },
+    beach:     { track: 'ground', base: -1,  name: '海滩', hFar: 1,  hNear: 1,  und: 0.25, sub: 0,    colA: '#8a7650', colB: '#a08a60', water: [[-175, -46]],   ridge: 0.3,  fly: 0.3, wave: 0.65, gust: 0.15 },
+    ocean:     { track: 'bridge', base: -14, name: '海洋', hFar: 0,  hNear: 0,  und: 0,    sub: -0.8, colA: '#2a4a58', colB: '#34566a', water: [[-175, 165]],    ridge: 0.1,  fly: 0,   wave: 1,    gust: 0.2 }
   };
   Object.keys(BIOMES).forEach(function (k) {
     BIOMES[k].cA = new THREE.Color(BIOMES[k].colA);
@@ -1487,10 +1520,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (hilly) return r < 0.35 ? 'stop' : r < 0.7 ? 'curve' : r < 0.85 ? 'tunnel' : 'open';
     return r < 0.45 ? 'stop' : r < 0.85 ? 'curve' : 'open';
   }
+  var regionSeq = 0;
   function planRegion(start) {
     var prev = regions[regions.length - 1];
     var biome = (nextParam && regions.length === 1) ? nextParam : pickNextBiome(prev.biome);
-    regions.push({ start: start, end: start + REGION_LEN, biome: biome, mech: pickMech(prev.biome, biome), scheduled: false });
+    var mech = pickMech(prev.biome, biome);
+    regionSeq++;
+    regions.push({ start: start, end: start + REGION_LEN, biome: biome, mech: mech, scheduled: false });
+    // bake the bend into its world slot now, while it is still ~300m out in the
+    // fog, so the curve is fully rendered long before the train reaches it
+    if (mech === 'curve') {
+      uCurve.value[regionSeq % 2].set(start - 80, start + 80, (rnd() < 0.5 ? -1 : 1) * rand(14, 20), 0);
+    }
     recentBiomes.push(prev.biome);
     if (recentBiomes.length > 2) recentBiomes.shift();
   }
@@ -1533,6 +1574,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     h += p.und * (0.5 * Math.sin(x * 0.2618) * Math.cos(z * 0.09) + 0.1 * Math.sin(z * 0.5)) * flat;
     return h;
   }
+  // sea level follows the blended terrain base: shallow surf on a ground-level
+  // beach, deep water under viaducts, with a smooth ramp at the shoreline boundary
+  function waterLevel(W) { return clamp(paramsAt(W).base - 0.6, -13.82, -1.6); }
   function inWater(biome, z) {
     var ws = BIOMES[biome].water;
     for (var i = 0; i < ws.length; i++) if (z >= ws[i][0] && z <= ws[i][1]) return true;
@@ -1919,7 +1963,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     function rx() { return rand(x0 + 2, x1 - 2); }
     // beach grass tufts on the sand bar
     for (var g = 0; g < Math.round(20 * k); g++) {
-      var gx = rx(), gz = rand(-24, 28);
+      var gx = rx(), gz = rand(-40, 60);
       for (var b = 0; b < 3; b++) {
         var blade = new THREE.ConeGeometry(0.04, rand(0.5, 0.9), 3);
         blade.translate(gx + rand(-0.2, 0.2), gH(gx, gz) + 0.3, gz + rand(-0.2, 0.2));
@@ -1928,13 +1972,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     // driftwood
     for (var d = 0; d < Math.round(3 * k); d++) {
-      var dx = rx(), dz = rand(-22, 26);
+      var dx = rx(), dz = rand(-40, 40);
       var dw = cylX(0.12, rand(1.2, 2.4), dx, gH(dx, dz) + 0.12, dz, 5);
       parts.push(facetColors(dw, '#3a3230', '#4a423c', function () { return rnd(); }));
     }
     // beach huts
     for (var h = 0; h < Math.round(2 * k); h++) {
-      var hx = rx(), hz = rand(-16, 20); _px = hx;
+      var hx = rx(), hz = rand(-30, 50); _px = hx;
       var hy = baseY(hz);
       parts.push(facetColors(box(1.6, 1.5, 1.6, hx, hy + 0.75, hz), '#6a5a48', '#7a6a56', function () { return rnd(); }));
       var roof = new THREE.ConeGeometry(1.3, 0.9, 4);
@@ -1948,7 +1992,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     // lighthouse with a sweeping beam
     if (rnd() < 0.4 && k > 0.6) {
-      var lx = rx(), lz = rand(-20, 22); _px = lx;
+      var lx = rx(), lz = rand(-36, 30); _px = lx;
       var ly = baseY(lz);
       for (var band = 0; band < 5; band++) {
         var r0 = 1.0 - band * 0.12;
@@ -1971,16 +2015,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var lg = addBGlow(lx, ly + 9.0, lz, 5, 0.6, '#ffe9c0', ctx.group);
       tileGlows.push({ rec: lg, phase: rnd() * 6.28, ti: ctx.idx });
     }
-    // foam lines along both water edges
-    [-26, 30].forEach(function (fz) {
+    // foam line breathing along the surf edge
+    [-46].forEach(function (fz) {
       var fm = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 - 2, 0.8, Math.max(2, Math.round((x1 - x0) / 4)), 1), foamMat);
       fm.rotation.x = -Math.PI / 2;
-      fm.position.set((x0 + x1) / 2, -13.7, fz);
+      fm.position.set((x0 + x1) / 2, waterLevel(ctx.w + (x0 + x1) / 2) + 0.12, fz);
       ctx.group.add(fm);
       foams.push({ mesh: fm, phase: rnd() * 6.28, ti: ctx.idx, z: fz });
     });
     // a couple of rocks in the surf
-    for (var r = 0; r < Math.round(3 * k); r++) { _px = rx(); rockParts(parts, _px, rnd() < 0.5 ? rand(-40, -28) : rand(32, 46), rand(0.4, 1.0), '#2c2836', '#3e3a48'); }
+    for (var r = 0; r < Math.round(3 * k); r++) { _px = rx(); rockParts(parts, _px, rand(-52, -40), rand(0.4, 1.0), '#4a4a52', '#5e5e66'); }
   }
 
   function propsOcean(ctx, x0, x1) {
@@ -2094,14 +2138,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     };
     var gH = function (x, z) {
       var h = profileH(paramsAt(w + x), x, z);
-      if (inWater(regionAt(w + x).biome, z)) h = Math.min(h, -14.4);
+      if (inWater(regionAt(w + x).biome, z)) h = Math.min(h, waterLevel(w + x) - 0.6);
       return corridorH(h, w + x, z);
     };
     _tileGH = gH;
     var ctx = { idx: idx, w: w, group: group, parts: parts, winParts: winParts, gH: gH };
 
     // ground mesh, per-vertex biome blend
-    var gg = new THREE.PlaneGeometry(TILE, 170, 12, 20);
+    var gg = new THREE.PlaneGeometry(TILE, 340, 12, 40);
     gg.rotateX(-Math.PI / 2);
     var pos = gg.attributes.position;
     var colors = new Float32Array(pos.count * 3);
@@ -2110,7 +2154,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var x = pos.getX(i), z = pos.getZ(i) - 5;
       var p = paramsAt(w + x);
       var y = profileH(p, x, z);
-      if (inWater(regionAt(w + x).biome, z)) y = Math.min(y, -14.4);
+      if (inWater(regionAt(w + x).biome, z)) y = Math.min(y, waterLevel(w + x) - 0.6);
       y = corridorH(y, w + x, z);
       pos.setY(i, y);
       pos.setZ(i, z);
@@ -2140,7 +2184,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
           quv.setXY(qi, (col + quv.getX(qi)) / 6, quv.getY(qi) * qD / 13);
         }
         q.rotateX(-Math.PI / 2);
-        q.translate(cx, -13.82, (zones[zi][0] + zones[zi][1]) / 2);
+        q.translate(cx, waterLevel(w + cx), (zones[zi][0] + zones[zi][1]) / 2);
         q = q.toNonIndexed();
         var wav = new Float32Array(q.attributes.position.count);
         for (qi = 0; qi < wav.length; qi++) wav[qi] = wamp;
@@ -2210,9 +2254,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       if (o.geometry) o.geometry.dispose();
       if (o.material && o.material !== stoneMat && o.material !== groundMat && o.material !== darkMat &&
           o.material !== riverMat && o.material !== lampBulbMat && o.material !== sigRedMat &&
-          o.material !== foamMat && o.material !== villageWinMats[0] && o.material !== villageWinMats[1] &&
-          o.material !== villageWinMats[2] && o.material !== villageWinMats[3] && o.material !== villageWinMats[4] &&
-          o.material !== villageWinMats[5] && o.material !== villageWinMats[6] && o.material !== villageWinMats[7]) {
+          o.material !== foamMat && villageWinMats.indexOf(o.material) < 0) {
         o.material.dispose();
       }
     });
@@ -2227,7 +2269,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   for (var ti = 0; ti < NTILE; ti++) {
-    var tw = ti * TILE - 192;
+    var tw = ti * TILE - NTILE * TILE / 2;
     var tgroup = buildTile(ti, tw);
     tgroup.position.x = tw;
     scene.add(tgroup);
@@ -2747,20 +2789,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var parts = [];
     function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
     // bore shell: ceiling + side walls (x-subdivided to follow the curve bend)
-    add(box(60, 0.7, 9.8, 0, 7.1, 0, 16), '#4a4a52', '#5e5e66');
-    add(box(60, 7.4, 0.7, 0, 3.4, 4.55, 16), '#4a4a52', '#5e5e66');
-    add(box(60, 7.4, 0.7, 0, 3.4, -4.55, 16), '#4a4a52', '#5e5e66');
+    add(box(80, 0.7, 9.8, 0, 7.1, 0, 20), '#4a4a52', '#5e5e66');
+    add(box(80, 7.4, 0.7, 0, 3.4, 4.55, 20), '#4a4a52', '#5e5e66');
+    add(box(80, 7.4, 0.7, 0, 3.4, -4.55, 20), '#4a4a52', '#5e5e66');
     // cornice along the bore top
-    add(box(60.6, 0.35, 10.4, 0, 7.55, 0, 16), '#62626a', '#76767e');
+    add(box(80.6, 0.35, 10.4, 0, 7.55, 0, 20), '#62626a', '#76767e');
     // rib arches inside the bore
-    for (var rx = -24; rx <= 24; rx += 8) {
+    for (var rx = -32; rx <= 32; rx += 8) {
       var rib = new THREE.TorusGeometry(4.5, 0.22, 5, 12, Math.PI);
       rib.rotateY(Math.PI / 2);
       rib.translate(rx, 0.3, 0);
       add(rib, '#2a2a30', '#3a3a42');
     }
     // portal facades with an arch opening
-    [-30, 30].forEach(function (px) {
+    [-40, 40].forEach(function (px) {
       var shape = new THREE.Shape();
       shape.moveTo(-7.4, -1);
       shape.lineTo(7.4, -1);
@@ -2787,35 +2829,41 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     mesh.castShadow = true;
     mesh.customDepthMaterial = worldDepthMat;
     tunnelGroup.add(mesh);
-    // earth cover over the bore when the tunnel sits on ground-level track
-    var mp = [], mc = [], mcol = new THREE.Color();
-    var mA = new THREE.Color('#2e2838'), mB = new THREE.Color('#3e3648');
-    var gA = new THREE.Color('#3c4634'), gB = new THREE.Color('#4c563e');
-    function msec(x) {
-      var t = clamp((40 - Math.abs(x)) / 10, 0, 1);
-      var pts = [[-22, -1.3], [-15, 1.2], [-10, 4.4], [-5.6, 7.95], [0, 8.4], [5.6, 7.95], [10, 4.4], [15, 1.2], [22, -1.3]];
-      return pts.map(function (q) { return [q[0], lerp(-1.3, q[1], t)]; });
-    }
-    var mprev = msec(-40);
-    for (var mx = -36; mx <= 40; mx += 4) {
-      var mcx = Math.min(mx, 40), mcur = msec(mcx);
-      for (var mb = 0; mb < 8; mb++) {
-        var a0 = mprev[mb], a1 = mprev[mb + 1], b0 = mcur[mb], b1 = mcur[mb + 1];
-        var top = mb >= 2 && mb <= 5;
-        mcol.copy(top ? gA : mA).lerp(top ? gB : mB, rnd());
-        var c0 = mcol.clone();
-        mcol.copy(top ? gA : mA).lerp(top ? gB : mB, rnd());
-        mp.push(mcx - 4, a0[1], a0[0], mcx, b1[1], b1[0], mcx, b0[1], b0[0]);
-        mp.push(mcx - 4, a0[1], a0[0], mcx - 4, a1[1], a1[0], mcx, b1[1], b1[0]);
-        for (var mv = 0; mv < 3; mv++) mc.push(c0.r, c0.g, c0.b);
-        for (mv = 0; mv < 3; mv++) mc.push(mcol.r, mcol.g, mcol.b);
-      }
-      mprev = mcur;
-    }
-    var mg = new THREE.BufferGeometry();
-    mg.setAttribute('position', new THREE.Float32BufferAttribute(mp, 3));
-    mg.setAttribute('color', new THREE.Float32BufferAttribute(mc, 3));
+    // Earth hill the bore penetrates: a hill outline with the arch hole open
+    // through its whole length, so the mouth is never plugged by earth.
+    var hs = new THREE.Shape();
+    hs.moveTo(-16, -1.4);
+    hs.lineTo(-10, 2.6);
+    hs.lineTo(-6, 7.0);
+    hs.lineTo(0, 9.2);
+    hs.lineTo(6, 7.0);
+    hs.lineTo(10, 2.6);
+    hs.lineTo(16, -1.4);
+    hs.closePath();
+    var hh = new THREE.Path();
+    hh.moveTo(-4.7, -1.2);
+    hh.lineTo(-4.7, 3.4);
+    hh.absarc(0, 3.4, 4.7, Math.PI, 0, true);
+    hh.lineTo(4.7, -1.2);
+    hh.closePath();
+    hs.holes.push(hh);
+    var mg = new THREE.ExtrudeGeometry(hs, { depth: 80, bevelEnabled: false, curveSegments: 14 });
+    mg.rotateY(Math.PI / 2);
+    mg.translate(-40, 0, 0);
+    mg = mg.toNonIndexed();
     mg.computeVertexNormals();
+    var mpos = mg.attributes.position, mnor = mg.attributes.normal;
+    var mcol = new Float32Array(mpos.count * 3), cc = new THREE.Color();
+    var eA = new THREE.Color('#54442f'), eB = new THREE.Color('#6a5840');
+    var tA = new THREE.Color('#42602a'), tB = new THREE.Color('#557a36');
+    for (var mi = 0; mi < mpos.count; mi += 3) {
+      var ny = (mnor.getY(mi) + mnor.getY(mi + 1) + mnor.getY(mi + 2)) / 3;
+      var cy = (mpos.getY(mi) + mpos.getY(mi + 1) + mpos.getY(mi + 2)) / 3;
+      var grass = ny > 0.45 && cy > 4;
+      cc.copy(grass ? tA : eA).lerp(grass ? tB : eB, rnd());
+      for (var mk = 0; mk < 3; mk++) { mcol[(mi + mk) * 3] = cc.r; mcol[(mi + mk) * 3 + 1] = cc.g; mcol[(mi + mk) * 3 + 2] = cc.b; }
+    }
+    mg.setAttribute('color', new THREE.Float32BufferAttribute(mcol, 3));
     tunnelMound = new THREE.Mesh(mg, groundMat);
     tunnelMound.visible = false;
     tunnelMound.castShadow = true;
@@ -2823,16 +2871,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     tunnelMound.customDepthMaterial = worldDepthMat;
     tunnelGroup.add(tunnelMound);
     // dim maintenance bulbs along the ceiling
-    for (var bx = -22; bx <= 22; bx += 11) {
+    for (var bx = -33; bx <= 33; bx += 11) {
       var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), tunnelBulbMat);
       bulb.position.set(bx, 6.6, 0);
       tunnelGroup.add(bulb);
       addBGlow(bx, 6.6, 0, 1.6, 0.3, '#ff9a5c', tunnelGroup);
     }
-    tunnelLight = new THREE.PointLight(new THREE.Color('#ff9a5c'), 0, 60, 1.5);
+    tunnelLight = new THREE.PointLight(new THREE.Color('#ff9a5c'), 0, 90, 1.5);
     tunnelLight.position.set(0, 6.2, 0);
     tunnelGroup.add(tunnelLight);
     tunnelGroup.position.x = 280;
+    tunnelGroup.visible = false;
   })();
 
   /* ------------------------------------------------------------------ */
@@ -2840,12 +2889,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ------------------------------------------------------------------ */
 
   var glowBatchMat = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: glowTex }, uBend: uBend },
+    uniforms: { uMap: { value: glowTex }, uDist: uDist, uCurve: uCurve },
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     vertexShader: [
-      'uniform float uBend;',
+      CURVE_GLSL,
       'varying vec2 vUv;',
       'varying vec3 vCol;',
       'void main() {',
@@ -2855,8 +2904,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       '    vCol = instanceColor;',
       '  #endif',
       '  vec4 wp = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);',
-      '  float ax = abs(wp.x);',
-      '  wp.z += uBend * (ax < 200.0 ? wp.x * wp.x * 0.5 : 200.0 * ax - 20000.0);',
+      '  wp.z += curveG(wp.x + uDist) - curveG(uDist);',
       '  vec4 mv = viewMatrix * wp;',
       '  vec2 sc = vec2(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz));',
       '  mv.xy += position.xy * sc;',
@@ -2896,7 +2944,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       gbPos.set(r.x, r.y, r.z).applyMatrix4(r.parent.matrixWorld);
       // train halos already carry the JS centreline bend via their parent group;
       // pre-subtract it so the batch shader's bend lands them exactly once
-      if (r.train) gbPos.z -= uBend.value * bendF(gbPos.x);
+      if (r.train) gbPos.z -= curveG(gbPos.x + dist) - curveG(dist);
       gbScale.set(r.sx, r.sy, 1);
       gbMat4.compose(gbPos, gbQuat, gbScale);
       glowBatch.setMatrixAt(i, gbMat4);
@@ -2958,6 +3006,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     dragging: false, idleTimer: 0, userZoomed: false
   };
   var camPos = new THREE.Vector3();
+  var tunnelCamPos = new THREE.Vector3();
+  var tunnelCamLook = new THREE.Vector3();
   var camLook = new THREE.Vector3();
   var desiredPos = new THREE.Vector3();
   var desiredLook = new THREE.Vector3();
@@ -3004,7 +3054,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     } else if (mode === 'follow') {
       var sf = Math.sin(view.fPhi);
       // the follow target rides the same centreline bend as the train
-      var fz = uBend.value * bendF(17);
+      var fz = curveG(dist + 17) - curveG(dist);
       desiredPos.set(
         17 + view.fRadius * sf * Math.cos(view.fTheta),
         2.6 + view.fRadius * Math.cos(view.fPhi) + Math.sin(t * 0.7) * 0.12 * sway,
@@ -3012,6 +3062,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       );
       desiredLook.set(17, 2.6, fz);
       desiredFov = 46;
+      // while the train is inside the bore, the hill would occlude a side camera:
+      // glide the viewer into the tunnel behind the train to watch the lit passage
+      if (tunnelF > 0.01) {
+        tunnelCamPos.set(-15, 3.9, fz * 0.4);
+        tunnelCamLook.set(14, 3.3, fz);
+        desiredPos.lerp(tunnelCamPos, tunnelF);
+        desiredLook.lerp(tunnelCamLook, tunnelF);
+      }
     } else {
       var car = cars[rideCarIndex];
       var bob = car.position.y;
@@ -3909,7 +3967,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     wScale.set(moonDir.x, 0.02, moonDir.z).normalize();
     skyMat.uniforms.uGlowDir.value.copy(wScale).lerp(wPos, dayF).normalize();
     mix3(scene.fog.color, FOG_N, FOG_D, dayF, FOG_K, dk);
-    scene.fog.density = lerp(0.006, 0.0032, dayF) + wx.fog * 0.011 + wx.rain * 0.003 + wx.snow * 0.004;
+    scene.fog.density = lerp(0.005, 0.0028, dayF) + wx.fog * 0.011 + wx.rain * 0.003 + wx.snow * 0.004;
     mix3(hemi.color, HEMI_SN, HEMI_SD, dayF, CLOUD_K, dk * 0.4);
     mix3(hemi.groundColor, HEMI_GN, HEMI_GD, dayF, FOG_K, dk * 0.4);
     hemi.intensity = (lerp(1.0, 1.75, dayF) * (1 - wx.fog * 0.25) + duskF * 0.15) * (1 - tunnelViewF * 0.85);
@@ -4125,52 +4183,49 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         rg.scheduled = true;
         if (rg.mech === 'stop') { stopPending = true; haltTargetW = rg.start; }
         else if (rg.mech === 'tunnel') {
-          tunnelPending = true;
-          // keep the bore + earth mound fully on ground-level track: at a bridge<->ground
+          // keep the bore + earth hill fully on ground-level track: at a bridge<->ground
           // boundary shift the tunnel into the ground region so it never floats over the viaduct
           var gNext = trackAt(rg.start) === 'ground', gPrev = trackAt(rg.start - 1) === 'ground';
-          var tOff = (gNext && gPrev) ? 0 : (gNext ? 44 : -44);
-          tunnelTargetW = rg.start + tOff;
-          tunnelMound.visible = trackAt(tunnelTargetW) === 'ground';
+          if (gNext || gPrev) {
+            tunnelPending = true;
+            var tOff = (gNext && gPrev) ? 0 : (gNext ? 44 : -44);
+            tunnelTargetW = rg.start + tOff;
+            tunnelMound.visible = trackAt(tunnelTargetW) === 'ground';
+            tunnelGroup.visible = true;
+          }
         }
-        else if (rg.mech === 'curve') { curveArmed = true; curveTargetW = rg.start; }
       }
     }
 
-    // curve transition: bend the world around the train, bank the carriages
-    if (curveArmed && !curveActive && curveTargetW - dist < 6 && curveTargetW - dist > -10 && stopState === 'cruise' && tunnelF < 0.1) {
-      curveActive = true; curveT = 0;
-      curvePeak = (rnd() < 0.5 ? -1 : 1) * rand(0.008, 0.010);
+    // curves are fixed world features: retire each slot once fully behind the train
+    for (var cs = 0; cs < 2; cs++) {
+      var cv = uCurve.value[cs];
+      if (cv.z !== 0 && dist > cv.y + 60) cv.z = 0;
     }
-    if (curveActive) {
-      curveT += dt;
-      var cp = clamp(curveT / CURVE_DUR, 0, 1);
-      uBend.value = curvePeak * Math.sin(Math.PI * cp);
-      if (cp >= 1) { curveActive = false; curveArmed = false; uBend.value = 0; }
-    } else if (curveArmed && curveTargetW - dist <= -10) { curveArmed = false; }
-    // rigid vehicles ride the bent centreline: chord offset + tangent yaw keep
+    uDist.value = dist;
+    // rigid vehicles ride the centreline: chord offset + tangent yaw keep
     // every wheel on the (shader-bent) rails; a light roll banks the whole train
-    trainGroup.rotation.x = -uBend.value * 7 * speedF;
+    trainGroup.rotation.x = -curveCurv(dist) * 7 * speedF;
     for (var vu = 0; vu < trainUnits.length; vu++) {
       var unit = trainUnits[vu], ux = unit.position.x;
-      unit.position.z = uBend.value * bendF(ux);
-      unit.rotation.y = -Math.atan(uBend.value * ux);
+      unit.position.z = curveG(dist + ux) - curveG(dist);
+      unit.rotation.y = -Math.atan(curveSlope(dist + ux));
     }
 
     // tunnel presence (before environment so lights & audio can react)
     var tunnelX = tunnelPending ? tunnelTargetW - dist : 10000;
-    if (tunnelPending && tunnelX < -140) { tunnelPending = false; tunnelMound.visible = false; }
-    // fraction of the train span (-24..24) covered by the bore (tunnelX +- 30)
-    var ov = clamp((Math.min(tunnelX + 30, 24) - Math.max(tunnelX - 30, -24)) / 48, 0, 1);
+    if (tunnelPending && tunnelX < -160) { tunnelPending = false; tunnelMound.visible = false; tunnelGroup.visible = false; }
+    // fraction of the train span (-24..24) covered by the bore (tunnelX +- 40)
+    var ov = clamp((Math.min(tunnelX + 40, 24) - Math.max(tunnelX - 40, -24)) / 48, 0, 1);
     tunnelF = smooth(0.04, 0.5, ov);
     // global dimming & echo only when the viewer is inside the bore
-    var camIn = Math.abs(camera.position.x - tunnelX) < 29 && Math.abs(camera.position.z) < 4.2 && camera.position.y > 0.5 && camera.position.y < 6.8;
+    var camIn = Math.abs(camera.position.x - tunnelX) < 39 && Math.abs(camera.position.z) < 4.2 && camera.position.y > 0.5 && camera.position.y < 6.8;
     tunnelViewF = approach(tunnelViewF, camIn ? tunnelF : 0, dt / 0.6, dt / 0.6);
 
     // station-stop state machine: cruise -> brake -> dwell -> depart
     var haltX = stopPending ? haltTargetW - dist : -1000;
     if (stopState === 'cruise') {
-      if (stopPending && !curveActive && tunnelF < 0.15 && haltX > -4 && haltX < 42) stopState = 'brake';
+      if (stopPending && tunnelF < 0.15 && haltX > -4 && haltX < 42) stopState = 'brake';
     } else if (stopState === 'brake') {
       var bk = clamp((haltX + 4) / 30, 0, 1);
       speedF = Math.max(Math.pow(bk, 0.6), 0.175);
@@ -4252,7 +4307,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var tspan = NTILE * TILE;
     for (var i = 0; i < tiles.length; i++) {
       var trec = tiles[i];
-      var px = (((trec.base - dist + 192) % tspan) + tspan) % tspan - 192;
+      var half = tspan / 2;
+      var px = (((trec.base - dist + half) % tspan) + tspan) % tspan - half;
       if (px - trec.group.position.x > tspan * 0.5) {
         trec.w = dist + px;
         rebuildTile(trec);
