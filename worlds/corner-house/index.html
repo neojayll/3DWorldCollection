@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1a1327">
+<meta name="theme-color" content="#17181a">
 <title>街角小楼 · Corner House</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23241430'/%3E%3Cpath d='M6 16 L16 8 L26 16' fill='none' stroke='%23ffb37a' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M9 16v9h14v-9' fill='none' stroke='%23ffb37a' stroke-width='2'/%3E%3Crect x='14' y='19' width='4' height='6' fill='%23ffd9ab'/%3E%3C/svg%3E">
 <style>
   :root {
-    --ink: #ffe9d5;
-    --warm: #ffc08a;
-    --line: rgba(255, 196, 150, 0.22);
+    --ink: #f2ece3;
+    --warm: #e9bb8e;
+    --line: rgba(236, 219, 200, 0.22);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #140e20; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #111213; }
   body {
     font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--ink);
@@ -63,7 +63,7 @@
     width: 52px;
     height: 1px;
     margin: 15px 0 12px;
-    background: linear-gradient(90deg, rgba(255, 192, 138, 0.85), rgba(255, 192, 138, 0));
+    background: linear-gradient(90deg, rgba(233, 187, 142, 0.85), rgba(233, 187, 142, 0));
   }
   .tag {
     font-size: 11px;
@@ -112,12 +112,12 @@
     text-decoration: none;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(46, 24, 38, 0.3);
+    background: rgba(28, 28, 30, 0.34);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     transition: color .25s ease, border-color .25s ease, background .25s ease;
   }
-  .back:hover { color: #ffe9d5; border-color: rgba(255, 196, 150, 0.5); background: rgba(64, 32, 44, 0.45); }
+  .back:hover { color: #fff7ec; border-color: rgba(236, 219, 200, 0.5); background: rgba(44, 43, 41, 0.5); }
   .back:focus-visible { outline: 2px solid rgba(255, 192, 138, 0.7); outline-offset: 3px; }
 
   .bottom {
@@ -143,7 +143,7 @@
     color: rgba(255, 236, 217, 0.72);
     border: 1px solid rgba(255, 196, 150, 0.18);
     border-radius: 999px;
-    background: rgba(46, 24, 38, 0.28);
+    background: rgba(28, 28, 30, 0.3);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     animation: rise 1.4s 1.1s cubic-bezier(.22,.61,.36,1) both;
@@ -166,38 +166,38 @@
   }
   .controls button {
     appearance: none;
-    border: 1px solid rgba(255, 196, 150, 0.24);
+    border: 1px solid rgba(236, 219, 200, 0.24);
     border-radius: 999px;
     padding: 9px 15px;
     font: inherit;
     font-size: 11px;
     letter-spacing: 0.14em;
     color: rgba(255, 236, 217, 0.78);
-    background: rgba(46, 24, 38, 0.34);
+    background: rgba(28, 28, 30, 0.36);
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     cursor: pointer;
     transition: color .22s ease, border-color .22s ease, background .22s ease, transform .22s ease;
   }
   .controls button:hover {
-    color: #ffe9d5;
-    border-color: rgba(255, 196, 150, 0.5);
-    background: rgba(64, 32, 44, 0.5);
+    color: #fff7ec;
+    border-color: rgba(236, 219, 200, 0.5);
+    background: rgba(44, 43, 41, 0.5);
   }
   .controls button:active { transform: translateY(1px); }
   .controls button:focus-visible { outline: 2px solid rgba(255, 192, 138, 0.7); outline-offset: 3px; }
   .controls button[aria-pressed="true"] {
-    color: #2a1820;
-    background: rgba(255, 190, 138, 0.85);
-    border-color: rgba(255, 210, 170, 0.8);
+    color: #29231d;
+    background: rgba(235, 205, 174, 0.9);
+    border-color: rgba(245, 226, 205, 0.85);
   }
   .controls button.primary {
-    color: #2b1a14;
-    background: rgba(255, 200, 152, 0.92);
-    border-color: rgba(255, 216, 178, 0.9);
+    color: #29231d;
+    background: rgba(240, 213, 184, 0.94);
+    border-color: rgba(248, 232, 213, 0.92);
     letter-spacing: 0.18em;
   }
-  .controls button.primary:hover { background: #ffd3ab; }
+  .controls button.primary:hover { background: #f7e0c8; }
 
   .vignette {
     position: fixed;
@@ -205,9 +205,16 @@
     pointer-events: none;
     z-index: 1;
     background:
-      radial-gradient(120% 90% at 50% 44%, rgba(0,0,0,0) 40%, rgba(22, 8, 20, 0.4) 78%, rgba(14, 5, 16, 0.72) 100%),
-      linear-gradient(to bottom, rgba(10, 6, 16, 0.5), rgba(18, 10, 30, 0.14) 26%, rgba(22, 8, 18, 0) 54%, rgba(18, 6, 14, 0.34));
+      radial-gradient(120% 90% at 50% 44%, rgba(0,0,0,0) 40%, rgba(10, 10, 11, 0.34) 78%, rgba(8, 8, 9, 0.66) 100%),
+      linear-gradient(to bottom, rgba(8, 8, 9, 0.42), rgba(14, 14, 16, 0.12) 26%, rgba(16, 16, 17, 0) 54%, rgba(10, 10, 11, 0.28));
   }
+  body.time-day .vignette {
+    background:
+      radial-gradient(120% 90% at 50% 44%, rgba(0,0,0,0) 46%, rgba(10,10,11,0.16) 82%, rgba(8,8,9,0.4) 100%),
+      linear-gradient(to bottom, rgba(8,8,9,0.16), rgba(14,14,16,0.04) 26%, rgba(16,16,17,0) 54%, rgba(10,10,11,0.16));
+  }
+  body.time-day .grain { opacity: 0.035; }
+
   .grain {
     position: fixed;
     inset: 0;
@@ -222,7 +229,7 @@
     position: fixed;
     inset: 0;
     z-index: 9;
-    background: #08060c;
+    background: #08090a;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
@@ -234,7 +241,7 @@
     z-index: 10;
     display: grid;
     place-items: center;
-    background: radial-gradient(70% 60% at 50% 46%, #3e2a3c 0%, #241731 46%, #120c1d 100%);
+    background: radial-gradient(70% 60% at 50% 46%, #343331 0%, #1f2022 46%, #0e0f11 100%);
     transition: opacity 0.9s ease;
   }
   #boot.hide { opacity: 0; pointer-events: none; }
@@ -298,7 +305,7 @@
 </style>
 </head>
 <body>
-  <canvas id="scene" tabindex="0" aria-label="黄昏街景：镜头沿街缓缓前行，经过一栋栋亮着灯的联排小屋、街边草地与小巷"></canvas>
+  <canvas id="scene" tabindex="0" aria-label="街景：镜头沿街缓缓前行，经过联排小屋、街边草地与小巷，可切换白天与傍晚"></canvas>
 
   <div class="vignette"></div>
   <div class="grain"></div>
@@ -325,6 +332,7 @@
     <div class="hint"><i></i>拖动看看街边 · 滚轮 / 双指缩放</div>
     <div class="controls" role="group" aria-label="场景控制">
       <button id="btn-next" class="primary" type="button">换一条街</button>
+      <button id="btn-time" type="button" title="切换到白天" aria-label="切换到白天">切换白天</button>
       <button id="btn-orbit" type="button" aria-pressed="true">暂停</button>
     </div>
   </div>
@@ -510,28 +518,25 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   /* ---------------------------------------------------------------- 天空与远景 */
 
-  function drawGradient(c) {
-    var x = c.getContext('2d');
-    var g = x.createLinearGradient(0, 0, 0, 512);
-    g.addColorStop(0.00, '#1a1130');
-    g.addColorStop(0.22, '#2a1a42');
-    g.addColorStop(0.36, '#452a52');
-    g.addColorStop(0.44, '#6e3b58');
-    g.addColorStop(0.485, '#a1585c');
-    g.addColorStop(0.512, '#d97e5f');
-    g.addColorStop(0.532, '#f2a06a');
-    g.addColorStop(0.552, '#b06854');
-    g.addColorStop(0.58, '#4a2c3c');
-    g.addColorStop(0.62, '#2a1a2c');
-    g.addColorStop(1.00, '#201626');
-    x.fillStyle = g;
-    x.fillRect(0, 0, 32, 512);
-    return c;
-  }
+  var SKY_STOPS = [0.00, 0.22, 0.36, 0.44, 0.485, 0.512, 0.532, 0.552, 0.58, 0.62, 1.00];
+  var SKY_COLORS = {
+    day: ['#3f86d0', '#5b9fdc', '#7fb9e6', '#abd3ec', '#d4e7f2', '#eef4eb', '#f8e8cb', '#ebd6ba', '#d5dfe3', '#c1d0da', '#b0c2cc'],
+    dusk: ['#17233d', '#283a59', '#4d607c', '#8d7b83', '#d08a6e', '#f0a66e', '#f5c184', '#c78a67', '#574a50', '#2d303c', '#23252d']
+  };
   var skyCanvas = document.createElement('canvas');
   skyCanvas.width = 32; skyCanvas.height = 512;
-  drawGradient(skyCanvas);
-  var skyTex = new THREE.CanvasTexture(skyCanvas);
+  var skyTex = null;
+  function paintSky(mode) {
+    var x = skyCanvas.getContext('2d');
+    var cols = SKY_COLORS[mode === 'day' ? 'day' : 'dusk'];
+    var g = x.createLinearGradient(0, 0, 0, 512);
+    for (var i = 0; i < SKY_STOPS.length; i++) g.addColorStop(SKY_STOPS[i], cols[i]);
+    x.fillStyle = g;
+    x.fillRect(0, 0, 32, 512);
+    if (skyTex) skyTex.needsUpdate = true;
+  }
+  paintSky('dusk');
+  skyTex = new THREE.CanvasTexture(skyCanvas);
   if ('colorSpace' in skyTex) skyTex.colorSpace = THREE.SRGBColorSpace;
   var sky = new THREE.Mesh(
     new THREE.SphereGeometry(160, 32, 24),
@@ -589,15 +594,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   addSprite(backdrop, moonGlowMat, -58, 52, -92, 38);
 
   // 远处的城市剪影
+  var CITY = {};
   (function () {
     var r = rng('distant-city');
     var cityMat = new THREE.MeshStandardMaterial({
-      color: 0x40304e, roughness: 0.95, metalness: 0
+      color: 0x3a3a42, roughness: 0.95, metalness: 0
     });
+    CITY.dark = cityMat;
     var winCanvas = document.createElement('canvas');
     winCanvas.width = 64; winCanvas.height = 128;
     var wx = winCanvas.getContext('2d');
-    wx.fillStyle = '#40304e';
+    wx.fillStyle = '#3a3a42';
     wx.fillRect(0, 0, 64, 128);
     for (var yy = 6; yy < 124; yy += 9) {
       for (var xx = 6; xx < 60; xx += 8) {
@@ -612,9 +619,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     winTex.wrapS = winTex.wrapT = THREE.RepeatWrapping;
     winTex.repeat.set(1.6, 2.1);
     var litMat = new THREE.MeshStandardMaterial({
-      color: 0x746080, map: winTex, emissive: 0xffb37a, emissiveMap: winTex,
+      color: 0x5a5560, map: winTex, emissive: 0xffb37a, emissiveMap: winTex,
       emissiveIntensity: 0.35, roughness: 0.95
     });
+    CITY.lit = litMat;
+    CITY.winTex = winTex;
     for (var i = 0; i < 18; i++) {
       var ang = r.range(-2.7, 2.5);
       var dist = r.range(95, 145);
@@ -635,6 +644,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
     addSprite(backdrop, glowMat2, -34, 5.5, -46, 16);
     addSprite(backdrop, glowMat2, 42, 6.5, -30, 13);
+    CITY.glowMat = glowMat2;
   })();
 
   /* ---------------------------------------------------------------- 光照 */
@@ -774,7 +784,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   BASE.asphalt = canvasTexture(256, 256, function (x) {
     var r = rng('asphalt-tex');
-    x.fillStyle = '#35303c';
+    x.fillStyle = '#34373a';
     x.fillRect(0, 0, 256, 256);
     for (var i = 0; i < 1400; i++) {
       var v = r() < 0.5 ? 'rgba(255,255,255,0.045)' : 'rgba(10,8,12,0.12)';
@@ -937,7 +947,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   groundTex.repeat.set(STREET_LEN / 4.5, 32 / 4.5);
   var ground = new THREE.Mesh(
     new THREE.PlaneGeometry(STREET_LEN, 160),
-    new THREE.MeshStandardMaterial({ map: groundTex, color: 0x8f8598, roughness: 0.97 })
+    new THREE.MeshStandardMaterial({ map: groundTex, color: 0x858582, roughness: 0.97 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, 0, 8);
@@ -950,7 +960,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   roadTex.repeat.set(STREET_LEN / 4.5, 4.2);
   var road = new THREE.Mesh(
     new THREE.PlaneGeometry(STREET_LEN, 18.5),
-    new THREE.MeshStandardMaterial({ map: roadTex, color: 0xc6bccc, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ map: roadTex, color: 0xb7bcbd, roughness: 0.95 })
   );
   road.rotation.x = -Math.PI / 2;
   road.position.set(0, 0.012, 12.75);
@@ -1002,7 +1012,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var MAT_LAWN = new THREE.MeshStandardMaterial({ color: 0x5a7650, roughness: 1 });
   var MAT_LAWN_DARK = new THREE.MeshStandardMaterial({ color: 0x465c40, roughness: 1 });
   var MAT_HEDGE = new THREE.MeshStandardMaterial({ color: 0x34523e, roughness: 1 });
-  var MAT_FENCE = new THREE.MeshStandardMaterial({ color: 0x272329, roughness: 0.7, metalness: 0.25 });
+  var MAT_FENCE = new THREE.MeshStandardMaterial({ color: 0x26282a, roughness: 0.7, metalness: 0.25 });
   var MAT_PATH = new THREE.MeshStandardMaterial({ color: 0x8b7d6b, roughness: 0.95 });
   var MAT_STONE_WALL = new THREE.MeshStandardMaterial({ color: 0x6f6258, roughness: 0.96 });
   var MAT_WATER = new THREE.MeshStandardMaterial({ color: 0x2b3542, roughness: 0.14, metalness: 0.4 });
@@ -1046,18 +1056,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       ]
     },
     {
-      id: 'plum', label: '紫夜', surface: 'plaster', tile: 2.6, roof: 'mansard',
-      walls: [0x9a6d86, 0x865d78, 0xa37690, 0x916681],
-      trims: [0xe6b9a3], stones: [0x463c49], frames: [0x2c2330],
-      accents: [0x2e2233, 0x3a2a3c],
-      roofColor: 0x342a3a,
-      signStyle: 'neon', signBoard: '#1b1420', signInk: '#ff95b8', neon: '#ff8fb0',
-      awning: 'dark', litChance: 0.44,
-      litWarm: [0xffb37a, 0xff9fb0, 0xffd39b],
+      id: 'plum', label: '暖石', surface: 'plaster', tile: 2.6, roof: 'mansard',
+      walls: [0xd8c7b2, 0xccb9a1, 0xe2d4c1, 0xbfae98],
+      trims: [0xf2ebdf], stones: [0x8a7b69], frames: [0x33423a],
+      accents: [0x40533f, 0x4c5f4b, 0x6b5a45],
+      roofColor: 0x4b4e52,
+      signStyle: 'painted', signBoard: '#efe6d3', signInk: '#2d3a2e', neon: '#c9a45c',
+      awning: 'forest', litChance: 0.34,
+      litWarm: [0xffd0a0, 0xffc17a, 0xffe0b8],
       shops: [
         { zh: '夜莺酒吧', en: 'BAR' },
-        { zh: '紫藤照相', en: 'PHOTO' },
-        { zh: '月下花店', en: 'FLOWERS' },
+        { zh: '梧桐照相', en: 'PHOTO' },
+        { zh: '四季花店', en: 'FLOWERS' },
         { zh: '老电影院', en: 'CINEMA' },
         { zh: '慢钟表铺', en: 'WATCHES' }
       ]
@@ -1108,13 +1118,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var doubleWin = r.range(0.14, 0.26);
     var blankWin = fam.id === 'teal' ? 0.06 : 0.03;
     var roofSign = fam.roof === 'flat' && r.chance(0.62);
-    var blade = fam.id === 'plum' ? r.chance(0.72) : (fam.id === 'brick' ? r.chance(0.3) : r.chance(0.16));
+    var blade = fam.id === 'plum' ? r.chance(0.46) : (fam.id === 'brick' ? r.chance(0.3) : r.chance(0.16));
     if (roofSign && blade) {
       if (r.chance(0.5)) blade = false;
       else roofSign = false;
     }
     var signMode = blade ? 'blade' : (roofSign ? 'roof' : 'fascia');
-    var neonColor = fam.id === 'plum' ? (r.chance(0.62) ? '#ff8fb0' : '#ffd08a') : fam.neon;
+    var neonColor = fam.neon;
     return {
       seed: seed,
       family: fam,
@@ -1210,7 +1220,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var wallH = shopH + upperH;
     var roofRise = fam.roof === 'gable' ? r.range(1.6, 2.25) : (fam.roof === 'mansard' ? r.range(1.5, 1.8) : 0.62);
     var roofSign = fam.roof === 'flat' && r.chance(0.48);
-    var blade = fam.id === 'plum' ? r.chance(0.64) : (fam.id === 'brick' ? r.chance(0.36) : r.chance(0.16));
+    var blade = fam.id === 'plum' ? r.chance(0.46) : (fam.id === 'brick' ? r.chance(0.36) : r.chance(0.16));
     if (roofSign && blade) {
       if (r.chance(0.5)) blade = false;
       else roofSign = false;
@@ -1257,7 +1267,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       signStyle: fam.signStyle,
       signBoard: fam.signBoard,
       signInk: fam.signInk,
-      neonColor: fam.id === 'plum' ? (r.chance(0.62) ? '#ff8fb0' : '#ffd08a') : fam.neon,
+      neonColor: fam.neon,
       awningStyle: fam.awning,
       litChance: fam.litChance,
       litColors: fam.litWarm,
@@ -1418,7 +1428,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var neonLight = null;
 
   function newAssets() {
-    return { group: new THREE.Group(), geos: [], mats: [], tex: [] };
+    return { group: new THREE.Group(), geos: [], mats: [], tex: [], nightMats: [], nightSprites: [], lights: [] };
   }
   function ownMat(m) { A.mats.push(m); return m; }
   function ownGeo(g) { A.geos.push(g); return g; }
@@ -1431,6 +1441,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }));
   }
   function matBasic(opts) { return ownMat(new THREE.MeshBasicMaterial(opts)); }
+
+  function nightMat(mat, nightColor, dayColor, nightOpacity, dayOpacity) {
+    mat.userData = mat.userData || {};
+    if (nightColor !== undefined) {
+      mat.userData.nightColor = nightColor;
+      mat.userData.dayColor = dayColor;
+    }
+    if (nightOpacity !== undefined) {
+      mat.userData.nightOpacity = nightOpacity;
+      mat.userData.dayOpacity = dayOpacity;
+    }
+    A.nightMats.push(mat);
+    return mat;
+  }
+  function nightSprite(sprite) { A.nightSprites.push(sprite); return sprite; }
+  function nightLight(light, nightIntensity) {
+    light.userData = light.userData || {};
+    light.userData.nightIntensity = nightIntensity;
+    A.lights.push(light);
+    return light;
+  }
 
   function wallMaterial(base, color, w, h, tile) {
     var t = base.clone();
@@ -1618,6 +1649,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     parent.add(g);
     addBox(g, boardMat, w + 0.07, h + 0.07, 0.12, 0, 0, 0);
     var m = matBasic({ map: texture, toneMapped: !neon });
+    if (neon) nightMat(m, 0xffffff, 0x444444);
     addPanel(g, m, w, h, 0, 0, 0.067);
     if (doubleFaced) addPanel(g, m, w, h, 0, 0, -0.067, 0, Math.PI);
     return g;
@@ -1635,12 +1667,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var upperH = plan.upperH;
     var fam = plan.family;
 
-    var mCore = matStd(0x241c27, 1);
+    var mCore = matStd(0x222126, 1);
     var mWallPlain = matStd(plan.wallColor, 0.96);
     var mTrim = matStd(plan.trimColor, 0.82);
     var mStone = matStd(plan.stoneColor, 0.95);
     var mFrame = matStd(plan.frameColor, 0.62, 0.32);
-    var mDark = matStd(0x241e29, 0.85);
+    var mDark = matStd(0x242428, 0.85);
     var mAccent = matStd(plan.accentColor, 0.85);
     var mRoof = matStd(fam.roofColor, 0.94);
     var mCeil = matStd(0x33231f, 1);
@@ -1661,19 +1693,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       color: 0xd2e8e2, transparent: true, opacity: 0.1,
       roughness: 0.12, metalness: 0.05, depthWrite: false, side: THREE.DoubleSide
     }));
+    nightMat(mGlass, 0xd2e8e2, 0xbfd2dc, 0.1, 0.22);
     var mOpening = matStd(0x120f18, 1);
     var mUnlit = matBasic({
       map: BASE.darkGlass,
-      color: fam.id === 'brick' ? 0xd8b8a8 : (fam.id === 'teal' ? 0xcfe4e2 : 0xdcbcd0)
+      color: fam.id === 'brick' ? 0xd8b8a8 : (fam.id === 'teal' ? 0xcfe4e2 : 0xbccfd6)
     });
+    nightMat(mUnlit, mUnlit.color.getHex(), 0xa8c2d2);
     var litMats = plan.litColors.map(function (color) {
-      return matBasic({ map: BASE.windowGlow, color: color });
+      return nightMat(matBasic({ map: BASE.windowGlow, color: color }), color, 0x22303a);
     });
     var mHalo = matBasic({
       map: GLOW, color: plan.family.id === 'teal' ? 0xbfe0dc : 0xffb070,
       transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending,
       depthWrite: false, toneMapped: false
     });
+    nightMat(mHalo, undefined, undefined, 0.16, 0);
 
     /* ---- 外墙上部 ---- */
     var core = addBox(A.group, mCore, W - 0.06, upperH, D - 0.06, -W / 2, shopH + upperH / 2, -D / 2);
@@ -1707,6 +1742,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     addPanel(A.group, mCeil, W - 0.3, D - 0.3, -W / 2, shopH - 0.755, -D / 2, Math.PI / 2);
     addBox(A.group, mFloor, W - 0.4, 0.06, D - 0.4, -W / 2, plinthH + 0.04, -D / 2);
     var mInterior = matBasic({ map: BASE.interior });
+    nightMat(mInterior, 0xffffff, 0xd4d8d4);
     addPanel(A.group, mInterior, W - 0.45, 2.32, -W / 2, 1.56, -D + 0.21);
     addPanel(A.group, mInterior, D - 0.45, 2.32, -W + 0.21, 1.56, -D / 2, 0, Math.PI / 2);
 
@@ -1714,21 +1750,24 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     addBox(A.group, mWood, 1.9, 0.95, 0.58, -W * 0.4, 0.86, -D * 0.52);
     addBox(A.group, mTrim, 2.0, 0.06, 0.66, -W * 0.4, 1.36, -D * 0.52);
     addBox(A.group, mFrame, 0.34, 0.05, 0.28, -W * 0.4, 1.42, -D * 0.52);
-    addSphere(A.group, matBasic({ color: 0xffd9a0, toneMapped: false }), 0.055, 0.055, 0.055,
+    var counterBulbMat = nightMat(matBasic({ color: 0xffd9a0, toneMapped: false }), 0xffd9a0, 0x5a5a5a);
+    addSphere(A.group, counterBulbMat, 0.055, 0.055, 0.055,
       -W * 0.4, 1.48, -D * 0.52);
+    var pendantBulbMat = nightMat(matBasic({ color: 0xffe2b0, toneMapped: false }), 0xffe2b0, 0x5a5a5a);
     for (var pl = 0; pl < 3; pl++) {
       var lx = -W * (0.26 + pl * 0.24);
       var lz = -D * 0.28;
       addBar(A.group, mDark, new THREE.Vector3(lx, shopH - 0.78, lz), new THREE.Vector3(lx, 2.32, lz), 0.012);
       var shade = addCyl(A.group, mDark, 0.17, 0.2, lx, 2.3, lz, GEO.cone);
       shade.rotation.x = Math.PI;
-      addSphere(A.group, matBasic({ color: 0xffe2b0, toneMapped: false }), 0.06, 0.06, 0.06, lx, 2.16, lz);
+      addSphere(A.group, pendantBulbMat, 0.06, 0.06, 0.06, lx, 2.16, lz);
     }
 
     // 店内暖光
     var shopLight = new THREE.PointLight(0xffb070, 65, Math.max(W, D) * 1.7, 2);
     shopLight.position.set(-W * 0.44, 2.1, -D * 0.44);
     A.group.add(shopLight);
+    nightLight(shopLight, 65);
 
     /* ---- 门面玻璃 ---- */
     var glassBottom = 0.36;
@@ -2049,7 +2088,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         if (plan.smoke) {
           if (!A.smoke) A.smoke = [];
           var smokeMat = matBasic({
-            map: GLOW, color: 0x8d8490, transparent: true, opacity: 0.15,
+            map: GLOW, color: 0x8a8a8a, transparent: true, opacity: 0.15,
             blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
           });
           for (var sm = 0; sm < 3; sm++) {
@@ -2148,7 +2187,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       slateTex.repeat.set(2.6, 1.7);
       A.tex.push(slateTex);
       var mansMat = ownMat(new THREE.MeshStandardMaterial({
-        map: slateTex, color: 0xa08ea4, roughness: 0.9, side: THREE.DoubleSide
+        map: slateTex, color: 0x9fa1a3, roughness: 0.9, side: THREE.DoubleSide
       }));
       var mans = new THREE.Mesh(mansGeo, mansMat);
       mans.position.y = wallH;
@@ -2177,17 +2216,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     if (plan.signMode === 'blade') {
       var bladeTex = makeSignTexture(plan, true);
-      var bladeGlowMat = matBasic({
+      var bladeGlowMat = signNeon ? matBasic({
         map: GLOW, color: new THREE.Color(plan.neonColor), transparent: true,
         opacity: 0.24, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
-      });
+      }) : null;
       if (rightMode === 'shop') {
         addSign(A.group, bladeTex, 0.86, 2.86, 0.5, shopH + 1.35, -1.5, 0, mSignBoard, true, signNeon);
         addBox(A.group, mDark, 0.54, 0.05, 0.05, 0.25, shopH + 2.55, -1.5);
         addBox(A.group, mDark, 0.54, 0.05, 0.05, 0.25, shopH + 0.16, -1.5);
         addBox(A.group, mDark, 0.05, 0.05, 0.6, 0.02, shopH + 2.55, -1.8);
         addBox(A.group, mDark, 0.05, 0.05, 0.6, 0.02, shopH + 0.16, -1.8);
-        addSprite(A.group, bladeGlowMat, 0.52, shopH + 1.35, -1.5, 3.8);
+        if (bladeGlowMat) nightSprite(addSprite(A.group, bladeGlowMat, 0.52, shopH + 1.35, -1.5, 3.8));
       } else {
         var bladeX = -W * 0.24, bladeY = shopH + 1.35, bladeZ = 0.55;
         var bladeRoot = new THREE.Group();
@@ -2198,7 +2237,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         addBox(A.group, mDark, 0.06, 0.05, 0.58, bladeX, shopH + 2.55, 0.28);
         addBox(A.group, mDark, 0.06, 0.05, 0.58, bladeX, shopH + 0.16, 0.28);
         addBox(A.group, mDark, 0.13, 0.76, 0.13, bladeX, shopH + 1.35, 0.06);
-        addSprite(A.group, bladeGlowMat, bladeX, bladeY, 0.62, 3.4);
+        if (bladeGlowMat) nightSprite(addSprite(A.group, bladeGlowMat, bladeX, bladeY, 0.62, 3.4));
       }
     } else if (plan.signMode === 'roof') {
       var deckY = wallH + 0.18;
@@ -2234,7 +2273,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         A.tex.push(t);
         awMat = ownMat(new THREE.MeshStandardMaterial({ map: t, roughness: 0.92, side: THREE.DoubleSide }));
       } else {
-        awMat = matStd(plan.awningStyle === 'pale' ? 0xdfe3d5 : 0x3b2738, 0.9);
+        var awColor = plan.awningStyle === 'forest' ? 0x3f5a48 : (plan.awningStyle === 'pale' ? 0xdfe3d5 : 0x3b2738);
+        awMat = matStd(awColor, 0.9);
         awMat.side = THREE.DoubleSide;
       }
       var top = addBox(g, awMat, span, 0.06, depth, 0, innerY - 0.19, depth / 2 + 0.02);
@@ -2262,7 +2302,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var z0 = plan.awningFront ? 1.16 : 0.28;
       var y0 = plan.awningFront ? shopH - 1.45 : shopH - 1.05;
       var xa = -W + 0.45, xb = -0.75;
-      var bulbMat = matBasic({ color: 0xffd9a0, toneMapped: false });
+      var bulbMat = nightMat(matBasic({ color: 0xffd9a0, toneMapped: false }), 0xffd9a0, 0x6b6b6b);
       var glowMat = matBasic({
         map: GLOW, color: 0xffb070, transparent: true, opacity: 0.2,
         blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
@@ -2277,7 +2317,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         if (prev) addBar(A.group, wireMat, prev, pt, 0.011);
         if (si > 0 && si < N) {
           addSphere(A.group, bulbMat, 0.05, 0.05, 0.05, sx, sy - 0.06, z0);
-          addSprite(A.group, glowMat, sx, sy - 0.06, z0, 0.5);
+          nightSprite(addSprite(A.group, glowMat, sx, sy - 0.06, z0, 0.5));
         }
         prev = pt;
       }
@@ -2326,6 +2366,30 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   var COVER_SEED = 'F8K1';
   var COVER_X = 18;
+  var btnTime = document.getElementById('btn-time');
+  var TIME = { mode: SEARCH.get('time') === 'day' ? 'day' : 'dusk' };
+  var TIME_CONF = {
+    day: {
+      exposure: 1.03, fog: 0xdae6ec, fogNear: 55, fogFar: 210,
+      hemiSky: 0xe2f1ff, hemiGround: 0xc4b19a, hemiInt: 1.15,
+      sunColor: 0xfff6e6, sunInt: 3.2, sunOffset: [30, 44, 24],
+      fillColor: 0xd2e4f4, fillInt: 0.4,
+      ambientColor: 0xd6e0e6, ambientInt: 0.42,
+      cityDark: 0xa5b1bb, cityLit: 0xb9c2c8, cityEmis: 0, cityGlow: 0,
+      moon: false, stars: 0, moonGlow: 0,
+      lane: 0.85, water: 0x7b94a0, shopPool: 0, balloons: 0
+    },
+    dusk: {
+      exposure: 1.12, fog: 0x4b4652, fogNear: 30, fogFar: 160,
+      hemiSky: 0xa8b4cf, hemiGround: 0x5a4137, hemiInt: 0.7,
+      sunColor: 0xffb678, sunInt: 2.0, sunOffset: [36, 18, 16],
+      fillColor: 0x7c88b8, fillInt: 0.4,
+      ambientColor: 0x6a5c66, ambientInt: 0.28,
+      cityDark: 0x3a3644, cityLit: 0x5a5560, cityEmis: 0.35, cityGlow: 0.22,
+      moon: true, stars: 0.72, moonGlow: 0.55,
+      lane: 0.55, water: 0x2b3542, shopPool: 0.2, balloons: 0.4
+    }
+  };
 
   var sharedLeaf = new THREE.MeshStandardMaterial({ color: 0x557a5c, roughness: 0.96 });
   var sharedTrunk = new THREE.MeshStandardMaterial({ color: 0x5b4334, roughness: 0.95 });
@@ -2333,7 +2397,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var sharedPot = new THREE.MeshStandardMaterial({ color: 0x7a4a38, roughness: 0.9 });
   var sharedSideRoad = new THREE.MeshStandardMaterial({ color: 0x3b3541, roughness: 0.96 });
   var sharedWrite = new THREE.MeshBasicMaterial({ color: 0xd9c7b2, transparent: true, opacity: 0.45, depthWrite: false });
-  var sharedString = new THREE.MeshBasicMaterial({ color: 0x3a3036 });
+  var sharedString = new THREE.MeshBasicMaterial({ color: 0x343436 });
   var sharedBubble = new THREE.MeshStandardMaterial({
     color: 0xd8e8f0, transparent: true, opacity: 0.28, roughness: 0.06,
     metalness: 0.1, side: THREE.DoubleSide, depthWrite: false
@@ -2385,9 +2449,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     addCyl(parent, MAT_FENCE, 0.055, 4.1, x, 2.05, z);
     addBar(parent, MAT_FENCE, new THREE.Vector3(x, 4.05, z), new THREE.Vector3(x + 0.95, 4.1, z + 0.4), 0.045);
     addCyl(parent, MAT_FENCE, 0.3, 0.24, x + 1.0, 4.02, z + 0.42, GEO.cone);
-    addSphere(parent, new THREE.MeshBasicMaterial({ color: 0xffe0b0, toneMapped: false }),
-      0.12, 0.12, 0.12, x + 1.0, 3.87, z + 0.42);
-    addSprite(parent, sharedLampGlow, x + 1.0, 3.9, z + 0.42, 2.7);
+    var bulbMat = nightMat(matBasic({ color: 0xffe0b0, toneMapped: false }), 0xffe0b0, 0x5f5f5f);
+    addSphere(parent, bulbMat, 0.12, 0.12, 0.12, x + 1.0, 3.87, z + 0.42);
+    nightSprite(addSprite(parent, sharedLampGlow, x + 1.0, 3.9, z + 0.42, 2.7));
   }
 
   function addTree(parent, x, z, s) {
@@ -2539,9 +2603,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function addGardenLantern(parent, x, z) {
     addCyl(parent, MAT_FENCE, 0.06, 1.55, x, 0.775, z);
     addBox(parent, MAT_FENCE, 0.3, 0.05, 0.3, x, 1.55, z);
-    addSphere(parent, new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false }),
-      0.11, 0.11, 0.11, x, 1.62, z);
-    addSprite(parent, sharedLampGlow, x, 1.62, z, 1.8);
+    var bulbMat = nightMat(matBasic({ color: 0xffd9a0, toneMapped: false }), 0xffd9a0, 0x5a5a5a);
+    addSphere(parent, bulbMat, 0.11, 0.11, 0.11, x, 1.62, z);
+    nightSprite(addSprite(parent, sharedLampGlow, x, 1.62, z, 1.8));
   }
 
   function addFlowerBed(parent, x, z) {
@@ -2608,7 +2672,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     stop.rotation.x = Math.PI / 2;
     addBox(A.group, sharedWrite, 0.42, 0.08, 0.02, -1.0, 2.18, 0.88);
     // 街区尽头的一小段房子，堵住视线
-    addBox(A.group, new THREE.MeshStandardMaterial({ color: 0x3b2e42, roughness: 0.95 }),
+    addBox(A.group, matStd(0x4b4038, 0.95),
       5.2, 4.4, 0.6, cx, 2.05, -15.4).receiveShadow = true;
     for (var w = 0; w < 3; w++) {
       addPanel(A.group, litPaneMaterial(), 0.7, 0.9, cx - 1.4 + w * 1.4, 2.5, -15.05);
@@ -2620,6 +2684,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function litPaneMaterial() {
     var m = new THREE.MeshBasicMaterial({ color: 0xffc88a, toneMapped: false });
     A.mats.push(m);
+    nightMat(m, 0xffc88a, 0x394650);
     return m;
   }
 
@@ -2682,13 +2747,90 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     stage.add(A.group);
     if (plan.type === 'row' || plan.type === 'detached') buildHouse(plan, plan.seed);
     buildFrontage(plan);
+    applyLotTime(A);
     return { plan: plan, x: x, group: A.group, assets: A };
+  }
+
+  function applyLotTime(assets) {
+    if (!assets) return;
+    var isDusk = TIME.mode === 'dusk';
+    for (var i = 0; i < assets.nightSprites.length; i++) {
+      assets.nightSprites[i].visible = isDusk;
+    }
+    for (var l = 0; l < assets.lights.length; l++) {
+      var light = assets.lights[l];
+      light.intensity = isDusk ? (light.userData.nightIntensity || 0) : 0;
+    }
+    for (var m = 0; m < assets.nightMats.length; m++) {
+      var mat = assets.nightMats[m];
+      if (mat.userData.nightColor !== undefined) {
+        mat.color.setHex(isDusk ? mat.userData.nightColor : mat.userData.dayColor);
+      }
+      if (mat.userData.nightOpacity !== undefined) {
+        mat.opacity = isDusk ? mat.userData.nightOpacity : mat.userData.dayOpacity;
+      }
+    }
+  }
+
+  function applyEnvironment() {
+    var c = TIME_CONF[TIME.mode];
+    var isDusk = TIME.mode === 'dusk';
+    document.body.classList.toggle('time-day', !isDusk);
+    document.body.classList.toggle('time-dusk', isDusk);
+    paintSky(isDusk ? 'dusk' : 'day');
+    renderer.toneMappingExposure = c.exposure;
+    scene.fog.color.setHex(c.fog);
+    scene.fog.near = c.fogNear;
+    scene.fog.far = c.fogFar;
+    hemi.color.setHex(c.hemiSky);
+    hemi.groundColor.setHex(c.hemiGround);
+    hemi.intensity = c.hemiInt;
+    sun.color.setHex(c.sunColor);
+    sun.intensity = c.sunInt;
+    fill.color.setHex(c.fillColor);
+    fill.intensity = c.fillInt;
+    ambient.color.setHex(c.ambientColor);
+    ambient.intensity = c.ambientInt;
+    stars.visible = c.stars > 0;
+    stars.material.opacity = c.stars;
+    moon.visible = c.moon;
+    moonGlowMat.opacity = c.moonGlow;
+    CITY.dark.color.setHex(c.cityDark);
+    CITY.lit.color.setHex(c.cityLit);
+    CITY.lit.emissiveIntensity = c.cityEmis;
+    if (isDusk && CITY.lit.map !== CITY.winTex) {
+      CITY.lit.map = CITY.winTex;
+      CITY.lit.needsUpdate = true;
+    } else if (!isDusk && CITY.lit.map) {
+      CITY.lit.map = null;
+      CITY.lit.needsUpdate = true;
+    }
+    if (CITY.glowMat) CITY.glowMat.opacity = c.cityGlow;
+    dashMat.opacity = c.lane;
+    MAT_WATER.color.setHex(c.water);
+    sharedShopPool.opacity = c.shopPool;
+    for (var b = 0; b < balloonMats.length; b++) balloonMats[b].emissiveIntensity = c.balloons;
+  }
+
+  function updateTimeButton() {
+    if (!btnTime) return;
+    var target = TIME.mode === 'day' ? '傍晚' : '白天';
+    btnTime.textContent = '切换' + target;
+    btnTime.title = '切换到' + target;
+    btnTime.setAttribute('aria-label', '切换到' + target);
+  }
+
+  function setTime(mode) {
+    TIME.mode = mode === 'dusk' ? 'dusk' : 'day';
+    applyEnvironment();
+    for (var i = 0; i < lots.length; i++) applyLotTime(lots[i].assets);
+    updateTimeButton();
   }
 
   function makeCoverPlanner() {
     var q = [];
     var brick = FAMILIES[0];
-    var teal = FAMILIES[1];
+    var stone = FAMILIES[2];
     var rowA = [
       { floors: 2, frontBays: 4 },
       { floors: 3, frontBays: 4 },
@@ -2710,7 +2852,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     cg.lamp = true;
     q.push(cg);
     for (var j = 0; j < 3; j++) {
-      q.push(makeHousePlan('COVER-B' + j, teal, {
+      q.push(makeHousePlan('COVER-B' + j, stone, {
         type: 'row', W: MODULE, D: 7.2, floors: j === 1 ? 3 : 2, frontBays: 4,
         leftMode: j === 0 ? 'windows' : 'party',
         rightMode: j === 2 ? 'windows' : 'party',
@@ -2797,7 +2939,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     camera.lookAt(camera.position.x + dir.x, camera.position.y + dir.y, camera.position.z + dir.z);
     backdrop.position.x = rideX;
     sun.target.position.set(rideX + 10, 0, -3);
-    sun.position.set(rideX + 34, 34, 17);
+    var so = TIME_CONF[TIME.mode].sunOffset;
+    sun.position.set(rideX + so[0], so[1], so[2]);
     sun.target.updateMatrixWorld();
     fill.position.set(rideX - 26, 16, -20);
   }
@@ -3020,6 +3163,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   btnOrbit.addEventListener('click', toggleRide);
   btnNext.addEventListener('click', newStreet);
+  if (btnTime) btnTime.addEventListener('click', function () {
+    setTime(TIME.mode === 'day' ? 'dusk' : 'day');
+  });
 
   window.addEventListener('resize', function () {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -3062,6 +3208,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return;
   }
 
+  applyEnvironment();
+  updateTimeButton();
   if (COVER) {
     riding = false;
     fadeEl.style.opacity = '0';
