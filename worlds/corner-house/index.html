@@ -365,6 +365,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 </script>
 <script>
 
+
 /* 街角小楼 — Corner House
    黄昏街角的一栋程序化小楼：风格族锁定气质，楼层、开间、窗、门、屋顶与招牌在其中随机。
    Requires THREE (inlined above). */
@@ -1763,11 +1764,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       addSphere(A.group, pendantBulbMat, 0.06, 0.06, 0.06, lx, 2.16, lz);
     }
 
-    // 店内暖光
-    var shopLight = new THREE.PointLight(0xffb070, 65, Math.max(W, D) * 1.7, 2);
-    shopLight.position.set(-W * 0.44, 2.1, -D * 0.44);
-    A.group.add(shopLight);
-    nightLight(shopLight, 65);
+    // 店内暖光由运行时的共享灯跟随最近店铺，避免每栋楼一盏点光。
 
     /* ---- 门面玻璃 ---- */
     var glassBottom = 0.36;
@@ -2342,7 +2339,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   /* ---------------------------------------------------------------- 街景运行时 */
 
-  var POOL = 6;
+  var POOL = window.innerWidth >= 1800 ? 18 : (window.innerWidth >= 1200 ? 16 : (window.innerWidth >= 800 ? 10 : 9));
   var lots = [];
   var streetSeed = '';
   var planner = null;
@@ -2370,7 +2367,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var TIME = { mode: SEARCH.get('time') === 'day' ? 'day' : 'dusk' };
   var TIME_CONF = {
     day: {
-      exposure: 1.03, fog: 0xdae6ec, fogNear: 55, fogFar: 210,
+      exposure: 1.03, fog: 0xdae6ec, fogNear: 55, fogFar: 190,
       hemiSky: 0xe2f1ff, hemiGround: 0xc4b19a, hemiInt: 1.15,
       sunColor: 0xfff6e6, sunInt: 3.2, sunOffset: [30, 44, 24],
       fillColor: 0xd2e4f4, fillInt: 0.4,
@@ -2431,6 +2428,41 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.mapSize.set(window.innerWidth < 760 ? 1024 : 2048, window.innerWidth < 760 ? 1024 : 2048);
   sun.shadow.bias = -0.0005;
+
+  var shopLights = [];
+  for (var sli = 0; sli < 3; sli++) {
+    var sl = new THREE.PointLight(0xffb070, 0, 18, 2);
+    sl.castShadow = false;
+    scene.add(sl);
+    shopLights.push(sl);
+  }
+
+  function updateShopLights() {
+    if (TIME.mode !== 'dusk') {
+      for (var i = 0; i < shopLights.length; i++) shopLights[i].intensity = 0;
+      return;
+    }
+    var near = [];
+    for (var li = 0; li < lots.length; li++) {
+      var lot = lots[li];
+      if (lot.plan.type !== 'row' && lot.plan.type !== 'detached') continue;
+      var c = lot.x + MODULE * 0.5;
+      near.push({ lot: lot, d: Math.abs(c - (rideX + 5)) });
+    }
+    near.sort(function (a, b) { return a.d - b.d; });
+    for (var k = 0; k < shopLights.length; k++) {
+      var L = shopLights[k];
+      if (k < near.length) {
+        var p = near[k].lot.plan;
+        var g = near[k].lot.group.position;
+        L.position.set(g.x - p.W * 0.44, SIDEWALK + 2.1, g.z - p.D * 0.44);
+        L.distance = Math.max(p.W, p.D) * 1.8;
+        L.intensity = 55;
+      } else {
+        L.intensity = 0;
+      }
+    }
+  }
 
   function disposeLot(lot) {
     if (!lot) return;
@@ -2824,6 +2856,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     TIME.mode = mode === 'dusk' ? 'dusk' : 'day';
     applyEnvironment();
     for (var i = 0; i < lots.length; i++) applyLotTime(lots[i].assets);
+    updateShopLights();
     updateTimeButton();
   }
 
@@ -2887,6 +2920,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     currentPlanType = '';
     updateCamera(performance.now());
     updateHud(true);
+    updateShopLights();
   }
 
   function recycleLots() {
@@ -3057,6 +3091,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       lookPitch += (0 - lookPitch) * 0.035;
     }
     updateCamera(now);
+    updateShopLights();
     if (!reduceMotion && !COVER) {
       for (var i = 0; i < lots.length; i++) animateLot(lots[i], now);
     }
