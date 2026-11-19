@@ -305,7 +305,7 @@
 </style>
 </head>
 <body>
-  <canvas id="scene" tabindex="0" aria-label="街景：镜头沿街缓缓前行，经过联排小屋、街边草地与小巷，可切换白天与傍晚"></canvas>
+  <canvas id="scene" tabindex="0" aria-label="街景：镜头沿街缓缓前行，三排房屋与高楼层层叠起，公园、广场和横街之间有行人、车辆与小摊，可切换白天与傍晚"></canvas>
 
   <div class="vignette"></div>
   <div class="grain"></div>
@@ -318,7 +318,7 @@
       <span class="en">Corner House</span>
     </div>
     <div class="rule"></div>
-    <div class="tag">车窗外的街 · 一栋接一栋地换</div>
+    <div class="tag">车窗外的街 · 三排房子与街坊日常</div>
     <div class="status">
       <span id="seed">NO. ----</span>
       <i></i>
@@ -332,7 +332,7 @@
     <div class="hint"><i></i>拖动看看街边 · 滚轮 / 双指缩放</div>
     <div class="controls" role="group" aria-label="场景控制">
       <button id="btn-next" class="primary" type="button">换一条街</button>
-      <button id="btn-time" type="button" title="切换到白天" aria-label="切换到白天">切换白天</button>
+      <button id="btn-time" type="button" title="切换到傍晚" aria-label="切换到傍晚">切换傍晚</button>
       <button id="btn-orbit" type="button" aria-pressed="true">暂停</button>
     </div>
   </div>
@@ -364,6 +364,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
 </script>
 <script>
+
 
 
 /* 街角小楼 — Corner House
@@ -1314,7 +1315,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     };
   }
 
-  function makeSideStreetPlan(seed, r) {
+  function makeSideStreetPlan(seed, blockSeed, index, len) {
+    var r = rng(seed + '|side');
     return {
       seed: seed,
       type: 'sideStreet',
@@ -1323,7 +1325,103 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       frontZ: 0,
       setback: 0,
       family: r.pick(FAMILIES),
-      label: '街边小巷'
+      label: '横街',
+      blockSeed: blockSeed,
+      blockIndex: index,
+      blockLen: len
+    };
+  }
+
+  function makeParkPlan(seed, blockSeed, index, len) {
+    var r = rng(seed + '|park');
+    return {
+      seed: seed,
+      type: 'park',
+      W: MODULE,
+      D: 14.6,
+      frontZ: 0,
+      setback: 0,
+      label: '街边公园',
+      blockSeed: blockSeed,
+      blockIndex: index,
+      blockLen: len,
+      parkKind: r.pick(['pond', 'lawn', 'flower', 'grove']),
+      trees: r.int(1, 2),
+      bench: r.chance(0.75),
+      lamp: r.chance(0.7),
+      pathY: r.range(-5.4, -6.8),
+      gate: r.chance(0.7)
+    };
+  }
+
+  function makePlazaPlan(seed, blockSeed, index, len) {
+    var r = rng(seed + '|plaza');
+    return {
+      seed: seed,
+      type: 'plaza',
+      W: MODULE,
+      D: 14.6,
+      frontZ: 0,
+      setback: 0,
+      label: '街边广场',
+      blockSeed: blockSeed,
+      blockIndex: index,
+      blockLen: len,
+      fountain: r.chance(0.82),
+      trees: r.int(0, 2),
+      bench: r.chance(0.7),
+      lamp: true,
+      stalls: r.int(1, 2),
+      paving: r.chance(0.5) ? 'warm' : 'cool'
+    };
+  }
+
+  /* 后排简化楼的风格库：墙面颜色、店招、立面画法 */
+  var BACK_STYLES = [
+    { id: 'brick', walls: [0xa86a52, 0xb4745a, 0x9c5f4a, 0x8f5a48], trim: 0xe4d6c0, sign: '#f0e2c6', ink: '#3b2b26', accent: 0xb4473f, metal: 0.0 },
+    { id: 'stone', walls: [0xc9b9a3, 0xd4c7b0, 0xb8a894, 0xccbfa9], trim: 0xf2ebdf, sign: '#efe6d3', ink: '#2d3a2e', accent: 0x4c6a58, metal: 0.0 },
+    { id: 'concrete', walls: [0x8f8c88, 0x9a9792, 0x83817e, 0xa39e96], trim: 0xd8d3ca, sign: '#e6e1d6', ink: '#2a2d30', accent: 0x5d6a6e, metal: 0.0 },
+    { id: 'sage', walls: [0x8b9c8c, 0x95a694, 0x7f9183, 0xa3b09f], trim: 0xe9e6da, sign: '#ece7d9', ink: '#2b3430', accent: 0xb0705a, metal: 0.0 },
+    { id: 'glass', walls: [0x6f7e86, 0x78878f, 0x66757e, 0x82909a], trim: 0xb9c3c6, sign: '#dfe8e8', ink: '#223034', accent: 0x7fb2b0, metal: 0.24, glass: true }
+  ];
+  var BACK_SHOPS = ['便利', '面馆', '水果', '药房', '理发', '五金', '早点', '咖啡', '花店', '书店', '洗衣', '烟酒'];
+
+  function makeBackPlan(seed, row, opts) {
+    opts = opts || {};
+    var r = rng(seed + '|back' + row);
+    var style = (row >= 3 && r.chance(0.2)) || opts.forceGlass ? BACK_STYLES[4] : r.pick(BACK_STYLES.slice(0, 4));
+    var floors = row === 2 ? r.int(3, 6) : r.int(4, 8);
+    if (row === 2 && r.chance(0.16)) floors = r.int(7, 8);
+    if (row >= 3 && r.chance(0.3)) floors = r.int(9, 11);
+    var floorH = r.range(3.0, 3.2);
+    var groundH = r.range(3.3, 3.7);
+    var W = opts.W || r.range(9.55, 9.96);
+    var D = r.range(6.2, 7.2);
+    return {
+      seed: seed,
+      row: row,
+      style: style,
+      floors: floors,
+      floorH: floorH,
+      groundH: groundH,
+      W: W,
+      D: D,
+      H: groundH + (floors - 1) * floorH,
+      cx: -MODULE / 2 + (opts.dx || 0) + r.range(-0.15, 0.15),
+      wallColor: r.pick(style.walls),
+      trimColor: style.trim,
+      shopName: r.pick(BACK_SHOPS),
+      ink: style.ink,
+      signColor: style.sign,
+      accent: style.accent,
+      metal: style.metal,
+      setback: r.range(0, 0.4),
+      balconies: r.chance(0.5),
+      roofBox: r.chance(0.62),
+      tank: r.chance(0.3),
+      antenna: r.chance(0.28),
+      tower: row >= 3 && floors >= 8 && r.chance(0.6),
+      band: r.chance(0.5)
     };
   }
 
@@ -1332,6 +1430,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var lotIndex = 0;
     var lastType = null;
     var lastFamily = null;
+    var blockSeq = 0;
 
     function pickFamily() {
       var r = rng(streetSeed + '|family' + lotIndex);
@@ -1371,10 +1470,45 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       lastType = 'row';
     }
 
+    /* 一个「街区」过渡：可以占 1–3 个地块，公园与广场里能直接看到后排 */
     function pushTransition() {
-      var r = rng(streetSeed + '|transition' + lotIndex);
-      var kind = r.pick(['garden', 'sideStreet', 'detached']);
-      if (kind === 'detached') {
+      var r = rng(streetSeed + '|block' + blockSeq++);
+      var options = [
+        { kind: 'park', w: 23 },
+        { kind: 'plaza', w: 21 },
+        { kind: 'sideStreet', w: 21 },
+        { kind: 'garden', w: 17 },
+        { kind: 'detached', w: 17 }
+      ];
+      var pool = options.filter(function (o) { return o.kind !== (lastType === 'row' ? '' : lastType); });
+      if (!pool.length) pool = options;
+      var total = 0, i;
+      for (i = 0; i < pool.length; i++) total += pool[i].w;
+      var roll = r() * total, kind = pool[0].kind;
+      for (i = 0; i < pool.length; i++) {
+        roll -= pool[i].w;
+        if (roll <= 0) { kind = pool[i].kind; break; }
+      }
+      var j;
+      if (kind === 'park' || kind === 'plaza') {
+        var len = kind === 'park' ? r.int(2, 3) : 2;
+        var bs = streetSeed + '|' + kind + blockSeq;
+        for (j = 0; j < len; j++) {
+          var s = streetSeed + '|lot' + (lotIndex++);
+          queue.push(kind === 'park'
+            ? makeParkPlan(s, bs, j, len)
+            : makePlazaPlan(s, bs, j, len));
+        }
+      } else if (kind === 'sideStreet') {
+        var len2 = 2;
+        var bs2 = streetSeed + '|side' + blockSeq;
+        for (j = 0; j < len2; j++) {
+          queue.push(makeSideStreetPlan(streetSeed + '|lot' + (lotIndex++), bs2, j, len2));
+        }
+      } else if (kind === 'garden') {
+        var seed = streetSeed + '|lot' + (lotIndex++);
+        queue.push(makeGardenPlan(seed, rng(seed + '|garden')));
+      } else {
         var fam = pickFamily();
         queue.push(makeHousePlan(streetSeed + '|lot' + (lotIndex++), fam, {
           type: 'detached',
@@ -1387,10 +1521,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
           sideBays: 2,
           setback: r.range(1.7, 2.6)
         }));
-      } else if (kind === 'garden') {
-        queue.push(makeGardenPlan(streetSeed + '|lot' + (lotIndex++), r));
-      } else {
-        queue.push(makeSideStreetPlan(streetSeed + '|lot' + (lotIndex++), r));
       }
       lastType = kind;
     }
@@ -1412,7 +1542,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function lotLabel(plan) {
     if (!plan) return '';
     if (plan.type === 'garden') return '街边草地';
-    if (plan.type === 'sideStreet') return '小巷';
+    if (plan.type === 'sideStreet') return '横街';
+    if (plan.type === 'park') return '街边公园';
+    if (plan.type === 'plaza') return '街边广场';
     return plan.family.label + (plan.type === 'detached' ? ' 独立屋' : ' 排屋');
   }
 
@@ -1429,7 +1561,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var neonLight = null;
 
   function newAssets() {
-    return { group: new THREE.Group(), geos: [], mats: [], tex: [], nightMats: [], nightSprites: [], lights: [] };
+    return {
+      group: new THREE.Group(), geos: [], mats: [], tex: [],
+      nightMats: [], nightSprites: [], lights: [],
+      backMats: [], walkers: [], birds: [], steam: [],
+      dayGroup: null
+    };
   }
   function ownMat(m) { A.mats.push(m); return m; }
   function ownGeo(g) { A.geos.push(g); return g; }
@@ -2337,6 +2474,293 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return A;
   }
 
+  /* ---------------------------------------------------------------- 后排楼群 */
+
+  var ROW2_FRONT = -15.0;
+  var ROW3_FRONT = -29.0;
+  var REAR_BASE = -0.10;
+
+  function hex6(c) {
+    var s = c.toString(16);
+    while (s.length < 6) s = '0' + s;
+    return '#' + s;
+  }
+  function shadeColor(c, f) {
+    var r = Math.min(255, Math.round(((c >> 16) & 255) * f));
+    var g = Math.min(255, Math.round(((c >> 8) & 255) * f));
+    var b = Math.min(255, Math.round((c & 255) * f));
+    return (r << 16) | (g << 8) | b;
+  }
+
+  /* 后排立面：一张日景贴图 + 一张夜景自发光贴图，成本低但窗格与店招都在 */
+  function makeBackFacade(bp) {
+    var big = bp.row === 2;
+    var cw = big ? 192 : 144;
+    var ch = big ? 384 : 288;
+    var dayC = document.createElement('canvas');
+    dayC.width = cw; dayC.height = ch;
+    var nightC = document.createElement('canvas');
+    nightC.width = cw; nightC.height = ch;
+    var d = dayC.getContext('2d');
+    var n = nightC.getContext('2d');
+    var rr = rng(bp.seed + '|facade');
+    var wall = hex6(bp.wallColor);
+    var trim = hex6(bp.trimColor);
+    var shopH = bp.noShop ? 0 : Math.max(34, Math.round(ch * (bp.groundH / bp.H)));
+    var shopTop = ch - shopH;
+
+    d.fillStyle = wall;
+    d.fillRect(0, 0, cw, ch);
+    n.fillStyle = '#000';
+    n.fillRect(0, 0, cw, ch);
+
+    // 墙面肌理
+    if (bp.style.id === 'brick') {
+      d.strokeStyle = 'rgba(60,40,34,0.09)';
+      d.lineWidth = 1;
+      var by;
+      for (by = 0; by < shopTop; by += 6) {
+        d.beginPath();
+        d.moveTo(0, by);
+        d.lineTo(cw, by);
+        d.stroke();
+      }
+      for (by = 0; by < shopTop; by += 6) {
+        var off = ((by / 6) | 0) % 2 ? 9 : 0;
+        for (var vx = off; vx < cw; vx += 18) {
+          d.beginPath();
+          d.moveTo(vx, by);
+          d.lineTo(vx, by + 6);
+          d.stroke();
+        }
+      }
+    } else if (bp.style.id === 'sage') {
+      d.strokeStyle = 'rgba(255,255,255,0.07)';
+      var sy;
+      for (sy = 0; sy < shopTop; sy += 8) {
+        d.beginPath();
+        d.moveTo(0, sy);
+        d.lineTo(cw, sy);
+        d.stroke();
+      }
+    } else if (bp.style.id === 'concrete') {
+      d.fillStyle = 'rgba(60,62,64,0.07)';
+      var cy2;
+      for (cy2 = 6; cy2 < shopTop; cy2 += 24) d.fillRect(0, cy2, cw, 2);
+    }
+    d.fillStyle = 'rgba(40,36,34,0.35)';
+    d.fillRect(0, 0, cw, 3);
+
+    // 上部窗
+    var upperFloors = Math.max(1, bp.floors - 1);
+    var fh = (shopTop - 8) / upperFloors;
+    var cols = bp.style.glass ? 3 : rr.int(3, 4);
+    var colW = (cw - 16) / cols;
+    for (var f = 0; f < upperFloors; f++) {
+      var y0 = shopTop - (f + 1) * fh;
+      if (bp.style.glass) {
+        var gx0 = 7, gw = cw - 14;
+        var gh = Math.max(8, fh * 0.56);
+        var gy = y0 + fh * 0.2;
+        var glassG = d.createLinearGradient(0, gy, 0, gy + gh);
+        glassG.addColorStop(0, '#465a64');
+        glassG.addColorStop(0.55, '#2c3c44');
+        glassG.addColorStop(1, '#1d2a31');
+        d.fillStyle = glassG;
+        d.fillRect(gx0, gy, gw, gh);
+        d.fillStyle = 'rgba(230,240,240,0.18)';
+        d.fillRect(gx0, gy, gw, 2);
+        d.fillStyle = trim;
+        var mstep = Math.max(10, Math.round(gw / 8));
+        for (var mx = gx0; mx <= gx0 + gw; mx += mstep) d.fillRect(mx, gy, 1.4, gh);
+        d.fillRect(gx0, gy + gh - 1.5, gw, 1.5);
+        for (var seg = 0; seg < 5; seg++) {
+          if (!rr.chance(0.42)) continue;
+          var sw = gw / 5;
+          var sg = n.createLinearGradient(0, gy, 0, gy + gh);
+          sg.addColorStop(0, 'rgba(255,220,168,0.9)');
+          sg.addColorStop(1, 'rgba(255,186,120,0.55)');
+          n.fillStyle = sg;
+          n.fillRect(gx0 + seg * sw + 1, gy + 1, sw - 2, gh - 2);
+        }
+      } else {
+        for (var c2 = 0; c2 < cols; c2++) {
+          var cx2 = 8 + colW * (c2 + 0.5);
+          var ww = Math.min(colW * 0.48, 22);
+          var wh = Math.max(8, fh * 0.5);
+          var wy = y0 + fh * 0.24;
+          d.fillStyle = '#24313a';
+          d.fillRect(cx2 - ww / 2, wy, ww, wh);
+          d.fillStyle = 'rgba(206,228,232,0.22)';
+          d.fillRect(cx2 - ww / 2, wy, ww, 2);
+          d.strokeStyle = trim;
+          d.lineWidth = 1.2;
+          d.strokeRect(cx2 - ww / 2, wy, ww, wh);
+          d.fillStyle = trim;
+          d.fillRect(cx2 - ww / 2 - 1.5, wy + wh, ww + 3, 1.8);
+          if (rr.chance(0.44)) {
+            n.fillStyle = 'rgba(255,206,150,0.88)';
+            n.fillRect(cx2 - ww / 2 + 1, wy + 1, ww - 2, wh - 2);
+            n.fillStyle = 'rgba(255,238,206,0.5)';
+            n.fillRect(cx2 - ww / 2 + 1, wy + 1, ww - 2, 2);
+          } else if (rr.chance(0.25)) {
+            n.fillStyle = 'rgba(160,206,206,0.26)';
+            n.fillRect(cx2 - ww / 2 + 1, wy + 1, ww - 2, wh - 2);
+          }
+          if (bp.balconies && rr.chance(0.26)) {
+            d.fillStyle = 'rgba(240,232,214,0.8)';
+            d.fillRect(cx2 - ww / 2 - 4, wy + wh + 2, ww + 8, 2);
+            d.strokeStyle = 'rgba(235,228,212,0.62)';
+            d.lineWidth = 1;
+            for (var bx = cx2 - ww / 2 - 3; bx <= cx2 + ww / 2 + 3; bx += 4) {
+              d.beginPath();
+              d.moveTo(bx, wy + wh + 2);
+              d.lineTo(bx, wy + wh - 3);
+              d.stroke();
+            }
+          }
+          if (rr.chance(0.18)) {
+            d.fillStyle = 'rgba(90,92,94,0.75)';
+            d.fillRect(cx2 + ww / 2 + 2, wy + wh - 6, 6, 5);
+          }
+        }
+      }
+      if (bp.band) {
+        d.fillStyle = 'rgba(255,255,255,0.10)';
+        d.fillRect(0, y0 + fh - 2, cw, 1.5);
+      }
+    }
+
+    // 底层店铺
+    if (!bp.noShop) {
+      d.fillStyle = '#2b2c2c';
+      d.fillRect(0, shopTop, cw, shopH);
+      var signH = Math.max(12, Math.round(shopH * 0.26));
+      d.fillStyle = bp.signColor;
+      d.fillRect(4, shopTop + 3, cw - 8, signH);
+      d.strokeStyle = 'rgba(60,45,36,0.5)';
+      d.lineWidth = 1;
+      d.strokeRect(4, shopTop + 3, cw - 8, signH);
+      d.fillStyle = bp.ink;
+      d.textAlign = 'center';
+      d.textBaseline = 'middle';
+      d.font = 'bold ' + Math.max(9, Math.round(signH * 0.62)) + 'px "PingFang SC", "Microsoft YaHei", sans-serif';
+      d.fillText(bp.shopName, cw / 2, shopTop + 3 + signH / 2 + 0.5);
+
+      var sfY = shopTop + signH + 7;
+      var sfH = ch - sfY - 4;
+      d.fillStyle = '#1e2629';
+      d.fillRect(4, sfY, cw - 8, sfH);
+      var panes = rr.int(2, 3);
+      for (var p = 0; p < panes; p++) {
+        var pw = (cw - 12) / panes;
+        var px2 = 6 + p * pw;
+        var pg = d.createLinearGradient(0, sfY, 0, sfY + sfH);
+        pg.addColorStop(0, 'rgba(96,74,54,0.55)');
+        pg.addColorStop(1, 'rgba(30,36,38,0.9)');
+        d.fillStyle = pg;
+        d.fillRect(px2 + 1.5, sfY + 2, pw - 3, sfH - 4);
+        var ng = n.createLinearGradient(0, sfY, 0, sfY + sfH);
+        ng.addColorStop(0, 'rgba(255,214,160,0.85)');
+        ng.addColorStop(1, 'rgba(255,178,110,0.5)');
+        n.fillStyle = ng;
+        n.fillRect(px2 + 2, sfY + 2, pw - 4, sfH - 4);
+        d.fillStyle = 'rgba(255,244,220,0.14)';
+        d.fillRect(px2 + 2, sfY + 2, pw - 4, 2);
+      }
+      n.fillStyle = 'rgba(255,206,150,0.34)';
+      n.fillRect(4, shopTop + 3, cw - 8, signH);
+      n.fillStyle = 'rgba(255,244,214,0.75)';
+      n.fillRect(4, shopTop + 3, cw - 8, 1.4);
+    }
+
+    var dayTex = new THREE.CanvasTexture(dayC);
+    if ('colorSpace' in dayTex) dayTex.colorSpace = THREE.SRGBColorSpace;
+    dayTex.anisotropy = Math.min(4, maxAniso);
+    var nightTex = new THREE.CanvasTexture(nightC);
+    if ('colorSpace' in nightTex) nightTex.colorSpace = THREE.SRGBColorSpace;
+    nightTex.anisotropy = Math.min(4, maxAniso);
+    A.tex.push(dayTex, nightTex);
+    return { day: dayTex, night: nightTex };
+  }
+
+  function buildBackBuilding(bp, baseY) {
+    var H = bp.H;
+    var zFront = bp.zFront - (bp.setback || 0);
+    var zc = zFront - bp.D / 2;
+    var mSide = matStd(shadeColor(bp.wallColor, 0.88), 0.96);
+    var mTrim = matStd(bp.trimColor, 0.9);
+    var mDark = matStd(0x35363a, 0.9);
+
+    var box = addBox(A.group, mSide, bp.W, H, bp.D, bp.cx, baseY + H / 2, zc);
+    box.castShadow = false;
+    box.receiveShadow = false;
+
+    var tx = makeBackFacade(bp);
+    var mat = ownMat(new THREE.MeshStandardMaterial({
+      map: tx.day, emissive: 0xffffff, emissiveMap: tx.night,
+      emissiveIntensity: 0, roughness: 0.94, metalness: bp.metal || 0
+    }));
+    A.backMats.push(mat);
+    addPanel(A.group, mat, bp.W, H, bp.cx, baseY + H / 2, zFront + 0.02);
+
+    addBox(A.group, mTrim, bp.W + 0.16, 0.24, bp.D + 0.16, bp.cx, baseY + H + 0.12, zc);
+
+    // 高楼的退台，让轮廓有高低
+    if (bp.tower) {
+      var tw = bp.W * 0.62;
+      var td = bp.D * 0.66;
+      var th = bp.floorH * 2.4;
+      var tz = zc - 0.7;
+      addBox(A.group, mSide, tw, th, td, bp.cx, baseY + H + th / 2, tz);
+      var tbp = {
+        seed: bp.seed + '|tower', row: 3, style: bp.style, floors: 3,
+        floorH: th / 3, groundH: 0, H: th, wallColor: bp.wallColor,
+        trimColor: bp.trimColor, shopName: '', ink: bp.ink, signColor: bp.signColor,
+        accent: bp.accent, metal: bp.metal, balconies: false, band: bp.band,
+        noShop: true, cx: bp.cx, row_: 3
+      };
+      var tx2 = makeBackFacade(tbp);
+      var mat2 = ownMat(new THREE.MeshStandardMaterial({
+        map: tx2.day, emissive: 0xffffff, emissiveMap: tx2.night,
+        emissiveIntensity: 0, roughness: 0.94, metalness: 0.2
+      }));
+      A.backMats.push(mat2);
+      addPanel(A.group, mat2, tw, th, bp.cx, baseY + H + th / 2, tz + td / 2 + 0.02);
+      addBox(A.group, mTrim, tw + 0.16, 0.18, td + 0.16, bp.cx, baseY + H + th + 0.09, tz);
+    }
+
+    // 屋顶设备
+    if (bp.roofBox) {
+      addBox(A.group, mSide, 2.1, 2.2, 1.9, bp.cx + bp.W * 0.22, baseY + H + 1.1, zc - bp.D * 0.18);
+      addBox(A.group, mTrim, 2.24, 0.14, 2.04, bp.cx + bp.W * 0.22, baseY + H + 2.24, zc - bp.D * 0.18);
+    }
+    if (bp.tank) {
+      addCyl(A.group, mDark, 0.85, 1.8, bp.cx - bp.W * 0.26, baseY + H + 1.1, zc - bp.D * 0.2);
+      addBox(A.group, mDark, 1.9, 0.06, 0.06, bp.cx - bp.W * 0.26, baseY + H + 1.98, zc - bp.D * 0.2);
+    }
+    if (bp.antenna) {
+      addCyl(A.group, mDark, 0.03, 2.4, bp.cx + bp.W * 0.1, baseY + H + 1.2, zc - bp.D * 0.3);
+    }
+    if (bp.balconies && bp.floors > 2) {
+      var bandY = baseY + bp.groundH + Math.max(1, Math.floor((bp.floors - 1) * 0.5)) * bp.floorH - 0.1;
+      addBox(A.group, mTrim, bp.W * 0.86, 0.1, 0.5, bp.cx, bandY, zFront + 0.22);
+      addBox(A.group, mDark, bp.W * 0.82, 0.04, 0.04, bp.cx, bandY + 0.42, zFront + 0.48);
+    }
+  }
+
+  function buildBackRows(plan) {
+    if (plan.type === 'sideStreet') return;
+    var fpz = plan.frontZ || 0;
+    var b2 = makeBackPlan(plan.seed + '|r2', 2, {});
+    b2.zFront = ROW2_FRONT - fpz;
+    buildBackBuilding(b2, REAR_BASE);
+    var b3 = makeBackPlan(plan.seed + '|r3', 3, {});
+    b3.zFront = ROW3_FRONT - fpz;
+    buildBackBuilding(b3, REAR_BASE);
+  }
+
+
   /* ---------------------------------------------------------------- 街景运行时 */
 
   var POOL = window.innerWidth >= 1800 ? 18 : (window.innerWidth >= 1200 ? 16 : (window.innerWidth >= 800 ? 10 : 9));
@@ -2362,9 +2786,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var userActive = 0;
 
   var COVER_SEED = 'F8K1';
-  var COVER_X = 18;
+  var COVER_X = 16;
   var btnTime = document.getElementById('btn-time');
-  var TIME = { mode: SEARCH.get('time') === 'day' ? 'day' : 'dusk' };
+  var TIME = { mode: SEARCH.get('time') === 'dusk' ? 'dusk' : 'day' };
   var TIME_CONF = {
     day: {
       exposure: 1.03, fog: 0xdae6ec, fogNear: 55, fogFar: 190,
@@ -2372,7 +2796,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       sunColor: 0xfff6e6, sunInt: 3.2, sunOffset: [30, 44, 24],
       fillColor: 0xd2e4f4, fillInt: 0.4,
       ambientColor: 0xd6e0e6, ambientInt: 0.42,
-      cityDark: 0xa5b1bb, cityLit: 0xb9c2c8, cityEmis: 0, cityGlow: 0,
+      cityDark: 0x949da4, cityLit: 0xa6aeb2, cityEmis: 0, cityGlow: 0,
       moon: false, stars: 0, moonGlow: 0,
       lane: 0.85, water: 0x7b94a0, shopPool: 0, balloons: 0
     },
@@ -2392,7 +2816,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var sharedTrunk = new THREE.MeshStandardMaterial({ color: 0x5b4334, roughness: 0.95 });
   var sharedWood = new THREE.MeshStandardMaterial({ color: 0x6d4a35, roughness: 0.9 });
   var sharedPot = new THREE.MeshStandardMaterial({ color: 0x7a4a38, roughness: 0.9 });
-  var sharedSideRoad = new THREE.MeshStandardMaterial({ color: 0x3b3541, roughness: 0.96 });
+  var sharedSideRoad = new THREE.MeshStandardMaterial({ color: 0x3d3e40, roughness: 0.96 });
   var sharedWrite = new THREE.MeshBasicMaterial({ color: 0xd9c7b2, transparent: true, opacity: 0.45, depthWrite: false });
   var sharedString = new THREE.MeshBasicMaterial({ color: 0x343436 });
   var sharedBubble = new THREE.MeshStandardMaterial({
@@ -2418,6 +2842,376 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     new THREE.MeshStandardMaterial({ color: 0x3a2a26, roughness: 0.95 })
   ];
   var MAT_SIGN_RED = new THREE.MeshStandardMaterial({ color: 0xb4473f, roughness: 0.7 });
+
+  /* ---------------------------------------------------------------- 后街地面与街区材质 */
+
+  var rearWalkTex = BASE.sidewalk.clone();
+  rearWalkTex.needsUpdate = true;
+  rearWalkTex.wrapS = rearWalkTex.wrapT = THREE.RepeatWrapping;
+  rearWalkTex.repeat.set(STREET_LEN / 1.4, 3.6 / 1.4);
+  var MAT_REAR_WALK = new THREE.MeshStandardMaterial({ map: rearWalkTex, color: 0x9c9188, roughness: 0.95 });
+  var MAT_REAR_LANE = new THREE.MeshStandardMaterial({ color: 0x3d3f42, roughness: 0.97 });
+  var MAT_REAR_YARD = new THREE.MeshStandardMaterial({ color: 0x565451, roughness: 1 });
+
+  var paveTex = BASE.sidewalk.clone();
+  paveTex.needsUpdate = true;
+  paveTex.wrapS = paveTex.wrapT = THREE.RepeatWrapping;
+  paveTex.repeat.set(MODULE / 1.4, 14.6 / 1.4);
+  var MAT_PAVE = new THREE.MeshStandardMaterial({ map: paveTex, color: 0xb3a79a, roughness: 0.93 });
+
+  addBox(scene, MAT_REAR_LANE, STREET_LEN, 0.04, 3.4, 0, 0.005, -9.7).receiveShadow = true;
+  addBox(scene, MAT_REAR_WALK, STREET_LEN, 0.06, 3.6, 0, 0.03, -13.2).receiveShadow = true;
+  addBox(scene, MAT_REAR_LANE, STREET_LEN, 0.04, 3.0, 0, 0.005, -23.9).receiveShadow = true;
+  addBox(scene, MAT_REAR_WALK, STREET_LEN, 0.06, 3.6, 0, 0.03, -27.2).receiveShadow = true;
+  addBox(scene, MAT_REAR_YARD, STREET_LEN, 0.03, 3.2, 0, 0.008, -6.6).receiveShadow = true;
+
+  var zebraTex = null;
+  function getZebraTex() {
+    if (zebraTex) return zebraTex;
+    var c = document.createElement('canvas');
+    c.width = 256; c.height = 64;
+    var x = c.getContext('2d');
+    x.clearRect(0, 0, 256, 64);
+    x.fillStyle = 'rgba(232,224,205,0.82)';
+    for (var i = 0; i < 8; i++) x.fillRect(i * 32 + 7, 2, 19, 60);
+    zebraTex = new THREE.CanvasTexture(c);
+    if ('colorSpace' in zebraTex) zebraTex.colorSpace = THREE.SRGBColorSpace;
+    return zebraTex;
+  }
+  var zebraMat = new THREE.MeshBasicMaterial({
+    map: getZebraTex(), transparent: true, opacity: 0.88, depthWrite: false, toneMapped: false
+  });
+
+  var crossDashTex = null;
+  function getCrossDashTex() {
+    if (crossDashTex) return crossDashTex;
+    var c = document.createElement('canvas');
+    c.width = 16; c.height = 128;
+    var x = c.getContext('2d');
+    x.clearRect(0, 0, 16, 128);
+    x.fillStyle = 'rgba(224,206,182,0.55)';
+    x.fillRect(5, 10, 6, 108);
+    crossDashTex = new THREE.CanvasTexture(c);
+    if ('colorSpace' in crossDashTex) crossDashTex.colorSpace = THREE.SRGBColorSpace;
+    crossDashTex.wrapS = crossDashTex.wrapT = THREE.RepeatWrapping;
+    crossDashTex.repeat.set(1, 34 / 7.2);
+    return crossDashTex;
+  }
+  var crossDashMat = new THREE.MeshBasicMaterial({
+    map: getCrossDashTex(), transparent: true, depthWrite: false, toneMapped: false
+  });
+
+  /* ---------------------------------------------------------------- 街坊日常：合并几何小模型库 */
+
+  var LIFE_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0.02 });
+  var LIFE_GEO = {
+    box: new THREE.BoxGeometry(1, 1, 1),
+    ico: new THREE.IcosahedronGeometry(1, 0),
+    cyl: new THREE.CylinderGeometry(1, 1, 1, 10),
+    cone: new THREE.ConeGeometry(1, 1, 8),
+    torus: new THREE.TorusGeometry(1, 0.075, 6, 16)
+  };
+  var SKIN_TONES = [0xe6bd96, 0xd6a678, 0xc18a5e, 0x9c6a46, 0xe8c9a8];
+  var PANTS_TONES = [0x38424e, 0x4c4238, 0x2f3a44, 0x6a5a48, 0x50565a, 0x3f4a3a, 0x7a6e5c];
+  var SHIRT_TONES = [0xa04c40, 0x3f6b6b, 0xd6c7a4, 0x4f6a8c, 0x7c4f6a, 0xd8dbd2, 0x8a7f5c, 0x5c6b4f, 0xb8754a];
+  var HAIR_TONES = [0x2b2320, 0x3d2e24, 0x1e1c1e, 0x6b5a48, 0x8a8078];
+  var STEAM_MAT = new THREE.SpriteMaterial({
+    map: GLOW, color: 0xf2ece0, transparent: true, opacity: 0.3,
+    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
+  });
+
+  function lifePart(list, geo, color, sx, sy, sz, x, y, z, rx, ry, rz) {
+    list.push({ geo: geo, color: color, s: [sx, sy, sz], p: [x, y, z], r: [rx || 0, ry || 0, rz || 0] });
+  }
+  function lifeBar(list, color, a, b, radius) {
+    var dir = new THREE.Vector3().subVectors(b, a);
+    var len = dir.length();
+    if (len < 0.001) return;
+    var q = new THREE.Quaternion().setFromUnitVectors(UP, dir.normalize());
+    var e = new THREE.Euler().setFromQuaternion(q);
+    list.push({
+      geo: LIFE_GEO.cyl, color: color, s: [radius, len, radius],
+      p: [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2],
+      r: [e.x, e.y, e.z]
+    });
+  }
+  function mergeLife(list) {
+    var pos = [], nor = [], col = [];
+    var m = new THREE.Matrix4();
+    var q = new THREE.Quaternion();
+    var e = new THREE.Euler();
+    var v = new THREE.Vector3();
+    var sv = new THREE.Vector3();
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      var g = it.geo.clone();
+      e.set(it.r[0], it.r[1], it.r[2]);
+      q.setFromEuler(e);
+      v.set(it.p[0], it.p[1], it.p[2]);
+      sv.set(it.s[0], it.s[1], it.s[2]);
+      m.compose(v, q, sv);
+      g.applyMatrix4(m);
+      var ng = g;
+      if (g.index) {
+        ng = g.toNonIndexed();
+        g.dispose();
+      }
+      var pa = ng.attributes.position.array;
+      var na = ng.attributes.normal.array;
+      var c = new THREE.Color(it.color);
+      for (var k = 0; k < pa.length; k += 3) {
+        pos.push(pa[k], pa[k + 1], pa[k + 2]);
+        nor.push(na[k], na[k + 1], na[k + 2]);
+        col.push(c.r, c.g, c.b);
+      }
+      ng.dispose();
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    return geo;
+  }
+  function lifeMesh(list) {
+    var geo = mergeLife(list);
+    A.geos.push(geo);
+    return new THREE.Mesh(geo, LIFE_MAT);
+  }
+
+  function addDogParts(list, r) {
+    var col = r.pick([0xc9a06a, 0x8a6a4c, 0x3a3330, 0xded4c2, 0xa87c54]);
+    var dark = r.chance(0.4) ? 0x2f2a26 : col;
+    lifePart(list, LIFE_GEO.ico, col, 0.15, 0.15, 0.3, 0.52, 0.3, 0.46);
+    lifePart(list, LIFE_GEO.ico, col, 0.12, 0.12, 0.13, 0.52, 0.42, 0.64);
+    lifePart(list, LIFE_GEO.box, dark, 0.03, 0.1, 0.05, 0.44, 0.5, 0.62);
+    lifePart(list, LIFE_GEO.box, dark, 0.03, 0.1, 0.05, 0.6, 0.5, 0.62);
+    lifePart(list, LIFE_GEO.box, col, 0.045, 0.18, 0.045, 0.44, 0.1, 0.4);
+    lifePart(list, LIFE_GEO.box, col, 0.045, 0.18, 0.045, 0.6, 0.1, 0.4);
+    lifePart(list, LIFE_GEO.box, col, 0.045, 0.18, 0.045, 0.44, 0.1, 0.56);
+    lifePart(list, LIFE_GEO.box, col, 0.045, 0.18, 0.045, 0.6, 0.1, 0.56);
+    lifePart(list, LIFE_GEO.cyl, col, 0.02, 0.16, 0.02, 0.52, 0.4, 0.3, 0.7, 0, 0);
+    lifeBar(list, 0x2f2a26, new THREE.Vector3(0.3, 0.8, 0.08), new THREE.Vector3(0.52, 0.46, 0.58), 0.008);
+  }
+
+  function addPersonParts(list, r, opts) {
+    opts = opts || {};
+    var skin = r.pick(SKIN_TONES);
+    var pants = r.pick(PANTS_TONES);
+    var shirt = opts.apron || r.pick(SHIRT_TONES);
+    var hair = r.pick(HAIR_TONES);
+    var legH = 0.74;
+    var torsoH = 0.56;
+    var torsoY = 0.07 + legH;
+    lifePart(list, LIFE_GEO.box, 0x2a2a2c, 0.15, 0.07, 0.25, -0.1, 0.035, 0.03);
+    lifePart(list, LIFE_GEO.box, 0x2a2a2c, 0.15, 0.07, 0.25, 0.1, 0.035, 0.03);
+    lifePart(list, LIFE_GEO.box, pants, 0.14, legH, 0.16, -0.1, 0.07 + legH / 2, 0);
+    lifePart(list, LIFE_GEO.box, pants, 0.14, legH, 0.16, 0.1, 0.07 + legH / 2, 0);
+    lifePart(list, LIFE_GEO.box, shirt, 0.42, torsoH, 0.24, 0, torsoY + torsoH / 2, 0);
+    lifePart(list, LIFE_GEO.box, shirt, 0.1, 0.46, 0.13, -0.26, torsoY + torsoH * 0.68, 0, 0, 0, 0.07);
+    lifePart(list, LIFE_GEO.box, shirt, 0.1, 0.46, 0.13, 0.26, torsoY + torsoH * 0.68, 0, 0, 0, -0.07);
+    lifePart(list, LIFE_GEO.ico, skin, 0.055, 0.06, 0.055, -0.28, torsoY + 0.16, 0.02);
+    lifePart(list, LIFE_GEO.ico, skin, 0.055, 0.06, 0.055, 0.28, torsoY + 0.16, 0.02);
+    lifePart(list, LIFE_GEO.ico, skin, 0.13, 0.145, 0.125, 0, torsoY + torsoH + 0.14, 0.01);
+    lifePart(list, LIFE_GEO.ico, hair, 0.132, 0.1, 0.13, 0, torsoY + torsoH + 0.2, -0.01);
+    if (r.chance(0.34)) {
+      var hat = r.pick([0x3d4650, 0xc9b98e, 0x8a4a44, 0x4c5a48]);
+      lifePart(list, LIFE_GEO.cyl, hat, 0.21, 0.03, 0.21, 0, torsoY + torsoH + 0.26, 0);
+      lifePart(list, LIFE_GEO.cyl, hat, 0.13, 0.1, 0.13, 0, torsoY + torsoH + 0.3, 0);
+    }
+    if (r.chance(0.28)) {
+      lifePart(list, LIFE_GEO.box, r.pick([0x6a4a3a, 0x3f4a5a, 0x7a6a54]), 0.3, 0.34, 0.13,
+        0, torsoY + 0.26, -0.19);
+    }
+    if (opts.dog) addDogParts(list, r);
+    if (opts.kid) {
+      // 手里的气球
+      if (r.chance(0.4)) {
+        var bc = r.pick([0xd46a72, 0xe3c07a, 0x7fb2b0]);
+        lifePart(list, LIFE_GEO.ico, bc, 0.1, 0.12, 0.1, 0.34, torsoY + torsoH + 0.5, 0.06);
+        lifeBar(list, 0x3a3a3a, new THREE.Vector3(0.3, torsoY + 0.2, 0.04),
+          new THREE.Vector3(0.34, torsoY + torsoH + 0.4, 0.06), 0.004);
+      }
+    }
+  }
+
+  function addCarParts(list, r, kind, forceColor) {
+    var van = kind === 'van';
+    var taxi = kind === 'taxi';
+    var bodyCol = forceColor || r.pick([0x8d4a44, 0x3f5a6c, 0xc9c2b0, 0x525b56, 0x7a6a4c, 0x5a3f4c]);
+    if (taxi) bodyCol = 0xc9a53e;
+    var glass = 0x27333a;
+    var dark = 0x222428;
+    var bw = van ? 1.98 : 1.78;
+    var bl = van ? 4.6 : 4.2;
+    var bh = van ? 0.88 : 0.62;
+    var by = van ? 0.56 : 0.56;
+    lifePart(list, LIFE_GEO.box, dark, bl * 0.96, 0.16, bw * 0.94, 0, 0.34, 0);
+    lifePart(list, LIFE_GEO.box, bodyCol, bl, bh, bw, 0, by + bh / 2, 0);
+    if (van) {
+      // 货箱 + 驾驶室，侧面开窗，避免像一个白盒子
+      lifePart(list, LIFE_GEO.box, bodyCol, 3.05, 0.62, bw * 0.98, -0.6, by + bh + 0.29, 0);
+      lifePart(list, LIFE_GEO.box, bodyCol, 1.15, 0.4, bw * 0.94, 1.5, by + bh + 0.2, 0);
+      lifePart(list, LIFE_GEO.box, glass, 0.09, 0.44, bw * 0.82, 2.1, by + bh + 0.16, 0);
+      lifePart(list, LIFE_GEO.box, glass, 1.04, 0.34, 0.05, 1.44, by + bh + 0.2, bw * 0.5 + 0.005);
+      lifePart(list, LIFE_GEO.box, glass, 1.04, 0.34, 0.05, 1.44, by + bh + 0.2, -bw * 0.5 - 0.005);
+      lifePart(list, LIFE_GEO.box, glass, 0.05, 0.32, bw * 0.64, -2.14, by + bh + 0.24, 0);
+      lifePart(list, LIFE_GEO.box, dark, 0.03, 0.66, 0.02, -2.15, by + bh * 0.5 + 0.1, 0);
+      lifePart(list, LIFE_GEO.box, dark, 0.06, 0.1, 0.14, 1.98, by + bh + 0.3, bw * 0.5 + 0.08);
+      lifePart(list, LIFE_GEO.box, dark, 0.06, 0.1, 0.14, 1.98, by + bh + 0.3, -bw * 0.5 - 0.08);
+    } else {
+      lifePart(list, LIFE_GEO.box, glass, bl * 0.5, 0.44, bw * 0.9, -0.1, by + bh + 0.16, 0);
+      lifePart(list, LIFE_GEO.box, bodyCol, bl * 0.54, 0.12, bw * 0.94, -0.1, by + bh + 0.42, 0);
+      lifePart(list, LIFE_GEO.box, glass, 1.9, 0.3, 0.04, -0.06, by + bh + 0.16, bw * 0.46);
+      lifePart(list, LIFE_GEO.box, glass, 1.9, 0.3, 0.04, -0.06, by + bh + 0.16, -bw * 0.46);
+    }
+    var wz = bw * 0.46;
+    var wx = bl * 0.31;
+    var wr = van ? 0.36 : 0.32;
+    [[-wx, -wz], [-wx, wz], [wx, -wz], [wx, wz]].forEach(function (p) {
+      lifePart(list, LIFE_GEO.cyl, dark, wr, 0.22, wr, p[0], wr, p[1], Math.PI / 2, 0, 0);
+      lifePart(list, LIFE_GEO.cyl, 0x8a8d8c, wr * 0.5, 0.24, wr * 0.5, p[0], wr, p[1], Math.PI / 2, 0, 0);
+    });
+    lifePart(list, LIFE_GEO.box, 0x35373a, 0.16, 0.24, bw * 0.96, bl * 0.5, 0.46, 0);
+    lifePart(list, LIFE_GEO.box, 0x35373a, 0.16, 0.24, bw * 0.96, -bl * 0.5, 0.46, 0);
+    lifePart(list, LIFE_GEO.box, 0xf2e6c8, 0.07, 0.11, 0.28, bl * 0.5 + 0.01, by + 0.24, bw * 0.32);
+    lifePart(list, LIFE_GEO.box, 0xf2e6c8, 0.07, 0.11, 0.28, bl * 0.5 + 0.01, by + 0.24, -bw * 0.32);
+    lifePart(list, LIFE_GEO.box, 0x9c3a34, 0.06, 0.1, 0.24, -bl * 0.5 - 0.01, by + 0.24, bw * 0.32);
+    lifePart(list, LIFE_GEO.box, 0x9c3a34, 0.06, 0.1, 0.24, -bl * 0.5 - 0.01, by + 0.24, -bw * 0.32);
+    if (taxi) {
+      lifePart(list, LIFE_GEO.box, 0xf0e0b0, 0.66, 0.16, 0.28, -0.1, by + bh + 0.58, 0);
+    }
+  }
+
+  function addBikeParts(list, r, ebike) {
+    var frame = r.pick([0x3a4a5a, 0x4a3f38, 0x5a5f63, 0x7a4a3c, 0x2f4a44]);
+    var dark = 0x24262a;
+    lifePart(list, LIFE_GEO.torus, dark, 0.3, 0.3, 0.3, -0.55, 0.3, 0);
+    lifePart(list, LIFE_GEO.torus, dark, 0.3, 0.3, 0.3, 0.55, 0.3, 0);
+    lifeBar(list, frame, new THREE.Vector3(-0.55, 0.3, 0), new THREE.Vector3(-0.05, 0.72, 0), 0.022);
+    lifeBar(list, frame, new THREE.Vector3(-0.05, 0.72, 0), new THREE.Vector3(0.45, 0.3, 0), 0.022);
+    lifeBar(list, frame, new THREE.Vector3(0.45, 0.3, 0), new THREE.Vector3(-0.55, 0.3, 0), 0.022);
+    lifeBar(list, frame, new THREE.Vector3(-0.05, 0.72, 0), new THREE.Vector3(-0.12, 0.92, 0), 0.018);
+    lifePart(list, LIFE_GEO.box, dark, 0.07, 0.04, 0.48, -0.12, 0.95, 0);
+    lifePart(list, LIFE_GEO.box, 0x2c2e32, 0.24, 0.05, 0.13, -0.28, 0.8, 0);
+    if (ebike) {
+      lifePart(list, LIFE_GEO.box, 0x3a3f44, 0.42, 0.16, 0.24, -0.06, 0.44, 0);
+      lifePart(list, LIFE_GEO.box, r.pick([0xd8c47a, 0x4f6a8c]), 0.44, 0.4, 0.42, -0.5, 0.76, 0);
+      lifePart(list, LIFE_GEO.box, 0x2a2c2e, 0.46, 0.05, 0.44, -0.5, 0.98, 0);
+      lifePart(list, LIFE_GEO.ico, 0xffd9a0, 0.06, 0.06, 0.06, 0.5, 0.86, 0);
+    } else {
+      lifePart(list, LIFE_GEO.box, 0x6a6f6e, 0.3, 0.2, 0.22, 0.47, 0.82, 0);
+    }
+  }
+
+  function addCartParts(list, r, kind) {
+    var accent = kind === 'flower' ? 0xb06a78 : (kind === 'noodle' ? 0x9c4a3f : (kind === 'coffee' ? 0x4c5f4b : 0xc98a3e));
+    var wood = 0x6d4a35;
+    lifePart(list, LIFE_GEO.box, wood, 1.9, 0.68, 0.8, 0, 0.62, 0);
+    lifePart(list, LIFE_GEO.box, 0xd8cbb0, 2.0, 0.08, 0.9, 0, 0.99, 0);
+    lifePart(list, LIFE_GEO.cyl, 0x2a2c2e, 0.3, 0.08, 0.3, -0.6, 0.3, 0.3, Math.PI / 2, 0, 0);
+    lifePart(list, LIFE_GEO.cyl, 0x2a2c2e, 0.3, 0.08, 0.3, 0.6, 0.3, 0.3, Math.PI / 2, 0, 0);
+    var px;
+    for (px = -0.9; px <= 0.91; px += 1.8) {
+      lifePart(list, LIFE_GEO.cyl, 0x3a3a3c, 0.025, 1.18, 0.025, px, 1.6, -0.4);
+      lifePart(list, LIFE_GEO.cyl, 0x3a3a3c, 0.025, 1.18, 0.025, px, 1.6, 0.4);
+    }
+    var i;
+    for (i = 0; i < 6; i++) {
+      lifePart(list, LIFE_GEO.box, i % 2 ? accent : 0xe6dcc4, 0.33, 0.06, 1.12,
+        -0.83 + i * 0.33, 2.22, 0);
+    }
+    lifePart(list, LIFE_GEO.box, accent, 1.44, 0.3, 0.05, 0, 1.68, 0.44);
+    if (kind === 'fruit') {
+      var cols = [0xc9503e, 0xd88a3a, 0x8ca04c, 0xd8c05a];
+      for (i = 0; i < 10; i++) {
+        lifePart(list, LIFE_GEO.ico, cols[i % cols.length], 0.07, 0.07, 0.07,
+          -0.7 + (i % 5) * 0.2, 1.12 + (i > 4 ? 0.08 : 0), (i > 4 ? -0.12 : 0.12));
+      }
+      lifePart(list, LIFE_GEO.box, 0x8a6a3e, 0.62, 0.12, 0.4, 0.6, 1.09, 0);
+    } else if (kind === 'noodle') {
+      lifePart(list, LIFE_GEO.cyl, 0x3a3c40, 0.22, 0.3, 0.22, -0.4, 1.18, 0);
+      lifePart(list, LIFE_GEO.cyl, 0x3a3c40, 0.18, 0.26, 0.18, 0.4, 1.16, 0);
+      lifePart(list, LIFE_GEO.box, 0x8a6a3e, 0.34, 0.1, 0.3, 0, 1.16, 0.16);
+    } else if (kind === 'flower') {
+      var fcols = [0xd06a72, 0xe0b06a, 0xd7a7c2, 0xe8e0c4];
+      for (i = 0; i < 4; i++) {
+        lifePart(list, LIFE_GEO.cyl, 0x8a9a8a, 0.11, 0.26, 0.11, -0.65 + i * 0.36, 1.16, 0.05);
+        lifePart(list, LIFE_GEO.ico, fcols[i], 0.12, 0.1, 0.12, -0.65 + i * 0.36, 1.36, 0.05);
+      }
+    } else {
+      lifePart(list, LIFE_GEO.box, 0x3a3c40, 0.4, 0.3, 0.32, 0.2, 1.18, 0);
+      lifePart(list, LIFE_GEO.cyl, 0xd8d4c8, 0.05, 0.12, 0.05, 0.2, 1.4, 0);
+    }
+    if (r.chance(0.5)) {
+      lifePart(list, LIFE_GEO.box, 0x3a3c40, 0.3, 0.36, 0.3, -0.65, 0.36, 0.55);
+    }
+  }
+
+  function addBirdsParts(list, r, cx, cz) {
+    var cols = [0x8a8d8c, 0xb8b2a6, 0x4a4c50];
+    for (var i = 0; i < 3; i++) {
+      var ox = cx + (i - 1) * 0.34;
+      var oz = cz + (i % 2 ? 0.28 : -0.16);
+      var col = cols[(i + (r() * 3 | 0)) % 3];
+      lifePart(list, LIFE_GEO.ico, col, 0.09, 0.085, 0.14, ox, 0.11, oz);
+      lifePart(list, LIFE_GEO.ico, col, 0.055, 0.055, 0.06, ox, 0.21, oz + 0.11);
+      lifePart(list, LIFE_GEO.cone, 0xd8a050, 0.02, 0.06, 0.02, ox, 0.2, oz + 0.17, Math.PI / 2, 0, 0);
+      lifePart(list, LIFE_GEO.box, col, 0.06, 0.03, 0.12, ox, 0.12, oz - 0.15);
+      lifePart(list, LIFE_GEO.box, 0x8a6a3e, 0.02, 0.09, 0.02, ox - 0.03, 0.05, oz + 0.02);
+      lifePart(list, LIFE_GEO.box, 0x8a6a3e, 0.02, 0.09, 0.02, ox + 0.03, 0.05, oz + 0.02);
+    }
+  }
+
+  var moverLightMat = new THREE.SpriteMaterial({
+    map: GLOW, color: 0xffd9a0, transparent: true, opacity: 0,
+    blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
+  });
+  var movers = [];
+  var moverGeo = [];
+
+  function buildMovers() {
+    if (COVER) return;
+    var specs = [
+      { kind: 'sedan', z: 8.6, speed: 7.2, dir: 1, off: 65, color: 0x8d4a44 },
+      { kind: 'van', z: 11.0, speed: 5.8, dir: -1, off: 140, color: 0xd8d2c2 }
+    ];
+    for (var i = 0; i < specs.length; i++) {
+      var sp = specs[i];
+      var r = rng('mover' + i);
+      var list = [];
+      addCarParts(list, r, sp.kind, sp.color);
+      var geo = mergeLife(list);
+      moverGeo.push(geo);
+      var mesh = new THREE.Mesh(geo, LIFE_MAT);
+      var grp = new THREE.Group();
+      grp.add(mesh);
+      var l1 = new THREE.Sprite(moverLightMat);
+      l1.scale.set(1.15, 1.15, 1);
+      l1.position.set(2.16, 0.66, 0.58);
+      grp.add(l1);
+      var l2 = new THREE.Sprite(moverLightMat);
+      l2.scale.set(1.15, 1.15, 1);
+      l2.position.set(2.16, 0.66, -0.58);
+      grp.add(l2);
+      grp.position.set(0, 0, sp.z);
+      if (sp.dir < 0) grp.rotation.y = Math.PI;
+      scene.add(grp);
+      movers.push({ group: grp, z: sp.z, speed: sp.speed, dir: sp.dir, off: sp.off });
+    }
+  }
+
+  function updateMovers(now) {
+    if (!movers.length) return;
+    var t = now * 0.001;
+    for (var i = 0; i < movers.length; i++) {
+      var m = movers[i];
+      var span = 160;
+      var raw = ((m.off + t * m.speed * m.dir) % span + span) % span;
+      m.group.position.x = rideX + raw - 40;
+      m.group.position.z = m.z;
+    }
+  }
+
 
   sun.shadow.camera.left = -30;
   sun.shadow.camera.right = 30;
@@ -2684,33 +3478,137 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (plan.lamp) addLamp(A.group, -MODULE * 0.5, 2.8);
   }
 
+  function buildPark(plan) {
+    var gx = -MODULE / 2;
+    var r = rng(plan.seed + '|parkbuild');
+    var first = (plan.blockIndex || 0) === 0;
+    var last = (plan.blockIndex || 0) === (plan.blockLen || 1) - 1;
+    var pathY = plan.pathY;
+    addBox(A.group, MAT_LAWN, MODULE + 0.02, 0.06, 14.6, gx, -0.03, -7.3).receiveShadow = true;
+    addBox(A.group, MAT_STONE_WALL, MODULE + 0.02, 0.24, 0.36, gx, 0.08, -14.75);
+    // 贯穿公园的步道与入口小径
+    addBox(A.group, MAT_PATH, MODULE + 0.02, 0.05, 1.5, gx, 0.005, pathY);
+    addBox(A.group, MAT_PATH, 1.5, 0.05, -pathY, gx, 0.005, pathY / 2);
+    // 沿街矮 hedge，入口留口
+    addBox(A.group, MAT_HEDGE, MODULE * 0.5 - 1.0, 0.5, 0.4, -MODULE * 0.75 - 0.5, 0.25, -0.16);
+    addBox(A.group, MAT_HEDGE, MODULE * 0.5 - 1.0, 0.5, 0.4, -MODULE * 0.25 + 0.5, 0.25, -0.16);
+    // 街区两端收边
+    if (first) addBox(A.group, MAT_HEDGE, 0.34, 0.48, 14.3, -0.18, 0.24, -7.4);
+    if (last) addBox(A.group, MAT_HEDGE, 0.34, 0.48, 14.3, -MODULE + 0.18, 0.24, -7.4);
+    // 树与花
+    addTree(A.group, gx - 3.0, pathY - 2.2, 0.9 + r() * 0.2);
+    if (plan.trees > 1) addTree(A.group, gx + 2.8, pathY + 3.6, 0.8 + r() * 0.25);
+    addFlowerBed(A.group, gx + 3.3, pathY + 1.3);
+    if (plan.bench) addBench(A.group, gx + 1.2, pathY + 1.15, r.chance(0.4), Math.PI);
+    // 中央小池塘，占中央模块
+    if (plan.parkKind === 'pond' && (plan.blockIndex || 0) === Math.max(0, Math.ceil((plan.blockLen || 1) / 2) - 1)) {
+      var px = gx, pz = -10.6;
+      addCyl(A.group, MAT_STONE_WALL, 2.5, 0.28, px, 0.14, pz);
+      var water = new THREE.Mesh(GEO.circle, MAT_WATER);
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(px, 0.3, pz);
+      water.scale.set(2.3, 2.3, 1);
+      A.group.add(water);
+      for (var rk = 0; rk < 4; rk++) {
+        var ra = rk * 1.7 + 0.4;
+        addSphere(A.group, MAT_STONE_WALL, 0.34, 0.18, 0.3,
+          px + Math.cos(ra) * 2.55, 0.12, pz + Math.sin(ra) * 2.55, GEO.ico);
+      }
+      for (var rd = 0; rd < 5; rd++) {
+        var rx2 = px - 1.4 + rd * 0.7;
+        addCyl(A.group, sharedLeaf, 0.03, 0.9, rx2, 0.45, pz - 2.2);
+        addSphere(A.group, sharedLeaf, 0.09, 0.2, 0.09, rx2, 0.92, pz - 2.2, GEO.ico);
+      }
+    } else if (plan.parkKind === 'flower') {
+      addFlowerBed(A.group, gx, -10.4);
+      addFlowerBed(A.group, gx + 1.8, -11.6);
+    } else if (plan.parkKind === 'grove' && plan.trees > 1) {
+      addTree(A.group, gx - 0.6, -10.8, 1.05);
+    }
+    if (plan.lamp) addLamp(A.group, gx + 4.0, -0.9);
+    if (plan.gate) {
+      addBox(A.group, MAT_STONE_WALL, 0.3, 0.9, 0.3, gx - 0.95, 0.45, -0.12);
+      addBox(A.group, MAT_STONE_WALL, 0.3, 0.9, 0.3, gx + 0.95, 0.45, -0.12);
+    }
+  }
+
+  function buildPlaza(plan) {
+    var gx = -MODULE / 2;
+    var r = rng(plan.seed + '|plazabuild');
+    var first = (plan.blockIndex || 0) === 0;
+    var last = (plan.blockIndex || 0) === (plan.blockLen || 1) - 1;
+    addBox(A.group, MAT_PAVE, MODULE + 0.02, 0.07, 14.6, gx, -0.025, -7.3).receiveShadow = true;
+    addBox(A.group, MAT_STONE_WALL, MODULE + 0.02, 0.26, 0.36, gx, 0.09, -14.75);
+    // 临街种植池，中间留出入口
+    addBox(A.group, MAT_STONE_WALL, MODULE * 0.36, 0.42, 0.9, -MODULE * 0.74, 0.21, -0.55);
+    addBox(A.group, MAT_HEDGE, MODULE * 0.34, 0.28, 0.7, -MODULE * 0.74, 0.56, -0.55);
+    addBox(A.group, MAT_STONE_WALL, MODULE * 0.36, 0.42, 0.9, -MODULE * 0.26, 0.21, -0.55);
+    addBox(A.group, MAT_HEDGE, MODULE * 0.34, 0.28, 0.7, -MODULE * 0.26, 0.56, -0.55);
+    if (first) addBox(A.group, MAT_STONE_WALL, 0.5, 0.42, 14.2, -0.25, 0.21, -7.4);
+    if (last) addBox(A.group, MAT_STONE_WALL, 0.5, 0.42, 14.2, -MODULE + 0.25, 0.21, -7.4);
+    // 喷泉在中央模块
+    if (plan.fountain && (plan.blockIndex || 0) === Math.max(0, Math.ceil((plan.blockLen || 1) / 2) - 1)) {
+      var fx = gx, fz = -8.4;
+      addCyl(A.group, MAT_STONE_WALL, 2.5, 0.5, fx, 0.25, fz);
+      var water = new THREE.Mesh(GEO.circle, MAT_WATER);
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(fx, 0.53, fz);
+      water.scale.set(2.26, 2.26, 1);
+      A.group.add(water);
+      addCyl(A.group, MAT_STONE_WALL, 0.32, 1.15, fx, 1.1, fz);
+      var bowl = addCyl(A.group, MAT_STONE_WALL, 0.95, 0.16, fx, 1.72, fz);
+      bowl.castShadow = true;
+      addCyl(A.group, MAT_WATER, 0.82, 0.08, fx, 1.8, fz);
+      var jet = addCyl(A.group, MAT_WATER, 0.06, 0.7, fx, 2.16, fz);
+      jet.castShadow = false;
+      for (var b = 0; b < 6; b++) {
+        var ba = b * Math.PI / 3;
+        addBox(A.group, MAT_STONE_WALL, 0.7, 0.4, 0.44,
+          fx + Math.cos(ba) * 3.3, 0.2, fz + Math.sin(ba) * 3.3, -ba);
+      }
+    }
+    // 树池
+    addTree(A.group, gx - 3.3, -3.2, 0.85);
+    if (plan.trees > 1) addTree(A.group, gx + 3.2, -12.0, 0.8);
+    if (plan.bench) addBench(A.group, gx - 2.9, -5.4, r.chance(0.3), Math.PI / 2);
+    if (plan.bench) addBench(A.group, gx + 2.9, -11.6, r.chance(0.3), -Math.PI / 2);
+    addPot(A.group, gx + 3.9, -2.0);
+    addPot(A.group, gx - 3.9, -2.0);
+    if (plan.lamp) addLamp(A.group, gx + 3.6, 0.2);
+    if (plan.lamp) addLamp(A.group, gx - 3.6, -13.6);
+  }
+
   function buildSideStreet(plan) {
-    var cx = -MODULE / 2;
-    var road = addBox(A.group, sharedSideRoad, 7.6, 0.05, 19.5, cx, -0.145, -6.25);
+    var first = (plan.blockIndex || 0) === 0;
+    var last = (plan.blockIndex || 0) === (plan.blockLen || 1) - 1;
+    var roadW = MODULE - 2.6;
+    var roadCx = first ? -1.3 - roadW / 2 : -roadW / 2;
+    var road = addBox(A.group, sharedSideRoad, roadW, 0.06, 41.5, roadCx, -0.10, -17.25);
     road.receiveShadow = true;
-    // 两条路缘，真正接地
-    addBox(A.group, MAT_CURB, 0.22, 0.2, 19.5, cx - 3.9, -0.08, -6.25);
-    addBox(A.group, MAT_CURB, 0.22, 0.2, 19.5, cx + 3.9, -0.08, -6.25);
+    // 沿街人行道条
+    if (first) addBox(A.group, MAT_WALK, 1.3, 0.16, 38, -0.65, -0.08, -19).receiveShadow = true;
+    if (last) addBox(A.group, MAT_WALK, 1.3, 0.16, 38, -MODULE + 0.65, -0.08, -19).receiveShadow = true;
     // 斑马线
-    for (var i = 0; i < 5; i++) {
-      addBox(A.group, sharedWrite, 5.8, 0.02, 0.46, cx, -0.115, 2.45 - i * 0.72);
+    addPanel(A.group, zebraMat, roadW, 3.4, roadCx, -0.052, 1.6, -Math.PI / 2);
+    // 中心虚线（整条横街只画一次）
+    if (first) addPanel(A.group, crossDashMat, 0.34, 33, -MODULE + 0.15, -0.052, -20.4, -Math.PI / 2);
+    // 路口停牌
+    if (first) {
+      addCyl(A.group, MAT_FENCE, 0.035, 2.3, -1.0, 1.15, 0.85);
+      var stop = addCyl(A.group, MAT_SIGN_RED, 0.34, 0.05, -1.0, 2.18, 0.85);
+      stop.rotation.x = Math.PI / 2;
+      addBox(A.group, sharedWrite, 0.42, 0.08, 0.02, -1.0, 2.18, 0.88);
     }
-    // 角落砖石小岛 + 路灯 + 停牌
-    addBox(A.group, MAT_WALK, 2.2, 0.16, 1.3, -MODULE + 1.1, -0.08, 0.65).receiveShadow = true;
-    addBox(A.group, MAT_WALK, 2.2, 0.16, 1.3, -1.1, -0.08, 0.65).receiveShadow = true;
-    addLamp(A.group, -MODULE + 1.0, 0.85);
-    addCyl(A.group, MAT_FENCE, 0.035, 2.3, -1.0, 1.15, 0.85);
-    var stop = addCyl(A.group, MAT_SIGN_RED, 0.34, 0.05, -1.0, 2.18, 0.85);
-    stop.rotation.x = Math.PI / 2;
-    addBox(A.group, sharedWrite, 0.42, 0.08, 0.02, -1.0, 2.18, 0.88);
-    // 街区尽头的一小段房子，堵住视线
-    addBox(A.group, matStd(0x4b4038, 0.95),
-      5.2, 4.4, 0.6, cx, 2.05, -15.4).receiveShadow = true;
-    for (var w = 0; w < 3; w++) {
-      addPanel(A.group, litPaneMaterial(), 0.7, 0.9, cx - 1.4 + w * 1.4, 2.5, -15.05);
-    }
-    addTree(A.group, cx - 3.2, -13.8, 0.9);
-    addPuddle(A.group, cx + 1.4, 1.3, 1.2, 0.45);
+    // 街道两侧的灯与树
+    addLamp(A.group, first ? -0.65 : -MODULE + 0.65, -7.5);
+    addTree(A.group, first ? -0.65 : -MODULE + 0.65, -13.5, 0.95);
+    // 横街尽头的楼，封住视线
+    var ebp = makeBackPlan(plan.seed + '|end', 4, { W: roadW - 0.3 });
+    ebp.cx = roadCx;
+    ebp.zFront = -38;
+    ebp.setback = 0;
+    ebp.tower = false;
+    buildBackBuilding(ebp, -0.07);
   }
 
   function litPaneMaterial() {
@@ -2732,6 +3630,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     if (plan.type === 'garden') {
       buildGarden(plan);
+      return;
+    }
+    if (plan.type === 'park') {
+      buildPark(plan);
+      return;
+    }
+    if (plan.type === 'plaza') {
+      buildPlaza(plan);
       return;
     }
 
@@ -2769,6 +3675,121 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (r.chance(0.38)) addPuddle(A.group, -MODULE * 0.5, s + 4.0, 1.5 + r() * 0.8, 0.4 + r() * 0.2);
   }
 
+  /* 每个地块的日常：白天人多摊多，傍晚整组隐藏 */
+  function buildStreetLife(plan) {
+    var r = rng(plan.seed + '|life');
+    var t = plan.type;
+    var i;
+
+    function addWalker(x0, x1, z, dir, baseY, opts) {
+      opts = opts || {};
+      var list = [];
+      addPersonParts(list, r, opts);
+      var mesh = lifeMesh(list);
+      mesh.position.set(dir > 0 ? x0 : x1, baseY || 0, z);
+      mesh.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      mesh.scale.setScalar(opts.scale || r.range(0.93, 1.03));
+      A.dayGroup.add(mesh);
+      A.walkers.push({
+        mesh: mesh, x0: x0, x1: x1, dir: dir, baseY: baseY || 0,
+        speed: r.range(0.55, 0.95) * (opts.dog ? 0.8 : 1),
+        phase: r() * 6.28
+      });
+    }
+
+    function addVendor(x, z, kind) {
+      var list = [];
+      addCartParts(list, r, kind);
+      var cart = lifeMesh(list);
+      cart.position.set(x, 0, z);
+      A.dayGroup.add(cart);
+      var plist = [];
+      addPersonParts(plist, r, { apron: 0x8a6a4c });
+      var vendor = lifeMesh(plist);
+      vendor.position.set(x + 0.35, 0, z - 1.05);
+      A.dayGroup.add(vendor);
+      if (kind === 'noodle') {
+        for (var s = 0; s < 3; s++) {
+          var sp = new THREE.Sprite(STEAM_MAT);
+          sp.scale.set(0.8, 0.8, 1);
+          sp.position.set(x - 0.3 + s * 0.3, 1.5 + s * 0.35, z + 0.05);
+          A.dayGroup.add(sp);
+          A.steam.push({ sprite: sp, baseY: 1.5 + s * 0.35, x: x - 0.3 + s * 0.3, phase: s * 0.8 });
+        }
+      }
+    }
+
+    function addParkedCar(x, z, ry, kind, y) {
+      var list = [];
+      addCarParts(list, r, kind || 'sedan');
+      var mesh = lifeMesh(list);
+      mesh.position.set(x, y === undefined ? -0.145 : y, z);
+      if (ry) mesh.rotation.y = ry;
+      A.group.add(mesh);
+    }
+
+    function addBike(x, z, ry, ebike) {
+      var list = [];
+      addBikeParts(list, r, ebike);
+      var mesh = lifeMesh(list);
+      mesh.position.set(x, 0, z);
+      mesh.rotation.y = ry || 0;
+      A.group.add(mesh);
+    }
+
+    function addBirds(cx, cz) {
+      var list = [];
+      addBirdsParts(list, r, cx, cz);
+      var mesh = lifeMesh(list);
+      A.dayGroup.add(mesh);
+      A.birds.push({ mesh: mesh, baseRot: 0, phase: r() * 6.28 });
+    }
+
+    if (t === 'row' || t === 'detached') {
+      var n = t === 'row' ? (r.chance(0.82) ? (r.chance(0.34) ? 2 : 1) : 0) : (r.chance(0.6) ? 1 : 0);
+      for (i = 0; i < n; i++) {
+        var dir = r.chance(0.5) ? 1 : -1;
+        if (r.chance(0.18)) addWalker(-9.2, -0.8, r.range(1.15, 2.95), dir, 0, { kid: true, scale: 0.62 });
+        else addWalker(-9.2, -0.8, r.range(1.15, 2.95), dir, 0, { dog: r.chance(0.26) });
+      }
+      if (r.chance(0.3)) addParkedCar(-MODULE * 0.5 + r.range(-1.4, 1.4), 4.75, 0, r.pick(['sedan', 'sedan', 'taxi']));
+      if (r.chance(0.26)) addParkedCar(-MODULE * 0.5, -9.7, 0, r.pick(['sedan', 'van']));
+      if (r.chance(0.42)) addBike(r.range(-8.6, -1.4), 2.92, r.chance(0.5) ? 0.16 : -0.2, r.chance(0.5));
+      if (r.chance(0.3)) addBirds(-MODULE * 0.35, 2.7);
+      if (t === 'row' && r.chance(0.14)) addVendor(-MODULE * 0.5, 1.7, r.pick(['fruit', 'flower', 'coffee']));
+    } else if (t === 'garden') {
+      if (r.chance(0.7)) addWalker(-9, -1, r.range(0.9, 2.6), r.chance(0.5) ? 1 : -1, 0, { dog: r.chance(0.3) });
+      if (r.chance(0.5)) addBirds(-5.5, -2.2);
+      if (r.chance(0.4)) addBike(-2.2, 2.9, 0.2, r.chance(0.5));
+    } else if (t === 'park') {
+      var nP = 3 + (r.chance(0.6) ? 1 : 0);
+      for (i = 0; i < nP; i++) {
+        addWalker(-9.4, -0.6, plan.pathY + r.range(-0.75, 0.75),
+          r.chance(0.5) ? 1 : -1, 0, { dog: r.chance(0.3), kid: r.chance(0.12) });
+      }
+      if (r.chance(0.5)) addVendor(-MODULE * 0.5, -1.5, r.pick(['fruit', 'flower', 'coffee']));
+      if (r.chance(0.5)) addBirds(-5 + r.range(-2, 2), -8.4 + r.range(-2, 1));
+      if (r.chance(0.3)) addBike(-1.6, 2.9, 0.1, r.chance(0.5));
+    } else if (t === 'plaza') {
+      var nZ = 3 + (r.chance(0.5) ? 1 : 0);
+      for (i = 0; i < nZ; i++) {
+        addWalker(-9.4, -0.6, r.range(-3.0, -12.2),
+          r.chance(0.5) ? 1 : -1, 0.015, { dog: r.chance(0.24), kid: r.chance(0.14) });
+      }
+      var kinds = ['noodle', 'fruit', 'flower', 'coffee'];
+      var stalls = plan.stalls || 1;
+      for (i = 0; i < stalls; i++) {
+        addVendor(-MODULE * (0.3 + i * 0.4), -3.8 - i * 2.8, kinds[(i + (r() * 4 | 0)) % 4]);
+      }
+      if (r.chance(0.6)) addBirds(-5.6, -11.2);
+      if (r.chance(0.35)) addBike(-8.4, 3.0, -0.3, true);
+    } else if (t === 'sideStreet') {
+      if (r.chance(0.7)) addWalker(-9.0, -1.0, 1.55, r.chance(0.5) ? 1 : -1, 0, { dog: r.chance(0.2) });
+      if ((plan.blockIndex || 0) === 0 && r.chance(0.72)) addParkedCar(-6.0, -16.5, Math.PI / 2, 'van', -0.07);
+      if (r.chance(0.5)) addBike(-MODULE + 1.0, -2.4, 0.4, true);
+    }
+  }
+
   function buildLot(plan, x) {
     A = newAssets();
     A.group.position.set(x + MODULE, SIDEWALK, plan.frontZ || 0);
@@ -2776,9 +3797,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     A.balloons = [];
     A.bubbles = [];
     A.catTails = [];
+    A.dayGroup = new THREE.Group();
+    A.group.add(A.dayGroup);
     stage.add(A.group);
     if (plan.type === 'row' || plan.type === 'detached') buildHouse(plan, plan.seed);
     buildFrontage(plan);
+    buildBackRows(plan);
+    buildStreetLife(plan);
     applyLotTime(A);
     return { plan: plan, x: x, group: A.group, assets: A };
   }
@@ -2802,6 +3827,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         mat.opacity = isDusk ? mat.userData.nightOpacity : mat.userData.dayOpacity;
       }
     }
+    for (var b = 0; b < assets.backMats.length; b++) {
+      assets.backMats[b].emissiveIntensity = isDusk ? 0.92 : 0;
+    }
+    if (assets.dayGroup) assets.dayGroup.visible = !isDusk;
   }
 
   function applyEnvironment() {
@@ -2842,6 +3871,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     MAT_WATER.color.setHex(c.water);
     sharedShopPool.opacity = c.shopPool;
     for (var b = 0; b < balloonMats.length; b++) balloonMats[b].emissiveIntensity = c.balloons;
+    moverLightMat.opacity = isDusk ? 0.9 : 0;
   }
 
   function updateTimeButton() {
@@ -2864,39 +3894,38 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var q = [];
     var brick = FAMILIES[0];
     var stone = FAMILIES[2];
-    var rowA = [
-      { floors: 2, frontBays: 4 },
-      { floors: 3, frontBays: 4 },
-      { floors: 2, frontBays: 3 }
-    ];
-    for (var i = 0; i < 3; i++) {
-      q.push(makeHousePlan('COVER-A' + i, brick, {
-        type: 'row', W: MODULE, D: 7.0, floors: rowA[i].floors, frontBays: rowA[i].frontBays,
-        leftMode: i === 0 ? 'windows' : 'party',
-        rightMode: i === 2 ? 'shop' : 'party',
-        sideBays: 2, runLength: 3, rowIndex: i
-      }));
+    var teal = FAMILIES[1];
+
+    function rows(seedBase, fam, count, floors) {
+      for (var i = 0; i < count; i++) {
+        q.push(makeHousePlan(seedBase + i, fam, {
+          type: 'row', W: MODULE, D: 7.0, floors: i === count - 1 ? floors : 2,
+          frontBays: 4,
+          leftMode: i === 0 ? 'windows' : 'party',
+          rightMode: i === count - 1 ? 'shop' : 'party',
+          sideBays: 2, runLength: count, rowIndex: i
+        }));
+      }
     }
-    var cg = makeGardenPlan('COVER-G', rng('cover-garden'));
-    cg.balloons = true;
-    cg.bubbles = true;
-    cg.bench = true;
-    cg.trees = 3;
-    cg.lamp = true;
-    q.push(cg);
-    for (var j = 0; j < 3; j++) {
-      q.push(makeHousePlan('COVER-B' + j, stone, {
-        type: 'row', W: MODULE, D: 7.2, floors: j === 1 ? 3 : 2, frontBays: 4,
-        leftMode: j === 0 ? 'windows' : 'party',
-        rightMode: j === 2 ? 'windows' : 'party',
-        sideBays: 2, runLength: 3, rowIndex: j
-      }));
-    }
-    q.push(makeSideStreetPlan('COVER-S', rng('cover-side')));
+
+    rows('COVER-A', brick, 2, 3);
+    q.push(makeParkPlan('COVER-P0', 'COVER-P', 0, 2));
+    q.push(makeParkPlan('COVER-P1', 'COVER-P', 1, 2));
+    rows('COVER-B', stone, 2, 3);
+    q.push(makePlazaPlan('COVER-Z0', 'COVER-Z', 0, 2));
+    q.push(makePlazaPlan('COVER-Z1', 'COVER-Z', 1, 2));
+    rows('COVER-C', teal, 2, 2);
+    q.push(makeSideStreetPlan('COVER-S0', 'COVER-S', 0, 2));
+    q.push(makeSideStreetPlan('COVER-S1', 'COVER-S', 1, 2));
+    var fallback = 0;
     return {
       next: function () {
         if (!q.length) {
-          q.push(makeHousePlan('COVER-C0', FAMILIES[2], { type: 'row', W: MODULE, D: 7, floors: 2, frontBays: 4, leftMode: 'windows', rightMode: 'windows', sideBays: 2 }));
+          var fam = [brick, stone, teal][fallback % 3];
+          q.push(makeHousePlan('COVER-F' + (fallback++), fam, {
+            type: 'row', W: MODULE, D: 7, floors: 2, frontBays: 4,
+            leftMode: 'windows', rightMode: 'windows', sideBays: 2
+          }));
         }
         return q.shift();
       }
@@ -2938,23 +3967,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function layoutCamera() {
     if (COVER) {
-      camZ = 22.2;
-      camY = 3.9;
-      lookAhead = 10.0;
-      lookY = 5.2;
-      baseFov = 46;
+      camZ = 26.8;
+      camY = 4.9;
+      lookAhead = 14.0;
+      lookY = 6.9;
+      baseFov = 50;
     } else if (camera.aspect < 0.8) {
-      camZ = 24.0;
-      camY = 3.5;
-      lookAhead = 10.5;
-      lookY = 5.0;
-      baseFov = 58;
+      camZ = 25.0;
+      camY = 3.8;
+      lookAhead = 11.0;
+      lookY = 5.6;
+      baseFov = 60;
     } else {
-      camZ = 21.0;
-      camY = 3.3;
-      lookAhead = 12.0;
-      lookY = 4.9;
-      baseFov = 47;
+      camZ = 22.6;
+      camY = 3.7;
+      lookAhead = 13.0;
+      lookY = 5.9;
+      baseFov = 49;
     }
     camera.fov = clamp(baseFov + fovOffset, 34, 64);
     camera.updateProjectionMatrix();
@@ -3006,7 +4035,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function typeLabel(p) {
     if (p.type === 'garden') return '草地';
-    if (p.type === 'sideStreet') return '小巷';
+    if (p.type === 'sideStreet') return '横街';
+    if (p.type === 'park') return '公园';
+    if (p.type === 'plaza') return '广场';
     if (p.type === 'detached') return '独立屋';
     return '联排';
   }
@@ -3075,6 +4106,32 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         bb.mesh.scale.set(sc, sc, sc);
       }
     }
+    if (a.walkers && a.dayGroup && a.dayGroup.visible) {
+      for (var wi = 0; wi < a.walkers.length; wi++) {
+        var w = a.walkers[wi];
+        var span = w.x1 - w.x0;
+        var kk = ((t * 0.001 * w.speed + w.phase) % span + span) % span;
+        w.mesh.position.x = w.dir > 0 ? w.x0 + kk : w.x1 - kk;
+        w.mesh.position.y = w.baseY + Math.abs(Math.sin(t * 0.007 + w.phase)) * 0.03;
+        w.mesh.rotation.z = Math.sin(t * 0.007 + w.phase) * 0.018;
+      }
+    }
+    if (a.birds && a.dayGroup && a.dayGroup.visible) {
+      for (var bi = 0; bi < a.birds.length; bi++) {
+        var bd = a.birds[bi];
+        bd.mesh.rotation.y = bd.baseRot + Math.sin(t * 0.0011 + bd.phase) * 0.5;
+        bd.mesh.position.y = Math.abs(Math.sin(t * 0.002 + bd.phase)) * 0.04;
+      }
+    }
+    if (a.steam) {
+      for (var st = 0; st < a.steam.length; st++) {
+        var sm = a.steam[st];
+        var k2 = (t * 0.00025 + sm.phase) % 1;
+        sm.sprite.position.y = sm.baseY + k2 * 1.1;
+        sm.sprite.position.x = sm.x + Math.sin(t * 0.0008 + sm.phase) * 0.12;
+        sm.sprite.scale.setScalar(0.55 + k2 * 0.7);
+      }
+    }
   }
 
   function tick(now) {
@@ -3092,6 +4149,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     updateCamera(now);
     updateShopLights();
+    updateMovers(now);
     if (!reduceMotion && !COVER) {
       for (var i = 0; i < lots.length; i++) animateLot(lots[i], now);
     }
@@ -3236,6 +4294,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   var initialStreetSeed = sanitizeSeed(SEARCH.get('seed')) || (COVER ? COVER_SEED : randomSeed());
   try {
+    buildMovers();
     rebuildStreet(initialStreetSeed);
   } catch (err) {
     console.error(err);
