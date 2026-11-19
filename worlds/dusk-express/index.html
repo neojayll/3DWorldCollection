@@ -649,8 +649,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return out;
   }
 
-  function box(w, h, d, x, y, z) {
-    var g = new THREE.BoxGeometry(w, h, d);
+  function box(w, h, d, x, y, z, ws) {
+    var g = new THREE.BoxGeometry(w, h, d, ws || 1, 1, 1);
     g.translate(x, y, z);
     return g;
   }
@@ -680,6 +680,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // track curvature: the whole world bends around the train during a curve
   // transition (quadratic near the train, linear far away so ridges swing too)
   var uBend = { value: 0 };
+  // JS twin of the shader bend, for rigid bodies that ride the curved centreline
+  function bendF(x) { var ax = Math.abs(x); return ax < 200 ? x * x * 0.5 : 200 * ax - 20000; }
   var BEND_FN = [
     'uniform float uBend;',
     'vec3 bendWorld(vec3 p) {',
@@ -1111,12 +1113,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var parts = [];
     function add(g, a, b, pick) { parts.push(facetColors(g, a, b, pick)); }
     var stonePick = function (x, y) { return clamp((y + 14) / 14, 0, 1) * 0.55 + rnd() * 0.3; };
-    // deck + cornice + ballast + parapets
-    add(box(16.4, 1.0, 7.6, 0, -0.5, 0), '#3f3148', '#5c4a63', stonePick);
-    add(box(16.4, 0.26, 8.2, 0, -0.13, 0), '#463852', '#63506c', stonePick);
-    add(box(16.4, 0.22, 4.8, 0, 0.11, 0), '#2c2338', '#382c44', function () { return rnd(); });
-    add(box(16.4, 0.9, 0.35, 0, 0.55, 3.62), '#463852', '#6a5670', stonePick);
-    add(box(16.4, 0.9, 0.35, 0, 0.55, -3.62), '#463852', '#6a5670', stonePick);
+    // deck + cornice + ballast + parapets (x-subdivided so the curve bend stays smooth)
+    add(box(16.4, 1.0, 7.6, 0, -0.5, 0, 8), '#3f3148', '#5c4a63', stonePick);
+    add(box(16.4, 0.26, 8.2, 0, -0.13, 0, 8), '#463852', '#63506c', stonePick);
+    add(box(16.4, 0.22, 4.8, 0, 0.11, 0, 8), '#2c2338', '#382c44', function () { return rnd(); });
+    add(box(16.4, 0.9, 0.35, 0, 0.55, 3.62, 8), '#463852', '#6a5670', stonePick);
+    add(box(16.4, 0.9, 0.35, 0, 0.55, -3.62, 8), '#463852', '#6a5670', stonePick);
     // pier (left edge of each segment)
     add(box(3.4, 13.2, 6.8, -8, -7.5, 0), '#382c44', '#544260', stonePick);
     add(box(4.0, 0.5, 7.4, -8, -1.15, 0), '#463852', '#63506c', stonePick);
@@ -1126,6 +1128,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     shape.moveTo(-6.3, -14);
     shape.lineTo(6.3, -14);
     shape.lineTo(6.3, -1);
+    // midpoints along the top edge so the curve bend doesn't sag the wall crown
+    shape.lineTo(3.15, -1);
+    shape.lineTo(0, -1);
+    shape.lineTo(-3.15, -1);
     shape.lineTo(-6.3, -1);
     shape.closePath();
     var hole = new THREE.Path();
@@ -1161,10 +1167,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   })();
   viaductGroup.add(viaduct);
 
-  // rails (uniform, no scroll needed)
+  // rails (uniform, no scroll needed); tessellated along x so the curve bend
+  // displaces every span — a single-segment box would translate wholesale
   var railMat = new THREE.MeshStandardMaterial({ color: '#8a7a90', roughness: 0.4, metalness: 0.7 });
   [-0.75, 0.75].forEach(function (z) {
-    var rail = new THREE.Mesh(new THREE.BoxGeometry(380, 0.14, 0.12), railMat);
+    var rail = new THREE.Mesh(new THREE.BoxGeometry(380, 0.14, 0.12, 128, 1, 1), railMat);
     rail.position.set(0, 0.43, z);
     scene.add(rail);
   });
@@ -1370,11 +1377,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   riverMat.customProgramCacheKey = function () { return 'wave-bend:' + riverMat.uuid; };
 
   var moonPath = new THREE.Mesh(
-    new THREE.PlaneGeometry(80, 12),
-    new THREE.MeshBasicMaterial({
+    new THREE.PlaneGeometry(80, 12, 20, 1),
+    bendify(new THREE.MeshBasicMaterial({
       map: glowTex, color: '#cfd8ff', transparent: true, opacity: 0.16,
       depthWrite: false, blending: THREE.AdditiveBlending, fog: false
-    })
+    }))
   );
   moonPath.rotation.x = -Math.PI / 2;
   moonPath.position.set(-11, -13.0, -26);
@@ -1382,11 +1389,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   // warm reflection of the train's lit windows on the river below
   var trainReflection = new THREE.Mesh(
-    new THREE.PlaneGeometry(46, 7),
-    new THREE.MeshBasicMaterial({
+    new THREE.PlaneGeometry(46, 7, 12, 1),
+    bendify(new THREE.MeshBasicMaterial({
       map: glowTex, color: '#ffb37a', transparent: true, opacity: 0.12,
       depthWrite: false, blending: THREE.AdditiveBlending, fog: false
-    })
+    }))
   );
   trainReflection.rotation.x = -Math.PI / 2;
   trainReflection.position.set(0, -13.0, -26);
@@ -1920,7 +1927,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var cone = new THREE.ConeGeometry(2.6, 26, 8, 1, true);
       cone.rotateZ(Math.PI / 2);
       cone.translate(13, 0, 0);
-      var beamMesh = new THREE.Mesh(cone, new THREE.MeshBasicMaterial({ color: '#ffe9c0', transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+      var beamMesh = new THREE.Mesh(cone, bendify(new THREE.MeshBasicMaterial({ color: '#ffe9c0', transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false })));
       beam.add(beamMesh);
       ctx.group.add(beam);
       beacons.push({ group: beam, ti: ctx.idx, mat: beamMesh.material });
@@ -1929,7 +1936,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     // foam lines along both water edges
     [-26, 30].forEach(function (fz) {
-      var fm = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 - 2, 0.8), foamMat);
+      var fm = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 - 2, 0.8, Math.max(2, Math.round((x1 - x0) / 4)), 1), foamMat);
       fm.rotation.x = -Math.PI / 2;
       fm.position.set((x0 + x1) / 2, -13.7, fz);
       ctx.group.add(fm);
@@ -2602,9 +2609,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var d2 = new THREE.PlaneGeometry(0.7, 0.9); d2.rotateY(-Math.PI / 2); d2.translate(-6.31, 2.9, 0); dw.push(d2);
       g.add(new THREE.Mesh(mergeGeos(dw.map(function (geo) { return facetColors(geo, '#ffb37a', '#ffd9a0', function () { return rnd(); }); })), carWinMat));
     }
-    // warm halo strip along each side
-    carHalos.push(addBGlow(0, 2.95, 1.7, 1, 0.1, '#ffb37a', g, 13, 2.6));
-    carHalos.push(addBGlow(0, 2.95, -1.7, 1, 0.1, '#ffb37a', g, 13, 2.6));
+    // warm halo strip along each side (train-parented: JS bend already applied,
+    // updateGlowBatch cancels the batch shader's bend for these)
+    var chA = addBGlow(0, 2.95, 1.7, 1, 0.1, '#ffb37a', g, 13, 2.6); chA.train = true; carHalos.push(chA);
+    var chB = addBGlow(0, 2.95, -1.7, 1, 0.1, '#ffb37a', g, 13, 2.6); chB.train = true; carHalos.push(chB);
 
     [-5.0, -3.4, 3.4, 5.0].forEach(function (wx) {
       addWheel(g, smallWheelGeo, wx, 1.05, 1.3, 0.55);
@@ -2688,6 +2696,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return tex;
   })();
   for (var ci = 0; ci < 3; ci++) buildCar(ci);
+  // every vehicle is a rigid body placed on the bent centreline each frame
+  var trainUnits = [loco, tender].concat(cars);
 
   /* ------------------------------------------------------------------ */
   /* tunnel section (periodic, with headlight drama & echo)              */
@@ -2701,12 +2711,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   (function () {
     var parts = [];
     function add(g, a, b) { parts.push(facetColors(g, a, b, function () { return rnd(); })); }
-    // bore shell: ceiling + side walls
-    add(box(60, 0.7, 9.8, 0, 7.1, 0), '#332840', '#443654');
-    add(box(60, 7.4, 0.7, 0, 3.4, 4.55), '#332840', '#443654');
-    add(box(60, 7.4, 0.7, 0, 3.4, -4.55), '#332840', '#443654');
+    // bore shell: ceiling + side walls (x-subdivided to follow the curve bend)
+    add(box(60, 0.7, 9.8, 0, 7.1, 0, 16), '#332840', '#443654');
+    add(box(60, 7.4, 0.7, 0, 3.4, 4.55, 16), '#332840', '#443654');
+    add(box(60, 7.4, 0.7, 0, 3.4, -4.55, 16), '#332840', '#443654');
     // cornice along the bore top
-    add(box(60.6, 0.35, 10.4, 0, 7.55, 0), '#463852', '#63506c');
+    add(box(60.6, 0.35, 10.4, 0, 7.55, 0, 16), '#463852', '#63506c');
     // rib arches inside the bore
     for (var rx = -24; rx <= 24; rx += 8) {
       var rib = new THREE.TorusGeometry(4.5, 0.22, 5, 12, Math.PI);
@@ -2849,6 +2859,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var r = glowRecs[i];
       r.parent.updateWorldMatrix(true, false);
       gbPos.set(r.x, r.y, r.z).applyMatrix4(r.parent.matrixWorld);
+      // train halos already carry the JS centreline bend via their parent group;
+      // pre-subtract it so the batch shader's bend lands them exactly once
+      if (r.train) gbPos.z -= uBend.value * bendF(gbPos.x);
       gbScale.set(r.sx, r.sy, 1);
       gbMat4.compose(gbPos, gbQuat, gbScale);
       glowBatch.setMatrixAt(i, gbMat4);
@@ -2886,7 +2899,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     s.age = 0;
     s.life = burst ? rand(2.2, 3.2) : rand(3.0, 4.4);
     s.sprite.visible = true;
-    s.sprite.position.set(LOCO_X + 4.6 + rand(-0.15, 0.15), 4.7, rand(-0.15, 0.15));
+    // spawn at the chimney's true world position (follows the curve placement)
+    loco.updateWorldMatrix(true, false);
+    s.sprite.position.set(4.6 + rand(-0.15, 0.15), 4.7, rand(-0.15, 0.15)).applyMatrix4(loco.matrixWorld);
     s.vx = rand(-0.4, 0.3) - SPEED * 0.35;
     s.vy = burst ? rand(2.6, 3.6) : rand(1.3, 2.1);
     s.vz = rand(-0.35, 0.35);
@@ -2941,6 +2956,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     view.rideFov = lerp(view.rideFov, view.tRideFov, damp);
 
     var sway = reduceMotion ? 0 : 1;
+    camera.up.set(0, 1, 0);
     if (mode === 'orbit') {
       var sp = Math.sin(view.phi);
       desiredPos.set(
@@ -2952,24 +2968,37 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       desiredFov = 42;
     } else if (mode === 'follow') {
       var sf = Math.sin(view.fPhi);
+      // the follow target rides the same centreline bend as the train
+      var fz = uBend.value * bendF(17);
       desiredPos.set(
         17 + view.fRadius * sf * Math.cos(view.fTheta),
         2.6 + view.fRadius * Math.cos(view.fPhi) + Math.sin(t * 0.7) * 0.12 * sway,
-        view.fRadius * sf * Math.sin(view.fTheta)
+        fz + view.fRadius * sf * Math.sin(view.fTheta)
       );
-      desiredLook.set(17, 2.6, 0);
+      desiredLook.set(17, 2.6, fz);
       desiredFov = 46;
     } else {
       var car = cars[rideCarIndex];
       var bob = car.position.y;
-      desiredPos.set(CAR_X[rideCarIndex] + 1.0, 2.5 + bob, 0.5);
+      // follow the carriage's curve offset + yaw, but stay level: the train's
+      // banking roll would pitch a side-facing camera up and hide the horizon
+      var cyw = Math.cos(car.rotation.y), syw = Math.sin(car.rotation.y);
       var cp = Math.cos(view.pitch);
-      desiredLook.set(
-        desiredPos.x + Math.sin(view.yaw) * cp * 12,
-        desiredPos.y + Math.sin(view.pitch) * 12,
-        desiredPos.z - Math.cos(view.yaw) * cp * 12
-      );
+      var lx = 1.0 + Math.sin(view.yaw) * cp * 12;
+      var lz = 0.5 - Math.cos(view.yaw) * cp * 12;
+      desiredPos.set(car.position.x + cyw + 0.5 * syw, 2.62 + bob, car.position.z - syw + 0.5 * cyw);
+      desiredLook.set(car.position.x + lx * cyw + lz * syw, 2.62 + bob + Math.sin(view.pitch) * 12, car.position.z - lx * syw + lz * cyw);
       desiredFov = view.rideFov;
+      // the eye rides fully with the banking carriage, but a passenger keeps
+      // their head mostly upright: only a quarter of the bank reaches the gaze
+      // (a full-bank gaze would pitch a side-facing view up and hide the ground)
+      var roll = trainGroup.rotation.x, cr = Math.cos(roll), sr = Math.sin(roll);
+      var ox = desiredLook.x - desiredPos.x, oy = desiredLook.y - desiredPos.y, oz = desiredLook.z - desiredPos.z;
+      var py = desiredPos.y, pz = desiredPos.z;
+      desiredPos.y = py * cr - pz * sr; desiredPos.z = py * sr + pz * cr;
+      var hr = roll * 0.25, ch = Math.cos(hr), sh = Math.sin(hr);
+      desiredLook.set(desiredPos.x + ox, desiredPos.y + oy * ch - oz * sh, desiredPos.z + oy * sh + oz * ch);
+      camera.up.set(0, ch, sh);
     }
 
     var cd = snapNext ? 1 : 1 - Math.exp(-dt * 3.4);
@@ -3512,11 +3541,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var snowCapMat = new THREE.MeshStandardMaterial({ color: '#e9edf5', roughness: 0.92, flatShading: true, transparent: true, opacity: 0 });
   var snowCapMeshes = [];
 
-  // snow sheets on the viaduct deck + parapet tops (scroll with the deck)
+  // snow sheets on the viaduct deck + parapet tops (scroll with the deck, bend with the world)
   var deckCapGeo = mergeGeos([
-    box(16.4, 0.12, 0.44, 0, 1.06, 3.62),
-    box(16.4, 0.12, 0.44, 0, 1.06, -3.62),
-    box(16.4, 0.07, 7.3, 0, 0.26, 0)
+    box(16.4, 0.12, 0.44, 0, 1.06, 3.62, 8).toNonIndexed(),
+    box(16.4, 0.12, 0.44, 0, 1.06, -3.62, 8).toNonIndexed(),
+    box(16.4, 0.07, 7.3, 0, 0.26, 0, 8).toNonIndexed()
   ]);
   var deckCaps = new THREE.InstancedMesh(deckCapGeo, snowCapMat, NSEG);
   deckCaps.frustumCulled = false; deckCaps.visible = false;
@@ -3527,9 +3556,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   viaductGroup.add(deckCaps);
   snowCapMeshes.push(deckCaps);
 
-  // snow on train roofs
+  // snow on train roofs: the train rides the curve as rigid bodies placed in JS,
+  // so its caps use an unbent clone (the deck's snowCapMat bends in the shader)
+  var trainCapMat = snowCapMat.clone();
   function addCap(parent, w, h, d, x, y, z) {
-    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), snowCapMat);
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), trainCapMat);
     m.position.set(x, y, z);
     m.visible = false;
     parent.add(m);
@@ -3892,6 +3923,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     stoneSnowU.value = snowAcc * 0.6;
 
     snowCapMat.opacity = snowAcc;
+    trainCapMat.opacity = snowAcc;
     for (var sci = 0; sci < snowCapMeshes.length; sci++) snowCapMeshes[sci].visible = snowAcc > 0.02;
     puddleMat.opacity = 0.75 * wetness * (1 - snowAcc);
     puddleMat.emissive.copy(PUDDLE_N).lerp(PUDDLE_D, dayF);
@@ -4073,15 +4105,22 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // curve transition: bend the world around the train, bank the carriages
     if (curveArmed && !curveActive && curveTargetW - dist < 6 && curveTargetW - dist > -10 && stopState === 'cruise' && tunnelF < 0.1) {
       curveActive = true; curveT = 0;
-      curvePeak = (rnd() < 0.5 ? -1 : 1) * rand(0.0055, 0.007);
+      curvePeak = (rnd() < 0.5 ? -1 : 1) * rand(0.008, 0.010);
     }
     if (curveActive) {
       curveT += dt;
       var cp = clamp(curveT / CURVE_DUR, 0, 1);
       uBend.value = curvePeak * Math.sin(Math.PI * cp);
-      trainGroup.rotation.x = -uBend.value * 16 * speedF;
-      if (cp >= 1) { curveActive = false; curveArmed = false; uBend.value = 0; trainGroup.rotation.x = 0; }
+      if (cp >= 1) { curveActive = false; curveArmed = false; uBend.value = 0; }
     } else if (curveArmed && curveTargetW - dist <= -10) { curveArmed = false; }
+    // rigid vehicles ride the bent centreline: chord offset + tangent yaw keep
+    // every wheel on the (shader-bent) rails; a light roll banks the whole train
+    trainGroup.rotation.x = -uBend.value * 7 * speedF;
+    for (var vu = 0; vu < trainUnits.length; vu++) {
+      var unit = trainUnits[vu], ux = unit.position.x;
+      unit.position.z = uBend.value * bendF(ux);
+      unit.rotation.y = -Math.atan(uBend.value * ux);
+    }
 
     // tunnel presence (before environment so lights & audio can react)
     var tunnelX = tunnelPending ? tunnelTargetW - dist : 10000;
@@ -4456,7 +4495,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   // world materials bend during curve transitions (train materials do not)
-  [railMat, lampBulbMat, sigRedMat, sigGreenMat, ridgeMat, villageWinMat, puddleMat, hailSpeckMat, litterMat].forEach(bendify);
+  [railMat, darkMat, lampBulbMat, sigRedMat, sigGreenMat, ridgeMat, villageWinMat, puddleMat, hailSpeckMat, litterMat, snowCapMat, tunnelBulbMat].forEach(bendify);
 
   function animate() {
     if (document.hidden) { rafId = 0; return; }
