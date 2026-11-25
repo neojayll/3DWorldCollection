@@ -1078,7 +1078,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ------------------------------------------------------------------ */
 
   var SPEED = 8;
-  var SEG = 16, NSEG = 22;
+  var SEG = 16, NSEG = 41, TRACK_HALF = 656;
+  var SLEEPERS = Math.ceil(TRACK_HALF * 2 / 1.2) + 1, LAMPS = Math.ceil(TRACK_HALF * 2 / 32) + 1;
+  var POLES = Math.ceil(TRACK_HALF * 2 / 24) + 1, SIGNALS = Math.ceil(TRACK_HALF * 2 / 96) + 1;
   var RAIL_TOP = 0.5;
   var scroll = { viaduct: 0, sleepers: 0, lamps: 0, side: 0, signal: 0, halt: 0, tunnel: 0 };
   // station-stop state machine & tunnel presence
@@ -1102,7 +1104,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function maskTrackStructures() {
     var i, x, lx, dy;
     for (i = 0; i < NSEG; i++) {
-      lx = i * SEG - 176;
+      lx = i * SEG - TRACK_HALF;
       x = lx + scroll.viaduct;
       var a = dist + x - 8.2, b = dist + x + 8.2;
       var ta = trackAt(a), tb = trackAt(b);
@@ -1125,8 +1127,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     viaduct.instanceMatrix.needsUpdate = true;
     deckCaps.instanceMatrix.needsUpdate = true;
-    for (i = 0; i < 12; i++) {
-      lx = i * 32 - 176;
+    for (i = 0; i < LAMPS; i++) {
+      lx = i * 32 - TRACK_HALF;
       x = lx + scroll.lamps;
       dy = 0.78 * trackF(dist + x, 6);
       _tm4.makeTranslation(lx, -dy, 3.62); lampPosts.setMatrixAt(i, _tm4);
@@ -1135,15 +1137,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     lampPosts.instanceMatrix.needsUpdate = true;
     lampBulbs.instanceMatrix.needsUpdate = true;
-    for (i = 0; i < 16; i++) {
-      lx = i * 24 - 192;
+    for (i = 0; i < POLES; i++) {
+      lx = i * 24 - TRACK_HALF;
       x = lx + scroll.side;
       _tm4.makeTranslation(lx, -0.28 * trackF(dist + x, 6), -3.62);
       telegraph.setMatrixAt(i, _tm4);
     }
     telegraph.instanceMatrix.needsUpdate = true;
-    for (i = 0; i < 4; i++) {
-      lx = i * 96 - 160;
+    for (i = 0; i < SIGNALS; i++) {
+      lx = i * 96 - TRACK_HALF;
       x = lx + scroll.signal;
       dy = 0.28 * trackF(dist + x, 6);
       _tm4.makeTranslation(lx, -dy, 3.62); signalPosts.setMatrixAt(i, _tm4);
@@ -1212,7 +1214,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   (function () {
     var m = new THREE.Matrix4();
     for (var i = 0; i < NSEG; i++) {
-      m.makeTranslation(i * SEG - 176, 0, 0);
+      m.makeTranslation(i * SEG - TRACK_HALF, 0, 0);
       viaduct.setMatrixAt(i, m);
     }
   })();
@@ -1222,7 +1224,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   // displaces every span — a single-segment box would translate wholesale
   var railMat = new THREE.MeshStandardMaterial({ color: '#8a7a90', roughness: 0.4, metalness: 0.7 });
   [-0.75, 0.75].forEach(function (z) {
-    var rail = new THREE.Mesh(new THREE.BoxGeometry(380, 0.14, 0.12, 128, 1, 1), railMat);
+    var rail = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.14, 0.12, TRACK_HALF * 2 / 3, 1, 1), railMat);
     rail.position.set(0, 0.43, z);
     scene.add(rail);
   });
@@ -1231,11 +1233,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var sleeperGroup = new THREE.Group();
   scene.add(sleeperGroup);
   var sleeperGeo = facetColors(new THREE.BoxGeometry(0.55, 0.14, 2.7), '#2e241c', '#3c3026', function () { return rnd(); });
-  var sleepers = new THREE.InstancedMesh(sleeperGeo, darkMat, 320);
+  var sleepers = new THREE.InstancedMesh(sleeperGeo, darkMat, SLEEPERS);
   (function () {
     var m = new THREE.Matrix4();
-    for (var i = 0; i < 320; i++) {
-      m.makeTranslation(i * 1.2 - 192, 0.29, 0);
+    for (var i = 0; i < SLEEPERS; i++) {
+      m.makeTranslation(i * 1.2 - TRACK_HALF, 0.29, 0);
       sleepers.setMatrixAt(i, m);
     }
   })();
@@ -1250,15 +1252,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     parts.push(facetColors(box(0.5, 0.06, 0.06, -0.2, 2.28, 0), '#2a2a30', '#3a3a42', function () { return rnd(); }));
     return mergeGeos(parts);
   })();
-  var lampPosts = new THREE.InstancedMesh(lampPostGeo, darkMat, 12);
+  var lampPosts = new THREE.InstancedMesh(lampPostGeo, darkMat, LAMPS);
   var lampBulbGeo = new THREE.SphereGeometry(0.13, 8, 6);
   var lampBulbMat = new THREE.MeshStandardMaterial({ color: '#3a2410', emissive: '#ffb37a', emissiveIntensity: 2.2 });
-  var lampBulbs = new THREE.InstancedMesh(lampBulbGeo, lampBulbMat, 12);
+  var lampBulbs = new THREE.InstancedMesh(lampBulbGeo, lampBulbMat, LAMPS);
   var lampGlows = [], sigGlows = [];
   (function () {
     var m = new THREE.Matrix4();
-    for (var i = 0; i < 12; i++) {
-      var x = i * 32 - 176;
+    for (var i = 0; i < LAMPS; i++) {
+      var x = i * 32 - TRACK_HALF;
       m.makeTranslation(x, 0, 3.62);
       lampPosts.setMatrixAt(i, m);
       m.makeTranslation(x - 0.42, 2.24, 3.62);
@@ -1291,10 +1293,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
     return mergeGeos(parts);
   })();
-  var telegraph = new THREE.InstancedMesh(telegraphGeo, darkMat, 16);
+  var telegraph = new THREE.InstancedMesh(telegraphGeo, darkMat, POLES);
   (function () {
     var m = new THREE.Matrix4();
-    for (var i = 0; i < 16; i++) { m.makeTranslation(i * 24 - 192, 0, -3.62); telegraph.setMatrixAt(i, m); }
+    for (var i = 0; i < POLES; i++) { m.makeTranslation(i * 24 - TRACK_HALF, 0, -3.62); telegraph.setMatrixAt(i, m); }
   })();
   sideGroup.add(telegraph);
 
@@ -1309,15 +1311,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     add(box(0.6, 0.09, 0.09, 0.3, 3.05, 0), '#6a4a3a', '#7a5a48');
     return mergeGeos(parts);
   })();
-  var signalPosts = new THREE.InstancedMesh(signalPostGeo, darkMat, 4);
+  var signalPosts = new THREE.InstancedMesh(signalPostGeo, darkMat, SIGNALS);
   var sigRedMat = new THREE.MeshStandardMaterial({ color: '#2a0a0a', emissive: '#ff5a4a', emissiveIntensity: 2.0 });
   var sigGreenMat = new THREE.MeshStandardMaterial({ color: '#0a2a14', emissive: '#5aff8a', emissiveIntensity: 1.6 });
-  var sigRed = new THREE.InstancedMesh(new THREE.CircleGeometry(0.09, 8), sigRedMat, 4);
-  var sigGreen = new THREE.InstancedMesh(new THREE.CircleGeometry(0.09, 8), sigGreenMat, 4);
+  var sigRed = new THREE.InstancedMesh(new THREE.CircleGeometry(0.09, 8), sigRedMat, SIGNALS);
+  var sigGreen = new THREE.InstancedMesh(new THREE.CircleGeometry(0.09, 8), sigGreenMat, SIGNALS);
   (function () {
     var m = new THREE.Matrix4();
-    for (var i = 0; i < 4; i++) {
-      var x = i * 96 - 160;
+    for (var i = 0; i < SIGNALS; i++) {
+      var x = i * 96 - TRACK_HALF;
       m.makeTranslation(x, 0, 3.62); signalPosts.setMatrixAt(i, m);
       m.makeTranslation(x, 3.45, 3.7); sigRed.setMatrixAt(i, m);
       m.makeTranslation(x, 3.16, 3.7); sigGreen.setMatrixAt(i, m);
@@ -1451,7 +1453,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   trainReflection.position.set(0, -13.0, -26);
   scene.add(trainReflection);
 
-  var TILE = 48, NTILE = 14;
+  var TILE = 48, NTILE = 28;
   var tiles = [];
   var windmillRotors = [], chimneyWisps = [], boats = [], riverMists = [];
   var skyLanterns = [], reflStreaks = [], tileGlows = [];
@@ -1540,6 +1542,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   regions.push({ start: -1000, end: eventParam ? 60 : 96, biome: startBiome, mech: 'open', scheduled: true });
   planRegion(regions[0].end);
   planRegion(regions[1].end);
+  // the first tiles reach ~650 m out, so the plan must already cover them
+  while (regions[regions.length - 1].end < TILE * 14 + 24) planRegion(regions[regions.length - 1].end);
   currentBiome = regions[0].biome;
   function regionAt(W) {
     for (var i = 0; i < regions.length; i++) {
@@ -2145,7 +2149,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var ctx = { idx: idx, w: w, group: group, parts: parts, winParts: winParts, gH: gH };
 
     // ground mesh, per-vertex biome blend
-    var gg = new THREE.PlaneGeometry(TILE, 340, 12, 40);
+    var gg = new THREE.PlaneGeometry(TILE, 420, 12, 48);
     gg.rotateX(-Math.PI / 2);
     var pos = gg.attributes.position;
     var colors = new Float32Array(pos.count * 3);
@@ -2207,8 +2211,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         parts.push(facetColors(box(2.4, 1.3 - bot, 8.8, lx, (1.3 + bot) / 2, 0), '#5a5a62', '#6e6e76', stonePickT));
         parts.push(facetColors(box(2.8, 0.3, 9.2, lx, 1.15, 0), '#62626a', '#76767e', stonePickT));
       }
+      var rPrev = rScan;
       if (rScan.end >= w + 24) break;
       rScan = regionAt(rScan.end + 0.01);
+      if (rScan === rPrev) break; // past the planned horizon: nothing more to scan
     }
 
     // props: each biome decorates its own side of the boundary
@@ -2280,7 +2286,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var ridges = [];
   var ridgeMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: true });
   function makeRidge(z, h, color, speed, phase) {
-    var len = 800, segs = 64;
+    var len = 1700, segs = 136;
     var positions = [], colors = [];
     var cTop = new THREE.Color(color);
     var cBot = new THREE.Color('#1a2230');
@@ -3644,7 +3650,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   deckCaps.frustumCulled = false; deckCaps.visible = false;
   (function () {
     var m = new THREE.Matrix4();
-    for (var i = 0; i < NSEG; i++) { m.makeTranslation(i * SEG - 176, 0, 0); deckCaps.setMatrixAt(i, m); }
+    for (var i = 0; i < NSEG; i++) { m.makeTranslation(i * SEG - TRACK_HALF, 0, 0); deckCaps.setMatrixAt(i, m); }
   })();
   viaductGroup.add(deckCaps);
   snowCapMeshes.push(deckCaps);
@@ -3701,7 +3707,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
     for (var i = 0; i < NSEG * 2; i++) {
       var sc = rand(0.5, 1.4);
-      p.set(Math.floor(i / 2) * SEG - 176 + rand(-7, 7), 0.245, rand(-2.8, 2.8));
+      p.set(Math.floor(i / 2) * SEG - TRACK_HALF + rand(-7, 7), 0.245, rand(-2.8, 2.8));
       s.set(sc, 1, sc * rand(0.6, 1));
       m.compose(p, q, s);
       puddles.setMatrixAt(i, m);
@@ -3967,7 +3973,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     wScale.set(moonDir.x, 0.02, moonDir.z).normalize();
     skyMat.uniforms.uGlowDir.value.copy(wScale).lerp(wPos, dayF).normalize();
     mix3(scene.fog.color, FOG_N, FOG_D, dayF, FOG_K, dk);
-    scene.fog.density = lerp(0.005, 0.0028, dayF) + wx.fog * 0.011 + wx.rain * 0.003 + wx.snow * 0.004;
+    scene.fog.density = lerp(0.005, 0.003, dayF) + wx.fog * 0.011 + wx.rain * 0.003 + wx.snow * 0.004;
     mix3(hemi.color, HEMI_SN, HEMI_SD, dayF, CLOUD_K, dk * 0.4);
     mix3(hemi.groundColor, HEMI_GN, HEMI_GD, dayF, FOG_K, dk * 0.4);
     hemi.intensity = (lerp(1.0, 1.75, dayF) * (1 - wx.fog * 0.25) + duskF * 0.15) * (1 - tunnelViewF * 0.85);
@@ -4164,7 +4170,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     dist += SPEED * speedF * dt;
 
     // extend the region plan and detect boundary crossings
-    while (regions[regions.length - 1].end < dist + 420) planRegion(regions[regions.length - 1].end);
+    while (regions[regions.length - 1].end < dist + TRACK_HALF + 320) planRegion(regions[regions.length - 1].end);
     while (crossIdx + 1 < regions.length && dist >= regions[crossIdx + 1].start) {
       crossIdx++;
       var entered = regions[crossIdx];
@@ -4179,7 +4185,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // arm the next boundary's transition mechanism as it comes into view
     for (var ri = 0; ri < regions.length; ri++) {
       var rg = regions[ri];
-      if (!rg.scheduled && rg.start - dist < 200 && rg.start > dist - 80) {
+      if (!rg.scheduled && rg.start - dist < TRACK_HALF + 100 && rg.start > dist - 80) {
         rg.scheduled = true;
         if (rg.mech === 'stop') { stopPending = true; haltTargetW = rg.start; }
         else if (rg.mech === 'tunnel') {
@@ -4317,7 +4323,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     for (var r = 0; r < ridges.length; r++) {
       var rd = ridges[r];
-      rd.offset = 400 - ((dist * rd.speed + 400) % 800);
+      rd.offset = 850 - ((dist * rd.speed + 850) % 1700);
       rd.mesh.position.x = rd.offset;
     }
     updateRidges(dt);
@@ -4643,6 +4649,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   resize();
   computeCamera(0.016, 0);
   animate();
+})();</script>
 })();</script>
 </body>
 </html>
