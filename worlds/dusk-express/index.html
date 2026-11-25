@@ -366,6 +366,8 @@
   .wxmenu[hidden] { display: none; }
   .wxmenu button { min-height: 30px; padding: 5px 10px; font-size: 11px; }
   .wxmenu button[aria-pressed="true"] { color: #2c1e2e; background: var(--cream); }
+  .wxmenu.qmenu { grid-template-columns: repeat(4, auto); }
+  #qualityBtn { letter-spacing: 0.04em; }
 
   #toast {
     position: fixed;
@@ -477,8 +479,13 @@
     <div class="envrow time">
       <input id="timeSlider" type="range" min="0" max="24" step="0.05" value="21.5" aria-label="一天中的时刻">
       <span id="phaseLabel">21:30 · 夜晚</span>
+      <button id="qualityBtn" type="button" aria-haspopup="true" aria-expanded="false" title="选择画质（会记住选择）">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18V9M9.5 18V5M14.5 18v-7M20 18v-4"/></svg>
+        <span id="qualityLabel">画质</span>
+      </button>
     </div>
     <div class="wxmenu" id="wxmenu" role="menu" aria-label="天气选择" hidden></div>
+    <div class="wxmenu qmenu" id="qmenu" role="menu" aria-label="画质选择" hidden></div>
   </div>
 
   <div id="toast" role="status"></div>
@@ -531,6 +538,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   if (isShot) document.body.classList.add('shot');
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // quality tier: user-selectable and persisted; auto-detected on first visit
+  var TIERS = {
+    low: { name: '流畅', dpr: 1, shadow: 0 },
+    mid: { name: '均衡', dpr: 1.5, shadow: 1024 },
+    high: { name: '精细', dpr: 2, shadow: 2048 }
+  };
+  function detectTier() {
+    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    var mem = navigator.deviceMemory || 0, cores = navigator.hardwareConcurrency || 0;
+    if (!coarse && !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) return 'high';
+    return ((mem && mem <= 4) || (cores && cores <= 4)) ? 'low' : 'mid';
+  }
+  var qualityPref = params.get('q');
+  if (!qualityPref) {
+    qualityPref = 'auto';
+    try { qualityPref = localStorage.getItem('de-quality') || 'auto'; } catch (e) {}
+  }
+  if (qualityPref !== 'auto' && !TIERS[qualityPref]) qualityPref = 'auto';
+  var qualityTier = qualityPref === 'auto' ? detectTier() : qualityPref;
+  function qualityName() { return (qualityPref === 'auto' ? '自动 · ' : '') + TIERS[qualityTier].name; }
+
   // environment state (?hour=H&weather=W&auto=0 for deterministic shots)
   var WEATHERS = ['clear', 'rain', 'snow', 'hail', 'fog', 'leafG', 'leafR'];
   var WEATHER_NAMES = { clear: '晴朗', rain: '下雨', snow: '下雪', hail: '冰雹', fog: '雾天', leafG: '绿叶', leafR: '枫叶' };
@@ -556,8 +584,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return;
   }
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.18;
@@ -718,7 +744,33 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     '  return s;',
     '}'
   ].join('\n');
-  var BEND_FN = CURVE_GLSL + '\n' + [
+  var BEND_SLOPE = [
+    'float curveSlope(float w) {',
+    '  float s = 0.0;',
+    '  for (int i = 0; i < 2; i++) {',
+    '    vec4 c = uCurve[i];',
+    '    if (c.z == 0.0 || w <= c.x || w >= c.y) continue;',
+    '    float k = (w - c.x) / (c.y - c.x);',
+    '    s += c.z * 3.14159265 / (c.y - c.x) * sin(2.0 * k * 3.14159265);',
+    '  }',
+    '  return s;',
+    '}'
+  ].join('\n');
+  // inverse-transpose of the shear applied to the object-space normal; the
+  // slope is sampled at the vertex's unbent world x (object space differs from
+  // world space only by the model rotation, which props barely use)
+  var BEND_NORMAL = [
+    '#include <beginnormal_vertex>',
+    '{',
+    '  vec4 bnp = vec4(position, 1.0);',
+    '  #ifdef USE_INSTANCING',
+    '    bnp = instanceMatrix * bnp;',
+    '  #endif',
+    '  bnp = modelMatrix * bnp;',
+    '  objectNormal = vec3(objectNormal.x - curveSlope(bnp.x + uDist) * objectNormal.z, objectNormal.y, objectNormal.z);',
+    '}'
+  ].join('\n');
+  var BEND_FN = CURVE_GLSL + '\n' + BEND_SLOPE + '\n' + [
     'vec3 bendWorld(vec3 p) {',
     '  p.z += curveG(p.x + uDist) - curveG(uDist);',
     '  return p;',
@@ -762,6 +814,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       shader.uniforms.uCurve = uCurve;
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\n' + BEND_FN)
+        // the bend is a shear, so surface normals must tilt with it or the
+        // ground, deck and walls inside a curve are lit as if still straight
+        .replace('#include <beginnormal_vertex>', BEND_NORMAL)
         .replace('#include <project_vertex>', BEND_PROJECT)
         .replace('#include <worldpos_vertex>', BEND_WORLDPOS);
       var su = mat.userData.snowU;
@@ -776,7 +831,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
           .replace('#include <normal_fragment_begin>', SNOW_FRAG);
       }
     };
-    mat.customProgramCacheKey = function () { return (mat.userData.snowU ? 'bend-snow' : 'bend') + ':' + mat.uuid; };
+    // no uuid in the key: recycled tiles get fresh window materials every few
+    // seconds, and a per-material key would recompile identical shaders each time
+    mat.customProgramCacheKey = function () { return (mat.userData.snowU ? (mat.userData.snowU === groundSnowU ? 'bend-snow-g' : 'bend-snow-s') : 'bend'); };
     return mat;
   }
   function snowify(mat, u) { mat.userData.snowU = u; return bendify(mat); }
@@ -792,7 +849,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         .replace('#include <common>', '#include <common>\n' + SNOW_FRAG_COMMON)
         .replace('#include <normal_fragment_begin>', SNOW_FRAG);
     };
-    mat.customProgramCacheKey = function () { return 'snow-only:' + mat.uuid; };
+    mat.customProgramCacheKey = function () { return 'snow-only'; };
     return mat;
   }
   snowify(groundMat, groundSnowU);
@@ -1066,6 +1123,18 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   keyLight.shadow.normalBias = 0.02;
   scene.add(keyLight);
   scene.add(keyLight.target);
+  // applied on load and whenever the user picks another tier (no reload needed)
+  function applyQuality() {
+    var tq = TIERS[qualityTier];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, tq.dpr));
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    keyLight.castShadow = tq.shadow > 0;
+    if (tq.shadow > 0 && keyLight.shadow.mapSize.x !== tq.shadow) {
+      keyLight.shadow.mapSize.set(tq.shadow, tq.shadow);
+      if (keyLight.shadow.map) { keyLight.shadow.map.dispose(); keyLight.shadow.map = null; }
+    }
+  }
+  applyQuality();
   var KEY_MOON = new THREE.Color('#b8c4f0'), KEY_SUN = new THREE.Color('#ffd9a0');
   var keyDir = new THREE.Vector3();
 
@@ -1395,7 +1464,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   });
   // living water: three travelling swells displace the surface and tilt its normals,
   // x frequencies are multiples of 2*PI/48 so tile seams and wraps stay phase-continuous
-  var waveTimeU = { value: 0 };
+  var RIVER_NIGHT = new THREE.Color('#2a3a60');
+  var waveTimeU = { value: 0 }, riverFoamU = { value: 1 };
   function waveHAt(x, z, tm) {
     return Math.sin(x * 0.3927 + tm * 1.05) * 0.5 + Math.sin(z * 0.23 + x * 0.1309 - tm * 0.8) * 0.32 + Math.sin(x * 0.2618 - z * 0.19 + tm * 1.6) * 0.22;
   }
@@ -1403,8 +1473,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     shader.uniforms.uDist = uDist;
     shader.uniforms.uCurve = uCurve;
     shader.uniforms.uTime = waveTimeU;
+    shader.uniforms.uFoamGlow = riverFoamU;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\n' + BEND_FN + '\nuniform float uTime;\nattribute float aWave;\nvarying float vWaveH;\nvarying float vWaveA;')
+      .replace('#include <common>', '#include <common>\n' + BEND_FN + '\nuniform float uTime;\nuniform float uFoamGlow;\nattribute float aWave;\nvarying float vWaveH;\nvarying float vWaveA;')
       .replace('#include <beginnormal_vertex>', [
         '#include <beginnormal_vertex>',
         'float wA1 = position.x * 0.3927 + uTime * 1.05;',
@@ -1420,12 +1491,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       .replace('#include <project_vertex>', BEND_PROJECT)
       .replace('#include <worldpos_vertex>', BEND_WORLDPOS);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vWaveH;\nvarying float vWaveA;')
+      .replace('#include <common>', '#include <common>\nuniform float uFoamGlow;\nvarying float vWaveH;\nvarying float vWaveA;')
       .replace('#include <emissivemap_fragment>', [
         '#include <emissivemap_fragment>',
         'float wFoam = smoothstep(0.72, 0.98, vWaveH) * smoothstep(0.2, 0.5, vWaveA);',
-        'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85, 0.92, 1.0), wFoam * 0.32);',
-        'totalEmissiveRadiance += vec3(0.6, 0.72, 0.95) * wFoam * 0.35;'
+        'float wGlow = 0.12 + 0.88 * uFoamGlow;',
+        'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85, 0.92, 1.0), wFoam * (0.06 + 0.26 * uFoamGlow));',
+        'totalEmissiveRadiance += vec3(0.6, 0.72, 0.95) * wFoam * 0.35 * wGlow;'
       ].join('\n'));
   };
   riverMat.customProgramCacheKey = function () { return 'wave-bend:' + riverMat.uuid; };
@@ -1601,6 +1673,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var run = clamp((h - bed) * 1.15, 2, 18);
     var k = az < 6 ? 1 : (az < 6 + run ? 1 - (az - 6) / run : 0);
     return k > 0 ? lerp(h, Math.min(h, bed), k * tf) : h;
+  }
+
+  // height of the laid ground under a world point (same field as buildTile)
+  function groundHeightAt(W, z) {
+    var p = paramsAt(W);
+    var xl = ((W + 24) % 48 + 48) % 48 - 24;
+    var h = profileH(p, xl, z);
+    if (inWater(regionAt(W).biome, z)) h = Math.min(h, waterLevel(W) - 0.6);
+    return corridorH(h, W, z);
   }
 
   // prop helpers read the height field of the tile being built
@@ -3050,12 +3131,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     camera.up.set(0, 1, 0);
     if (mode === 'orbit') {
       var sp = Math.sin(view.phi);
+      var oz = curveG(dist - 10) - curveG(dist); // the train's middle sits here in a curve
       desiredPos.set(
         -1 + view.radius * sp * Math.cos(view.theta),
         2.2 + view.radius * Math.cos(view.phi),
-        view.radius * sp * Math.sin(view.theta)
+        oz + view.radius * sp * Math.sin(view.theta)
       );
-      desiredLook.set(-1, 6.5 + Math.sin(t * 0.4) * 0.06 * sway, 0);
+      desiredLook.set(-1, 6.5 + Math.sin(t * 0.4) * 0.06 * sway, oz);
       desiredFov = 42;
     } else if (mode === 'follow') {
       var sf = Math.sin(view.fPhi);
@@ -3104,6 +3186,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     snapNext = false;
     camPos.lerp(desiredPos, cd);
     camLook.lerp(desiredLook, cd);
+    // keep the viewer above the terrain it orbits over (inside the bore the
+    // hill is overhead by design, so the clamp steps aside there)
+    if (tunnelF < 0.01) {
+      var cW = camPos.x + dist;
+      var gh = groundHeightAt(cW, camPos.z - (curveG(cW) - curveG(dist)));
+      if (camPos.y < gh + 1.3) camPos.y = lerp(camPos.y, gh + 1.3, smooth(0.5, 0, camPos.y - gh));
+    }
     camera.position.copy(camPos);
     camera.lookAt(camLook);
     camera.fov = lerp(camera.fov, desiredFov, cd);
@@ -3517,8 +3606,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function resize() {
     var w = window.innerWidth, h = window.innerHeight;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setSize(w, h, false);
+    applyQuality();
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     if (!view.userZoomed) {
@@ -3891,6 +3979,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     e.stopPropagation();
     wxmenu.hidden = !wxmenu.hidden;
     weatherBtn.setAttribute('aria-expanded', wxmenu.hidden ? 'false' : 'true');
+     closeQMenu();
   });
   document.addEventListener('click', function (e) {
     if (!wxmenu.hidden && !wxmenu.contains(e.target) && e.target !== weatherBtn) closeWxMenu();
@@ -3914,6 +4003,57 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   });
   autoBtn.addEventListener('click', function () { setAuto(!autoOn); });
   setWeather(weatherTarget, false);
+
+  // quality menu: resolution and shadows switch live, the choice is remembered
+  var qualityBtn = document.getElementById('qualityBtn');
+  var qualityLabel = document.getElementById('qualityLabel');
+  var qmenu = document.getElementById('qmenu');
+  var QKEYS = ['auto', 'low', 'mid', 'high'];
+  function setQuality(q, manual) {
+    qualityPref = q;
+    qualityTier = q === 'auto' ? detectTier() : q;
+    qualityLabel.textContent = qualityName();
+    var items = qmenu.querySelectorAll('button');
+    for (var i = 0; i < items.length; i++) {
+      items[i].setAttribute('aria-pressed', items[i].getAttribute('data-q') === q ? 'true' : 'false');
+    }
+    applyQuality();
+    if (manual) {
+      try { localStorage.setItem('de-quality', q); } catch (e) {}
+      toast('画质：' + qualityName());
+    }
+  }
+  (function () {
+    for (var i = 0; i < QKEYS.length; i++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('data-q', QKEYS[i]);
+      b.setAttribute('role', 'menuitem');
+      b.textContent = QKEYS[i] === 'auto' ? '自动' : TIERS[QKEYS[i]].name;
+      b.addEventListener('click', function () {
+        setQuality(this.getAttribute('data-q'), true);
+        closeQMenu();
+      });
+      qmenu.appendChild(b);
+    }
+  })();
+  function closeQMenu() {
+    qmenu.hidden = true;
+    qualityBtn.setAttribute('aria-expanded', 'false');
+  }
+  qualityBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    qmenu.hidden = !qmenu.hidden;
+    qualityBtn.setAttribute('aria-expanded', qmenu.hidden ? 'false' : 'true');
+    closeWxMenu();
+  });
+  document.addEventListener('click', function (e) {
+    if (!qmenu.hidden && !qmenu.contains(e.target)) closeQMenu();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeQMenu();
+  });
+  setQuality(qualityPref, false);
   timeSlider.value = hour;
   autoBtn.setAttribute('aria-pressed', autoOn ? 'true' : 'false');
 
@@ -4000,7 +4140,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     sunHalo.material.opacity = 0.22 * dayF * (1 - wx.fog * 0.6);
     moonCore.material.opacity = 0.95 * moonVis;
     moonPath.material.opacity = moonPathO * moonVis;
-    riverMat.emissiveIntensity = 0.25 + 0.55 * nightF;
+    // by day the water is lit by the sun alone: no blue self-glow, and a rougher
+    // surface so the swell normals stop throwing a grid of hard glints
+    riverMat.emissiveIntensity = 0.06 + 0.74 * nightF;
+    riverMat.roughness = lerp(0.88, 0.35, nightF);
+    riverMat.metalness = lerp(0.0, 0.25, nightF);
+    riverMat.color.setHex(0x35506e).lerp(RIVER_NIGHT, nightF);
+    riverFoamU.value = nightF;
 
     // ridges brighten with daylight
     var rb = 1 + dayF * 1.3;
@@ -4330,7 +4476,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     // lighthouse beams sweep; foam lines breathe along the shore
     for (var bc = 0; bc < beacons.length; bc++) {
       beacons[bc].group.rotation.y += dt * 0.5 * sway;
-      beacons[bc].mat.opacity = 0.05 + nightF * 0.05;
+      beacons[bc].mat.opacity = 0.1 * nightF; // a lighthouse is for the dark hours
     }
     for (var fm = 0; fm < foams.length; fm++) {
       var fo = foams[fm];
@@ -4496,7 +4642,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       sm.sprite.position.z += sm.vz * dt;
       var sc = sm.size + k * 3.4;
       sm.sprite.scale.set(sc, sc, 1);
-      sm.sprite.material.opacity = 0.28 * (1 - k) * Math.min(1, k * 6);
+      // pale steam reads at night, but washes out against a bright sky: by day
+      // the plume turns into darker, denser coal smoke
+      sm.sprite.material.color.setRGB(lerp(0.24, 0.78, nightF), lerp(0.24, 0.8, nightF), lerp(0.26, 0.83, nightF));
+      sm.sprite.material.opacity = lerp(0.42, 0.28, nightF) * (1 - k) * Math.min(1, k * 6);
     }
 
     // lamp & window shimmer, driven by the time-of-day light schedules
