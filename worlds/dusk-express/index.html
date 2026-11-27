@@ -392,6 +392,41 @@
     white-space: nowrap;
   }
 
+  .carnav {
+    position: fixed;
+    right: calc(16px + env(safe-area-inset-right, 0px));
+    bottom: calc(238px + env(safe-area-inset-bottom, 0px));
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border: 1px solid rgba(246, 234, 214, 0.18);
+    border-radius: 999px;
+    background: rgba(30, 18, 36, 0.55);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: rgba(246, 234, 214, 0.82);
+    animation: rise 1s cubic-bezier(.22,.61,.36,1) both;
+  }
+  .carnav[hidden] { display: none; }
+  .carnav button {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(246, 234, 214, 0.2);
+    background: rgba(246, 234, 214, 0.08);
+    color: var(--cream);
+    font-size: 14px;
+    line-height: 1;
+  }
+  .carnav button:hover { background: rgba(246, 234, 214, 0.2); }
+  .carnav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #carName { min-width: 92px; text-align: center; }
+
   #toast {
     position: fixed;
     left: 50%;
@@ -440,6 +475,9 @@
     #timeSlider { width: 110px; }
     #phaseLabel { min-width: 0; font-size: 9px; }
     #speedSlider { width: 96px; }
+    .carnav { right: calc(12px + env(safe-area-inset-right, 0px)); bottom: calc(232px + env(safe-area-inset-bottom, 0px)); font-size: 10px; gap: 6px; }
+    .carnav button { width: 24px; height: 24px; }
+    #carName { min-width: 84px; }
     .speedlab, #speedLabel { font-size: 9px; }
     #speedLabel { min-width: 30px; }
     #toast { font-size: 11px; padding: 8px 14px; max-width: calc(100vw - 24px); white-space: normal; text-align: center; }
@@ -517,6 +555,12 @@
     </div>
     <div class="wxmenu" id="wxmenu" role="menu" aria-label="天气选择" hidden></div>
     <div class="wxmenu qmenu" id="qmenu" role="menu" aria-label="画质选择" hidden></div>
+  </div>
+
+  <div class="carnav" id="carNav" hidden>
+    <button id="carPrev" type="button" aria-label="上一节车厢">&#8249;</button>
+    <span id="carName">餐车 · 2/3</span>
+    <button id="carNext" type="button" aria-label="下一节车厢">&#8250;</button>
   </div>
 
   <div id="toast" role="status"></div>
@@ -1201,7 +1245,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var moonPathZ = -26, moonPathO = 0.16, moonPathSX = 1;
   // lights that follow the day/night schedule
   var nightGlows = [], boatGlows = [], carHalos = [];
-  var rideLampShade = null, rideInteriorLight = null;
   var rideGlass = [];
   var doors = [], boarders = [];
 
@@ -2759,56 +2802,249 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     tender.add(tail);
   })();
 
-  // ---- passenger cars ----
+  // ---- passenger cars: three themed interiors, all enterable ----
   var CAR_X = [3.0, -10.6, -24.2];
+  var CAR_THEMES = [
+    {
+      name: '客厅车', accent: '#3f7a5c', wallA: '#33262c', wallB: '#45343c',
+      seatA: '#2f5a44', seatB: '#3d6f55', rugA: '#2e211a', rugB: '#392a21',
+      wood: '#4a3340', woodB: '#5a4050', lampCol: '#ffc98a'
+    },
+    {
+      name: '餐车', accent: '#8c2f3f', wallA: '#3a2a24', wallB: '#4d372f',
+      seatA: '#6b2530', seatB: '#82323e', rugA: '#26181a', rugB: '#2e1e20',
+      wood: '#4a3327', woodB: '#5c4132', lampCol: '#ffb37a'
+    },
+    {
+      name: '卧铺车', accent: '#2f4f7a', wallA: '#2b2938', wallB: '#383647',
+      seatA: '#2e4266', seatB: '#3c5680', rugA: '#1e1c26', rugB: '#26232e',
+      wood: '#33313f', woodB: '#403d4e', lampCol: '#ffcf9a'
+    }
+  ];
   var cars = [];
+  var carLights = [], carLampMats = [];
   var rideCarIndex = 1;
+  var carParam = parseInt(params.get('car'), 10);
+  if (carParam >= 1 && carParam <= 3) rideCarIndex = carParam - 1;
 
   function buildCar(idx) {
+    var th = CAR_THEMES[idx];
     var g = new THREE.Group();
     g.position.x = CAR_X[idx];
     trainGroup.add(g);
-    var isRide = idx === rideCarIndex;
-    var parts = [];
+    var parts = [], innerParts = [];
     function add(geo, a, b) { parts.push(facetColors(geo, a, b, function () { return rnd(); })); }
-    // interior fittings use an un-snowed material clone (snow must stay outside)
-    var innerParts = [];
     function addI(geo, a, b) { innerParts.push(facetColors(geo, a, b, function () { return rnd(); })); }
 
+    // underframe + body, with a theme-coloured waist stripe so the cars read
+    // differently from outside as well
     add(box(12.6, 0.4, 2.9, 0, 1.15, 0), '#241a2e', '#322640');
-    if (!isRide) {
-      add(box(12.6, 2.5, 3.1, 0, 2.6, 0), plumA, plumB);
-    } else {
-      // interior shell: floor, lower/upper bands, pillars, ceiling, end walls
-      addI(box(12.4, 0.12, 3.0, 0, 1.42, 0), '#3a2634', '#46303e');
-      add(box(12.6, 0.85, 0.12, 0, 1.875, 1.5), plumA, plumB);
-      add(box(12.6, 0.85, 0.12, 0, 1.875, -1.5), plumA, plumB);
-      add(box(12.6, 0.45, 0.12, 0, 3.625, 1.5), plumA, plumB);
-      add(box(12.6, 0.45, 0.12, 0, 3.625, -1.5), plumA, plumB);
-      for (var p = -6; p <= 6; p += 2) {
-        add(box(0.5, 1.1, 0.12, p, 2.85, 1.5), plumA, plumB);
-        add(box(0.5, 1.1, 0.12, p, 2.85, -1.5), plumA, plumB);
-      }
-      add(box(12.6, 0.06, 0.18, 0, 2.32, -1.44), brassA, brassB);
-      add(box(12.4, 0.1, 3.0, 0, 3.82, 0), '#3a2a44', '#463450');
-      add(box(0.12, 2.4, 3.0, 6.24, 2.65, 0), plumA, plumB);
-      add(box(0.12, 2.4, 3.0, -6.24, 2.65, 0), plumA, plumB);
-      // benches + table
-      [[-3.4, 0.9], [-3.4, -0.9], [3.4, 0.9], [3.4, -0.9]].forEach(function (s) {
-        addI(box(1.7, 0.5, 1.0, s[0], 1.75, s[1]), '#5a3040', '#6c3c4e');
-        addI(box(1.7, 0.85, 0.16, s[0], 2.3, s[1] + (s[1] > 0 ? 0.45 : -0.45)), '#5a3040', '#6c3c4e');
-      });
-      // window-side bench in front of the ride camera
-      addI(box(1.6, 0.45, 0.8, 1, 1.85, -0.95), '#5a3040', '#6c3c4e');
-      addI(box(1.6, 0.5, 0.14, 1, 2.0, -1.28), '#5a3040', '#6c3c4e');
-      addI(box(1.3, 0.08, 0.9, 0, 2.2, 0), '#4a3040', '#5a3c4c');
-      addI(cylY(0.04, 0.05, 0.7, 0, 1.85, 0, 6), '#6a4a3a', '#7a5a48');
+    // side panels only: a full-width slab would cut the cabin in half inside
+    add(box(12.62, 0.14, 0.06, 0, 1.66, 1.56), th.accent, th.accent);
+    add(box(12.62, 0.14, 0.06, 0, 1.66, -1.56), th.accent, th.accent);
+    add(box(0.06, 0.14, 3.1, 6.29, 1.66, 0), th.accent, th.accent);
+    add(box(0.06, 0.14, 3.1, -6.29, 1.66, 0), th.accent, th.accent);
+
+    // interior shell: floor, lower/upper bands, pillars, ceiling, end walls
+    addI(box(12.4, 0.12, 3.0, 0, 1.42, 0), '#3a2634', '#46303e');
+    add(box(12.6, 0.85, 0.12, 0, 1.875, 1.5), th.wallA, th.wallB);
+    add(box(12.6, 0.85, 0.12, 0, 1.875, -1.5), th.wallA, th.wallB);
+    add(box(12.6, 0.45, 0.12, 0, 3.625, 1.5), '#cdbfa2', '#dbcdb0');
+    add(box(12.6, 0.45, 0.12, 0, 3.625, -1.5), '#cdbfa2', '#dbcdb0');
+    // wood wainscot under the windows
+    addI(box(12.5, 0.46, 0.05, 0, 1.7, 1.44), '#8a6a52', '#9c7c62');
+    addI(box(12.5, 0.46, 0.05, 0, 1.7, -1.44), '#8a6a52', '#9c7c62');
+    addI(box(12.5, 0.05, 0.09, 0, 1.94, 1.45), brassA, brassB);
+    addI(box(12.5, 0.05, 0.09, 0, 1.94, -1.45), brassA, brassB);
+    for (var p = -6; p <= 6; p += 2) {
+      add(box(0.5, 1.1, 0.12, p, 2.85, 1.5), th.wallA, th.wallB);
+      add(box(0.5, 1.1, 0.12, p, 2.85, -1.5), th.wallA, th.wallB);
     }
+    add(box(12.6, 0.06, 0.18, 0, 2.32, 1.44), brassA, brassB);
+    add(box(12.6, 0.06, 0.18, 0, 2.32, -1.44), brassA, brassB);
+    // barrel-vault ceiling lining. Only the upper half-arc is built: the
+    // lower half of a full tube would hang down into the cabin as a dark
+    // trough, and its outside would be what a passenger sees overhead.
+    var ceilMat = new THREE.MeshStandardMaterial({
+      color: '#f4ead6', roughness: 0.9, side: THREE.BackSide,
+      emissive: '#5e4d39', emissiveIntensity: 0.42
+    });
+    var ceilGeo = new THREE.CylinderGeometry(1.52, 1.52, 12.4, 18, 1, true, 0, Math.PI);
+    ceilGeo.rotateZ(Math.PI / 2);
+    ceilGeo.scale(1, 0.42, 1);
+    var ceilMesh = new THREE.Mesh(ceilGeo, ceilMat);
+    ceilMesh.position.y = 3.8;
+    g.add(ceilMesh);
+    add(box(0.12, 2.4, 3.0, 6.24, 2.65, 0), th.wallA, th.wallB);
+    add(box(0.12, 2.4, 3.0, -6.24, 2.65, 0), th.wallA, th.wallB);
+
+    // rug with brass edging
+    addI(box(10.4, 0.04, 2.3, 0, 1.5, 0), th.rugA, th.rugB);
+    addI(box(10.4, 0.03, 0.07, 0, 1.52, 1.13), brassA, brassB);
+    addI(box(10.4, 0.03, 0.07, 0, 1.52, -1.13), brassA, brassB);
+    // curtains in pairs at every window bay
+    for (var cu = -5; cu <= 5; cu += 2) {
+      [1, -1].forEach(function (cz) {
+        addI(box(0.22, 1.16, 0.08, cu - 0.72, 2.92, cz * 1.4), th.accent, th.wallA);
+        addI(box(0.22, 1.16, 0.08, cu + 0.72, 2.92, cz * 1.4), th.accent, th.wallA);
+      });
+    }
+    // luggage racks with brass rails
+    [1, -1].forEach(function (rz) {
+      addI(box(11.4, 0.06, 0.46, 0, 3.34, rz * 1.16), '#8a6a52', '#9c7c62');
+      addI(box(11.4, 0.04, 0.06, 0, 3.39, rz * 1.36), brassA, brassB);
+      addI(box(11.2, 0.02, 0.3, 0, 3.31, rz * 1.1), '#c9b48e', '#d6c4a2');
+      for (var rk = -5; rk <= 5; rk += 2.5) addI(box(0.05, 0.34, 0.05, rk, 3.52, rz * 1.3), brassA, brassB);
+    });
+    // framed panels on both end walls
+    [-6.16, 6.16].forEach(function (ex) {
+      addI(box(0.07, 1.05, 1.45, ex, 2.8, 0), brassA, brassB);
+      addI(box(0.05, 0.9, 1.3, ex - (ex > 0 ? 0.03 : -0.03), 2.8, 0), '#6a5a4a', '#7a6a58');
+    });
+    // potted plants by the ends
+    [[-5.5, 1.0], [5.5, -1.0]].forEach(function (pp) {
+      addI(cylY(0.15, 0.19, 0.26, pp[0], 1.6, pp[1], 8), '#6a4a3a', '#7a5a48');
+      addI(new THREE.ConeGeometry(0.32, 0.66, 7).translate(pp[0], 2.06, pp[1]), '#2f5a3a', '#3d6f4a');
+    });
+    // overhead lights: slim brass stems with small glowing opal shades
+    var lampMat = new THREE.MeshStandardMaterial({
+      color: '#f6e3c4', emissive: th.lampCol, emissiveIntensity: 1.7,
+      roughness: 0.4, side: THREE.DoubleSide
+    });
+    var bulbMat = new THREE.MeshBasicMaterial({ color: '#ffe4bc' });
+    carLampMats.push(lampMat);
+    for (var lx2 = -4; lx2 <= 4; lx2 += 4) {
+      addI(box(0.035, 0.2, 0.035, lx2, 3.66, 0), brassA, brassB);
+      addI(cylY(0.07, 0.07, 0.02, lx2, 3.76, 0, 10), brassA, brassB);
+      var shade = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.17, 0.14, 12, 1, true), lampMat);
+      shade.position.set(lx2, 3.5, 0);
+      g.add(shade);
+      var bulb = new THREE.Mesh(new THREE.CircleGeometry(0.13, 12), bulbMat);
+      bulb.rotation.x = Math.PI / 2;
+      bulb.position.set(lx2, 3.42, 0);
+      g.add(bulb);
+    }
+    var il = new THREE.PointLight(new THREE.Color(th.lampCol), 0, 12, 1.6);
+    il.position.set(0, 3.1, 0);
+    g.add(il);
+    carLights.push(il);
+    var il2 = new THREE.PointLight(new THREE.Color('#ffcf9e'), 0, 9, 1.6);
+    il2.position.set(0, 2.15, 0);
+    g.add(il2);
+    carLights.push(il2);
+    // warm cove strip along the ceiling edges (unlit strip so it glows)
+    var coveMat = new THREE.MeshBasicMaterial({ color: '#ffd9a6', transparent: true, opacity: 0.85 });
+    [1, -1].forEach(function (cz) {
+      var strip = new THREE.Mesh(new THREE.BoxGeometry(11.2, 0.04, 0.08), coveMat);
+      strip.position.set(0, 3.34, cz * 1.06);
+      g.add(strip);
+    });
+
+    // a small tea table sits just inside the passenger's view in every car
+    addI(box(1.15, 0.07, 0.62, 0.45, 2.02, -0.5), th.wood, th.woodB);
+    addI(box(1.05, 0.04, 0.52, 0.45, 2.06, -0.5), th.rugB, th.rugA);
+    addI(cylY(0.05, 0.06, 0.5, 0.0, 1.79, -0.5, 6), th.wood, th.woodB);
+    addI(cylY(0.05, 0.06, 0.5, 0.9, 1.79, -0.5, 6), th.wood, th.woodB);
+    addI(cylY(0.04, 0.05, 0.16, 0.14, 2.12, -0.42, 8), brassA, brassB);
+    var tlShade = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.12, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: '#ffe0b4', side: THREE.DoubleSide }));
+    tlShade.position.set(0.14, 2.25, -0.42);
+    g.add(tlShade);
+    addI(cylY(0.09, 0.09, 0.015, 0.74, 2.055, -0.62, 10), '#e8e2d6', '#f4efe6');
+    addI(cylY(0.045, 0.05, 0.075, 0.74, 2.1, -0.62, 10), '#f6f0e4', '#fffaf0');
+
+    // ---- themed seating / fittings ----
+    if (idx === 0) {
+      // lounge: two facing sofas, a low table, an armchair and a side table
+      function sofa(x, z, backZ, len) {
+        addI(box(len, 0.46, 0.9, x, 1.74, z), th.seatA, th.seatB);
+        addI(box(len - 0.4, 0.1, 0.78, x, 2.0, z), th.seatB, th.seatA);
+        addI(box(len, 0.66, 0.12, x, 2.14, backZ), th.seatA, th.seatB);
+        addI(box(0.16, 0.52, 0.9, x - len / 2 + 0.08, 1.99, z), th.seatB, th.seatA);
+        addI(box(0.16, 0.52, 0.9, x + len / 2 - 0.08, 1.99, z), th.seatB, th.seatA);
+      }
+      sofa(-3.0, 0.95, 1.34, 3.2);
+      sofa(4.9, 0.95, 1.34, 2.4);
+      // banquette under the far window, plus a facing armchair
+      addI(box(3.4, 0.42, 0.5, 2.7, 1.7, -1.2), th.seatA, th.seatB);
+      addI(box(3.3, 0.1, 0.44, 2.7, 1.93, -1.2), th.seatB, th.seatA);
+      addI(box(3.4, 0.46, 0.1, 2.7, 2.12, -1.44), th.seatA, th.seatB);
+      addI(box(0.86, 0.46, 0.86, -2.6, 1.72, -0.62), th.seatA, th.seatB);
+      addI(box(0.86, 0.62, 0.14, -2.6, 2.12, -1.02), th.seatA, th.seatB);
+      addI(box(0.7, 0.1, 0.7, -2.6, 1.97, -0.62), th.seatB, th.seatA);
+      // low tea table set to one side of the sightline
+      addI(box(1.55, 0.08, 0.85, -1.7, 2.06, 0), th.wood, th.woodB);
+      addI(box(1.45, 0.05, 0.75, -1.7, 2.1, 0), th.rugB, th.rugA);
+      addI(cylY(0.05, 0.06, 0.52, -2.25, 1.78, 0, 6), th.wood, th.woodB);
+      addI(cylY(0.05, 0.06, 0.52, -1.15, 1.78, 0, 6), th.wood, th.woodB);
+      addI(box(0.34, 0.06, 0.24, -1.92, 2.14, 0.12), '#8a6a4a', '#9a7856');
+      addI(cylY(0.06, 0.06, 0.14, -1.42, 2.17, -0.14, 8), '#c8d0d6', '#dfe6ea');
+      addI(box(0.92, 0.44, 0.92, 4.3, 1.74, -0.9), th.seatA, th.seatB);
+      addI(box(0.92, 0.62, 0.14, 4.3, 2.12, -1.32), th.seatA, th.seatB);
+      addI(box(0.7, 0.1, 0.7, 4.3, 2.0, -0.9), th.seatB, th.seatA);
+      addI(cylY(0.06, 0.07, 0.58, -4.7, 1.77, 0.5, 6), th.wood, th.woodB);
+      addI(cylY(0.26, 0.3, 0.06, -4.7, 2.09, 0.5, 10), th.woodB, th.wood);
+      addI(cylY(0.09, 0.12, 0.16, -4.7, 2.18, 0.5, 8), '#8a6448', '#9a7254');
+      addI(new THREE.ConeGeometry(0.24, 0.5, 7).translate(-4.7, 2.5, 0.5), '#2f5a3a', '#3d6f4a');
+    } else if (idx === 1) {
+      // dining car: table settings, chairs and a small bar at the end
+      [-2.8, 2.8].forEach(function (tx) {
+        addI(box(1.5, 0.06, 1.4, tx, 2.16, 0), '#c9bba0', '#dbcfb6');
+        addI(box(1.42, 0.2, 1.32, tx, 2.04, 0), '#b3a186', '#c3b194');
+        addI(cylY(0.07, 0.09, 0.56, tx, 1.77, 0, 6), th.wood, th.woodB);
+        addI(cylY(0.15, 0.15, 0.03, tx - 0.4, 2.21, 0.3, 12), '#e8e2d6', '#f4efe6');
+        addI(cylY(0.15, 0.15, 0.03, tx + 0.4, 2.21, -0.3, 12), '#e8e2d6', '#f4efe6');
+        addI(cylY(0.07, 0.07, 0.3, tx + 0.4, 2.35, 0.36, 8), '#2f4a34', '#3d5c40');
+        addI(cylY(0.035, 0.045, 0.16, tx, 2.28, 0, 8), brassA, brassB);
+        addI(cylY(0.02, 0.02, 0.08, tx, 2.39, 0, 6), '#ffe0b0', '#fff0d0');
+        [1, -1].forEach(function (cz) {
+          if (cz < 0) return;
+          addI(box(0.66, 0.4, 0.56, tx, 1.72, cz * 0.82), th.seatA, th.seatB);
+          addI(box(0.66, 0.36, 0.1, tx, 1.96, cz * 1.1), th.seatA, th.seatB);
+          addI(box(0.58, 0.08, 0.48, tx, 1.95, cz * 0.82), th.seatB, th.seatA);
+        });
+      });
+      addI(box(2.2, 0.6, 0.6, -4.9, 2.08, -1.05), th.wood, th.woodB);
+      addI(box(2.32, 0.06, 0.68, -4.9, 2.41, -1.05), brassA, brassB);
+      for (var bt = 0; bt < 5; bt++) {
+        addI(cylY(0.045, 0.045, 0.28, -5.62 + bt * 0.36, 2.58, -1.16, 8), bt % 2 ? '#7a3a2a' : '#3a5a3a', bt % 2 ? '#8a4a36' : '#4a6a4a');
+      }
+      addI(box(0.6, 0.08, 0.5, -4.9, 2.45, -0.72), '#e2dccf', '#eee8dc');
+    } else {
+      // sleeper: two curtained berths, a writing desk and a bookshelf
+      [-3.5, 4.9].forEach(function (bx2) {
+        addI(box(2.7, 0.14, 1.18, bx2, 1.88, -0.92), th.wood, th.woodB);
+        addI(box(2.55, 0.24, 1.05, bx2, 2.04, -0.92), '#d6cfc3', '#e4dfd4');
+        addI(box(0.4, 0.16, 0.9, bx2 - 1.05, 2.2, -0.92), '#e8e2d6', '#f2ece0');
+        addI(box(2.7, 0.12, 1.18, bx2, 2.98, -0.92), th.wood, th.woodB);
+        addI(box(2.55, 0.2, 1.02, bx2, 3.1, -0.92), '#cfc8bc', '#dcd6ca');
+        addI(box(2.7, 0.05, 0.06, bx2, 2.44, -0.36), brassA, brassB);
+        addI(box(0.07, 1.1, 0.1, bx2 - 1.32, 2.5, -0.3), brassA, brassB);
+        addI(box(0.07, 1.1, 0.1, bx2 + 1.32, 2.5, -0.3), brassA, brassB);
+        addI(cylY(0.05, 0.06, 0.09, bx2 + 0.9, 2.5, -1.3, 8), brassA, brassB);
+        addI(cylY(0.08, 0.1, 0.09, bx2 + 0.9, 2.58, -1.3, 8), '#ffdcae', '#fff0d0');
+      });
+      addI(box(1.7, 0.07, 0.6, -1.4, 2.08, 1.2), th.wood, th.woodB);
+      addI(box(0.1, 0.56, 0.5, -2.2, 1.8, 1.2), th.wood, th.woodB);
+      addI(box(0.1, 0.56, 0.5, -0.6, 1.8, 1.2), th.wood, th.woodB);
+      addI(box(0.42, 0.4, 0.42, -1.4, 1.72, 0.66), th.seatA, th.seatB);
+      addI(box(0.3, 0.04, 0.22, -1.6, 2.13, 1.2), '#e6ddc8', '#f2ecda');
+      addI(box(1.7, 1.05, 0.32, -1.5, 2.16, 1.26), th.wood, th.woodB);
+      for (var bk = 0; bk < 7; bk++) {
+        addI(box(0.13, 0.4, 0.2, -2.2 + bk * 0.19, 2.04, 1.08), bk % 2 ? '#7a3a3a' : '#2f4a5a', bk % 2 ? '#8a4a4a' : '#3d5a6a');
+      }
+      addI(box(1.7, 0.05, 0.05, -1.5, 2.7, 1.1), brassA, brassB);
+      // small ottoman tucked against the far wall
+      addI(box(1.6, 0.38, 0.46, 0.9, 1.68, -1.22), th.seatA, th.seatB);
+      addI(box(1.5, 0.09, 0.4, 0.9, 1.92, -1.22), th.seatB, th.seatA);
+    }
+
+    // exterior brass waist + roof lines
     add(box(12.6, 0.09, 0.16, 0, 2.28, 1.5), brassA, brassB);
     add(box(12.6, 0.09, 0.16, 0, 2.28, -1.5), brassA, brassB);
     add(box(12.6, 0.09, 0.16, 0, 3.56, 1.5), brassA, brassB);
     add(box(12.6, 0.09, 0.16, 0, 3.56, -1.5), brassA, brassB);
-    var roof = new THREE.CylinderGeometry(1.55, 1.55, 12.6, 10);
+    var roof = new THREE.CylinderGeometry(1.55, 1.55, 12.6, 12, 1, true, 0, Math.PI);
     roof.rotateZ(Math.PI / 2);
     roof.scale(1, 0.42, 1);
     roof.translate(0, 3.82, 0);
@@ -2820,16 +3056,15 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var body = new THREE.Mesh(mergeGeos(parts), trainMat);
     body.castShadow = true;
     g.add(body);
-    if (innerParts.length) {
-      var inner = new THREE.Mesh(mergeGeos(innerParts), trainMat.clone());
-      inner.receiveShadow = true;
-      g.add(inner);
-    }
+    var inner = new THREE.Mesh(mergeGeos(innerParts), trainMat.clone());
+    inner.receiveShadow = true;
+    g.add(inner);
 
-    // windows (near-side centre bay of non-ride cars is reserved for the doors)
+    // windows: lit panes on the outside; they are single-sided, so a passenger
+    // looking out from inside sees straight through them
     var winParts = [];
     for (var w = -5; w <= 5; w += 2) {
-      if (isRide || Math.abs(w) !== 1) {
+      if (Math.abs(w) !== 1) {
         var w1 = new THREE.PlaneGeometry(1.5, 1.15);
         w1.translate(w, 2.95, 1.57);
         winParts.push(w1);
@@ -2839,74 +3074,63 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       w2.translate(w, 2.95, -1.57);
       winParts.push(w2);
     }
-    if (!isRide) {
-      var winMesh = new THREE.Mesh(mergeGeos(winParts.map(function (geo) {
-        return facetColors(geo, '#ffb37a', '#ffd9a0', function () { return rnd(); });
-      })), carWinMat);
-      g.add(winMesh);
-      // sliding plug doors on the platform side, opened during station dwells
-      var frame = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.1), new THREE.MeshStandardMaterial({ color: '#140e1c', roughness: 0.9 }));
-      frame.position.set(0, 2.45, 1.565);
-      g.add(frame);
-      var door = { panels: [] };
-      [-1, 1].forEach(function (side) {
-        var pg = facetColors(box(1.24, 2.0, 0.06, 0, 0, 0), plumA, plumB, function () { return rnd(); });
-        var panel = new THREE.Mesh(pg, trainMat);
-        panel.position.set(side * 0.63, 2.45, 1.6);
-        panel.castShadow = true;
-        var pw = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.6), carWinMat);
-        pw.position.set(0, 0.45, 0.035);
-        panel.add(pw);
-        g.add(panel);
-        door.panels.push({ mesh: panel, side: side });
-      });
-      doors.push(door);
-    } else {
-      // ride car: only end-door windows glow; side windows are open openings
-      var dw = [];
-      var d1 = new THREE.PlaneGeometry(0.7, 0.9); d1.rotateY(Math.PI / 2); d1.translate(6.31, 2.9, 0); dw.push(d1);
-      var d2 = new THREE.PlaneGeometry(0.7, 0.9); d2.rotateY(-Math.PI / 2); d2.translate(-6.31, 2.9, 0); dw.push(d2);
-      g.add(new THREE.Mesh(mergeGeos(dw.map(function (geo) { return facetColors(geo, '#ffb37a', '#ffd9a0', function () { return rnd(); }); })), carWinMat));
-    }
-    // warm halo strip along each side (train-parented: JS bend already applied,
-    // updateGlowBatch cancels the batch shader's bend for these)
-    var chA = addBGlow(0, 2.95, 1.7, 1, 0.1, '#ffb37a', g, 13, 2.6); chA.train = true; carHalos.push(chA);
-    var chB = addBGlow(0, 2.95, -1.7, 1, 0.1, '#ffb37a', g, 13, 2.6); chB.train = true; carHalos.push(chB);
+    var winMesh = new THREE.Mesh(mergeGeos(winParts.map(function (geo) {
+      return facetColors(geo, '#ffb37a', '#ffd9a0', function () { return rnd(); });
+    })), carWinMat);
+    g.add(winMesh);
+
+    // sliding plug doors on the platform side, opened during station dwells
+    var frame = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.1), new THREE.MeshStandardMaterial({ color: '#140e1c', roughness: 0.9 }));
+    frame.position.set(0, 2.45, 1.565);
+    g.add(frame);
+    var door = { panels: [] };
+    [-1, 1].forEach(function (side) {
+      var pg = facetColors(box(1.24, 2.0, 0.06, 0, 0, 0), plumA, plumB, function () { return rnd(); });
+      var panel = new THREE.Mesh(pg, trainMat);
+      panel.position.set(side * 0.63, 2.45, 1.6);
+      panel.castShadow = true;
+      var pw = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.6), carWinMat);
+      pw.position.set(0, 0.45, 0.035);
+      panel.add(pw);
+      g.add(panel);
+      door.panels.push({ mesh: panel, side: side });
+    });
+    doors.push(door);
+
+    // glowing end-door windows
+    var dw = [];
+    var d1 = new THREE.PlaneGeometry(0.7, 0.9); d1.rotateY(Math.PI / 2); d1.translate(6.31, 2.9, 0); dw.push(d1);
+    var d2 = new THREE.PlaneGeometry(0.7, 0.9); d2.rotateY(-Math.PI / 2); d2.translate(-6.31, 2.9, 0); dw.push(d2);
+    g.add(new THREE.Mesh(mergeGeos(dw.map(function (geo) { return facetColors(geo, '#ffb37a', '#ffd9a0', function () { return rnd(); }); })), carWinMat));
+
+    // warm halo strip along each side
+    var chA = addBGlow(0, 2.95, 1.7, 1, 0.1, th.lampCol, g, 13, 2.6); chA.train = true; carHalos.push(chA);
+    var chB = addBGlow(0, 2.95, -1.7, 1, 0.1, th.lampCol, g, 13, 2.6); chB.train = true; carHalos.push(chB);
 
     [-5.0, -3.4, 3.4, 5.0].forEach(function (wx) {
       addWheel(g, smallWheelGeo, wx, 1.05, 1.3, 0.55);
       addWheel(g, smallWheelGeo, wx, 1.05, -1.3, 0.55);
     });
 
-    if (isRide) {
-      var lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.2, 8), new THREE.MeshStandardMaterial({ color: '#3a2410', emissive: '#ffb37a', emissiveIntensity: 2.4 }));
-      lampShade.position.set(0, 2.42, 0);
-      g.add(lampShade);
-      rideLampShade = lampShade;
-      var interiorLight = new THREE.PointLight(new THREE.Color('#ffb37a'), 2.2, 9, 2);
-      interiorLight.position.set(0, 3.2, 0);
-      g.add(interiorLight);
-      rideInteriorLight = interiorLight;
-      // weather glass: faint panes plus rain streaks / snow specks on the windows
-      [1, -1].forEach(function (side) {
-        var pane = new THREE.Mesh(new THREE.PlaneGeometry(12.4, 1.15), new THREE.MeshBasicMaterial({
-          color: '#8aa0b8', transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide
-        }));
-        pane.position.set(0, 2.95, side * 1.53);
-        g.add(pane);
-        var rainOv = new THREE.Mesh(new THREE.PlaneGeometry(12.4, 1.15), new THREE.MeshBasicMaterial({
-          map: dropletTex, color: '#cfe0f0', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide
-        }));
-        rainOv.position.set(0, 2.95, side * 1.545);
-        g.add(rainOv);
-        var snowOv = new THREE.Mesh(new THREE.PlaneGeometry(12.4, 1.15), new THREE.MeshBasicMaterial({
-          map: speckTex, color: '#ffffff', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide
-        }));
-        snowOv.position.set(0, 2.95, side * 1.545);
-        g.add(snowOv);
-        rideGlass.push({ rain: rainOv.material, snow: snowOv.material });
-      });
-    }
+    // weather glass: faint panes plus rain streaks / snow specks on the windows
+    [1, -1].forEach(function (side) {
+      var pane = new THREE.Mesh(new THREE.PlaneGeometry(12.4, 1.15), new THREE.MeshBasicMaterial({
+        color: '#8aa0b8', transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide
+      }));
+      pane.position.set(0, 2.95, side * 1.53);
+      g.add(pane);
+      var rainOv = new THREE.Mesh(new THREE.PlaneGeometry(12.4, 1.15), new THREE.MeshBasicMaterial({
+        map: dropletTex, color: '#cfe0f0', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide
+      }));
+      rainOv.position.set(0, 2.95, side * 1.545);
+      g.add(rainOv);
+      var snowOv = new THREE.Mesh(new THREE.PlaneGeometry(12.4, 1.15), new THREE.MeshBasicMaterial({
+        map: speckTex, color: '#ffffff', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide
+      }));
+      snowOv.position.set(0, 2.95, side * 1.545);
+      g.add(snowOv);
+      rideGlass.push({ rain: rainOv.material, snow: snowOv.material });
+    });
     cars.push(g);
     return g;
   }
@@ -3183,7 +3407,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     tTheta: 1.12, tPhi: 1.38, tRadius: 72,
     fTheta: 1.25, fPhi: 1.25, fRadius: 23,
     tFTheta: 1.25, tFPhi: 1.25, tFRadius: 23,
-    yaw: 0.0, pitch: 0.05, tYaw: 0.0, tPitch: 0.05,
+    yaw: -0.38, pitch: 0.04, tYaw: -0.38, tPitch: 0.04,
     rideFov: 55, tRideFov: 55,
     dragging: false, idleTimer: 0, userZoomed: false
   };
@@ -3208,6 +3432,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
     view.idleTimer = 0;
     if (hint) hint.classList.add('fade');
+    updateCarNav();
   }
 
   function computeCamera(dt, t) {
@@ -3262,8 +3487,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var cp = Math.cos(view.pitch);
       var lx = 1.0 + Math.sin(view.yaw) * cp * 12;
       var lz = 0.5 - Math.cos(view.yaw) * cp * 12;
-      desiredPos.set(car.position.x + cyw + 0.5 * syw, 2.62 + bob, car.position.z - syw + 0.5 * cyw);
-      desiredLook.set(car.position.x + lx * cyw + lz * syw, 2.62 + bob + Math.sin(view.pitch) * 12, car.position.z - lx * syw + lz * cyw);
+      desiredPos.set(car.position.x + cyw + 0.5 * syw, 2.6 + bob, car.position.z - syw + 0.72 * cyw);
+      desiredLook.set(car.position.x + lx * cyw + lz * syw, 2.6 + bob + Math.sin(view.pitch) * 12, car.position.z - lx * syw + lz * cyw);
       desiredFov = view.rideFov;
       // the eye rides fully with the banking carriage, but a passenger keeps
       // their head mostly upright: only a quarter of the bank reaches the gaze
@@ -3669,6 +3894,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     else if (e.key === '2') setMode('follow');
     else if (e.key === '3') setMode('ride');
     else if (e.key === 'p' || e.key === 'P') photoBtn.click();
+    else if (mode === 'ride' && (e.key === '[' || e.key === 'ArrowLeft')) stepRideCar(-1);
+    else if (mode === 'ride' && (e.key === ']' || e.key === 'ArrowRight')) stepRideCar(1);
   });
   if (hint) setTimeout(function () { hint.classList.add('fade'); }, 9000);
 
@@ -4170,6 +4397,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   speedSlider.addEventListener('input', function () { setSpeed(parseFloat(speedSlider.value), false); });
   speedSlider.addEventListener('change', function () { setSpeed(parseFloat(speedSlider.value), true); });
   setSpeed(speedMul, false);
+
+  // ride mode: step between the three themed carriages
+  var carNav = document.getElementById('carNav');
+  var carNameEl = document.getElementById('carName');
+  function carLabel(i) { return CAR_THEMES[i].name + ' \u00b7 ' + (i + 1) + '/3'; }
+  function updateCarNav() {
+    if (!carNav) return;
+    carNameEl.textContent = carLabel(rideCarIndex);
+    carNav.hidden = mode !== 'ride';
+  }
+  function stepRideCar(d) {
+    if (mode !== 'ride') setMode('ride');
+    rideCarIndex = (rideCarIndex + d + 3) % 3;
+    snapNext = true;
+    view.tYaw = -0.38; view.tPitch = 0.04; view.yaw = -0.38; view.pitch = 0.04;
+    updateCarNav();
+    toast('车厢 \u00b7 ' + CAR_THEMES[rideCarIndex].name);
+  }
+  document.getElementById('carPrev').addEventListener('click', function (e) { e.stopPropagation(); stepRideCar(-1); });
+  document.getElementById('carNext').addEventListener('click', function (e) { e.stopPropagation(); stepRideCar(1); });
+  updateCarNav();
   timeSlider.value = hour;
   autoBtn.setAttribute('aria-pressed', autoOn ? 'true' : 'false');
 
@@ -4798,8 +5046,13 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     tunnelBulbMat.emissiveIntensity = 1.6 * (0.4 + 0.6 * tunnelF);
     tunnelLight.intensity = 70 * tunnelF;
     tunnelLight.position.x = clamp(-tunnelX, -24, 24);
-    if (rideInteriorLight) rideInteriorLight.intensity = 2.2 * carriageF;
-    if (rideLampShade) rideLampShade.material.emissiveIntensity = 2.4 * carriageF;
+    for (var cq = 0; cq < carLights.length; cq++) {
+      var activeCar = (cq >> 1) === rideCarIndex && mode === 'ride';
+      carLights[cq].intensity = (activeCar ? ((cq & 1) ? 0.5 : 2.5) : 0) * carriageF;
+    }
+    for (var cm = 0; cm < carLampMats.length; cm++) {
+      carLampMats[cm].emissiveIntensity = (cm === rideCarIndex ? 2.4 : 1.15) * carriageF;
+    }
     starsA.material.opacity = 0.65 * nightF * (1 - wx.fog * 0.8) * (1 - tunnelViewF);
     starsB.material.opacity = (reduceMotion ? 0.65 : 0.45 + 0.3 * (0.5 + 0.5 * Math.sin(t * 0.9))) * nightF * (1 - wx.fog * 0.8) * (1 - tunnelViewF);
 
@@ -4930,7 +5183,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   resize();
   computeCamera(0.016, 0);
   animate();
-})();</script>
 })();</script>
 </body>
 </html>
