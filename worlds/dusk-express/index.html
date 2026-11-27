@@ -78,7 +78,7 @@
     width: -webkit-fit-content;
     width: fit-content;
     max-width: calc(100% - 24px);
-    bottom: calc(158px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(192px + env(safe-area-inset-bottom, 0px));
     z-index: 2;
     display: flex;
     align-items: center;
@@ -368,6 +368,29 @@
   .wxmenu button[aria-pressed="true"] { color: #2c1e2e; background: var(--cream); }
   .wxmenu.qmenu { grid-template-columns: repeat(4, auto); }
   #qualityBtn { letter-spacing: 0.04em; }
+  #speedSlider {
+    width: 140px;
+    height: 22px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    background: transparent;
+  }
+  #speedSlider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .speedlab {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: rgba(246, 234, 214, 0.62);
+    white-space: nowrap;
+  }
+  #speedLabel {
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: rgba(246, 234, 214, 0.62);
+    min-width: 34px;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
 
   #toast {
     position: fixed;
@@ -405,7 +428,7 @@
     .brand { letter-spacing: 0.22em; }
     .back { font-size: 10px; padding: 7px 13px; }
     .tag { font-size: 10px; letter-spacing: 0.16em; }
-    .hint { font-size: 10px; letter-spacing: 0.1em; padding: 8px 16px; bottom: calc(152px + env(safe-area-inset-bottom, 0px)); }
+    .hint { font-size: 10px; letter-spacing: 0.1em; padding: 8px 16px; bottom: calc(186px + env(safe-area-inset-bottom, 0px)); }
     .modes button { padding: 8px 11px; font-size: 11px; letter-spacing: 0.08em; gap: 0; }
     .modes button svg { display: none; }
     .sound { font-size: 10px; padding: 6px 12px; }
@@ -416,6 +439,9 @@
     .chips button { padding: 5px 6px; font-size: 10px; }
     #timeSlider { width: 110px; }
     #phaseLabel { min-width: 0; font-size: 9px; }
+    #speedSlider { width: 96px; }
+    .speedlab, #speedLabel { font-size: 9px; }
+    #speedLabel { min-width: 30px; }
     #toast { font-size: 11px; padding: 8px 14px; max-width: calc(100vw - 24px); white-space: normal; text-align: center; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -483,6 +509,11 @@
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18V9M9.5 18V5M14.5 18v-7M20 18v-4"/></svg>
         <span id="qualityLabel">画质</span>
       </button>
+    </div>
+    <div class="envrow speedrow">
+      <span class="speedlab">最高车速</span>
+      <input id="speedSlider" type="range" min="0.4" max="3" step="0.1" value="1" aria-label="最高车速（也会让场景切换更快）">
+      <span id="speedLabel">1.0×</span>
     </div>
     <div class="wxmenu" id="wxmenu" role="menu" aria-label="天气选择" hidden></div>
     <div class="wxmenu qmenu" id="qmenu" role="menu" aria-label="画质选择" hidden></div>
@@ -1154,6 +1185,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   var scroll = { viaduct: 0, sleepers: 0, lamps: 0, side: 0, signal: 0, halt: 0, tunnel: 0 };
   // station-stop state machine & tunnel presence
   var speedF = 1, tunnelF = 0, tunnelViewF = 0;
+  // top speed: a user-set multiplier on the base scroll rate, persisted
+  var speedMul = 1;
+  (function () {
+    var sp = parseFloat(params.get('speed'));
+    if (!isNaN(sp)) speedMul = sp;
+    else { try { var sv = parseFloat(localStorage.getItem('de-speed')); if (!isNaN(sv)) speedMul = sv; } catch (e) {} }
+    speedMul = clamp(speedMul, 0.4, 3);
+  })();
   var stopState = 'cruise', stopTimer = 0, doorT = 0;
   // boundary-driven events: a stop, tunnel or curve is armed at each region edge
   var stopPending = false, haltTargetW = 0;
@@ -1279,6 +1318,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   })();
 
   var viaduct = new THREE.InstancedMesh(segGeo, stoneMat, NSEG);
+  viaduct.name = 'viaduct';
   viaduct.receiveShadow = true;
   (function () {
     var m = new THREE.Matrix4();
@@ -1295,6 +1335,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   [-0.75, 0.75].forEach(function (z) {
     var rail = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.14, 0.12, TRACK_HALF * 2 / 3, 1, 1), railMat);
     rail.position.set(0, 0.43, z);
+    rail.name = 'rail';
     scene.add(rail);
   });
 
@@ -1303,6 +1344,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   scene.add(sleeperGroup);
   var sleeperGeo = facetColors(new THREE.BoxGeometry(0.55, 0.14, 2.7), '#2e241c', '#3c3026', function () { return rnd(); });
   var sleepers = new THREE.InstancedMesh(sleeperGeo, darkMat, SLEEPERS);
+  sleepers.name = 'sleepers';
   (function () {
     var m = new THREE.Matrix4();
     for (var i = 0; i < SLEEPERS; i++) {
@@ -2269,10 +2311,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         acol[ai * 3] = acc.r; acol[ai * 3 + 1] = acc.g; acol[ai * 3 + 2] = acc.b;
       }
       ag.setAttribute('color', new THREE.BufferAttribute(acol, 3));
+      ag.translate(0, 0, (side[0] + side[1]) / 2); // the heights were sampled in world z
       ag.computeVertexNormals();
       apron.push(ag.toNonIndexed()); // mergeGeos concatenates raw vertex arrays
     });
     var apronMesh = new THREE.Mesh(mergeGeos(apron), groundMat);
+    apronMesh.name = 'apron';
     apronMesh.receiveShadow = false;
     group.add(apronMesh);
 
@@ -2360,6 +2404,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
     if (parts.length) {
       var merged = new THREE.Mesh(mergeGeos(parts), groundMat);
+      merged.name = 'tile';
       merged.receiveShadow = true;
       group.add(merged);
     }
@@ -4104,8 +4149,45 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     if (e.key === 'Escape') closeQMenu();
   });
   setQuality(qualityPref, false);
+
+  // top speed: slider sets a multiplier on the base scroll rate; faster also means
+  // the next region arrives sooner. Remembered across visits (?speed= overrides).
+  var speedSlider = document.getElementById('speedSlider');
+  var speedLabel = document.getElementById('speedLabel');
+  function speedText() {
+    var tag = speedMul >= 2.7 ? ' 疾驰' : speedMul <= 0.6 ? ' 缓行' : '';
+    return speedMul.toFixed(1) + '\u00d7' + tag;
+  }
+  function setSpeed(v, manual) {
+    speedMul = clamp(v, 0.4, 3);
+    speedSlider.value = speedMul;
+    speedLabel.textContent = speedText();
+    if (manual) {
+      try { localStorage.setItem('de-speed', speedMul); } catch (e) {}
+      toast('最高车速：' + speedText());
+    }
+  }
+  speedSlider.addEventListener('input', function () { setSpeed(parseFloat(speedSlider.value), false); });
+  speedSlider.addEventListener('change', function () { setSpeed(parseFloat(speedSlider.value), true); });
+  setSpeed(speedMul, false);
   timeSlider.value = hour;
   autoBtn.setAttribute('aria-pressed', autoOn ? 'true' : 'false');
+
+  // test hook: ?probe=1 exposes a downward raycast along the rails so an automated
+  // pass can prove the track is not buried by terrain, apron or scenery
+  if (params.get('probe')) {
+    window.__probeTrack = function () {
+      var rc = new THREE.Raycaster(), o = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0), out = [], objs = [];
+      scene.traverse(function (ob) { if (ob.isMesh && ob.geometry) objs.push(ob); });
+      for (var k = -5; k <= 5; k++) {
+        o.set(k * 55, 12, 0.75);
+        rc.set(o, down);
+        var hit = rc.intersectObjects(objs, false)[0];
+        out.push(hit ? (hit.object.name || hit.object.type) : 'none');
+      }
+      return { dist: dist, hits: out, state: stopState, speedF: speedF, tunnelF: tunnelF };
+    };
+  }
 
   function updateEnvironment(dt, t) {
     if (autoOn) {
@@ -4363,7 +4445,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function update(dt, t) {
     var sway = reduceMotion ? 0 : 1;
 
-    dist += SPEED * speedF * dt;
+    dist += SPEED * speedMul * speedF * dt;
 
     // extend the region plan and detect boundary crossings
     while (regions[regions.length - 1].end < dist + TRACK_HALF + 320) planRegion(regions[regions.length - 1].end);
@@ -4471,7 +4553,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         for (var pf = 0; pf < 4; pf++) puff(true);
       }
     }
-    var v = SPEED * speedF;
+    var v = SPEED * speedMul * speedF;
 
     // sliding doors follow doorT
     for (var dr = 0; dr < doors.length; dr++) {
@@ -4677,7 +4759,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     }
 
     // smoke (thins out while the train is stopped)
-    smokeAcc += dt * 6.5 * (0.3 + 0.7 * speedF);
+    smokeAcc += dt * 6.5 * (0.3 + 0.7 * speedF) * Math.min(speedMul, 2.2);
     while (smokeAcc > 1) { smokeAcc -= 1; puff(false); }
     for (var s = 0; s < smoke.length; s++) {
       var sm = smoke[s];
