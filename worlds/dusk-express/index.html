@@ -1147,7 +1147,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   /* ------------------------------------------------------------------ */
 
   var SPEED = 8;
-  var SEG = 16, NSEG = 41, TRACK_HALF = 656;
+  var TRACK_HALF = 656, SEG = 16, NSEG = Math.ceil(TRACK_HALF * 2 / SEG) + 1;
   var SLEEPERS = Math.ceil(TRACK_HALF * 2 / 1.2) + 1, LAMPS = Math.ceil(TRACK_HALF * 2 / 32) + 1;
   var POLES = Math.ceil(TRACK_HALF * 2 / 24) + 1, SIGNALS = Math.ceil(TRACK_HALF * 2 / 96) + 1;
   var RAIL_TOP = 0.5;
@@ -2252,6 +2252,30 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     ground.receiveShadow = true;
     group.add(ground);
 
+    // the ground continues far past the play area as a coarse flat apron so a
+    // raised camera never sees the edge of the world; beyond ~600 m it is fog
+    var apron = [];
+    [[-215, -1300, 1], [205, 1300, -1]].forEach(function (side) {
+      var span = Math.abs(side[1] - side[0]);
+      var ag = new THREE.PlaneGeometry(TILE, span, 6, 2);
+      ag.rotateX(-Math.PI / 2);
+      var ap = ag.attributes.position, acol = new Float32Array(ap.count * 3), acc = new THREE.Color();
+      for (var ai = 0; ai < ap.count; ai++) {
+        var ax = ap.getX(ai), az = ap.getZ(ai) + (side[0] + side[1]) / 2;
+        var ap2 = paramsAt(w + ax);
+        var ah = profileH(ap2, ax, az);
+        ap.setY(ai, ah);
+        acc.copy(ap2.cA).lerp(ap2.cB, clamp((ah + 14.6) * 0.8, 0, 1) * 0.5);
+        acol[ai * 3] = acc.r; acol[ai * 3 + 1] = acc.g; acol[ai * 3 + 2] = acc.b;
+      }
+      ag.setAttribute('color', new THREE.BufferAttribute(acol, 3));
+      ag.computeVertexNormals();
+      apron.push(ag.toNonIndexed()); // mergeGeos concatenates raw vertex arrays
+    });
+    var apronMesh = new THREE.Mesh(mergeGeos(apron), groundMat);
+    apronMesh.receiveShadow = false;
+    group.add(apronMesh);
+
     // water: 8 m columns so shores advance/retreat gradually at boundaries;
     // subdivided so the wave shader can swell the surface, aWave carries biome amplitude
     var wq = [];
@@ -2277,7 +2301,33 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         wq.push(q);
       }
     }
-    if (wq.length) group.add(new THREE.Mesh(mergeGeos(wq), riverMat));
+    // where a water band reaches the edge of the sampled ground, continue it
+    // over the apron so the sea (or a big lake) meets the fog, not a dry rim
+    var wlC = waterLevel(w);
+    var outW = [];
+    for (var ocol = 0; ocol < 6; ocol++) {
+      var ocx = -24 + ocol * 8 + 4;
+      var ob = regionAt(w + ocx).biome, oz = BIOMES[ob].water, oamp = 0.12 + 0.55 * BIOMES[ob].wave;
+      for (var oi = 0; oi < oz.length; oi++) {
+        var oEnds = [];
+        if (oz[oi][1] >= 160) oEnds.push([oz[oi][1], 1300]);
+        if (oz[oi][0] <= -170) oEnds.push([-1300, oz[oi][0]]);
+        for (var ee = 0; ee < oEnds.length; ee++) {
+          var e0 = oEnds[ee][0], e1 = oEnds[ee][1], eD = e1 - e0;
+          var eq = new THREE.PlaneGeometry(8, eD, 4, 4);
+          var euv = eq.attributes.uv;
+          for (var eqi = 0; eqi < euv.count; eqi++) euv.setXY(eqi, (ocol + euv.getX(eqi)) / 6, euv.getY(eqi) * eD / 13);
+          eq.rotateX(-Math.PI / 2);
+          eq.translate(ocx, wlC, (e0 + e1) / 2);
+          eq = eq.toNonIndexed();
+          var ew = new Float32Array(eq.attributes.position.count);
+          for (eqi = 0; eqi < ew.length; eqi++) ew[eqi] = oamp;
+          eq.setAttribute('aWave', new THREE.BufferAttribute(ew, 1));
+          outW.push(eq);
+        }
+      }
+    }
+    if (wq.length || outW.length) group.add(new THREE.Mesh(mergeGeos(wq.concat(outW)), riverMat));
 
     // ground-level track: embankment spans clipped to exact region boundaries, and a
     // masonry abutment precisely at each bridge↔ground flip so deck and bed meet flush
